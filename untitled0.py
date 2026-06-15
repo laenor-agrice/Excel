@@ -3,18 +3,73 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 from datetime import datetime
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import base64
 from sklearn.impute import KNNImputer
-from sklearn.ensemble import IsolationForest
 from scipy import stats
 import warnings
 import requests
 import json
 import re
-from datetime import timedelta
 warnings.filterwarnings('ignore')
+
+# ============================================================================
+# FUNÇÃO DE CLIMOGRAMA SEM MATPLOTLIB
+# ============================================================================
+
+def gerar_climograma_profissional(df_mensal):
+    """Geração de climograma usando apenas streamlit nativo"""
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**☔ Precipitação Mensal**")
+        df_precip = df_mensal[['Mes', 'Precipitacao']].set_index('Mes')
+        st.bar_chart(df_precip, height=350, color='#3498db')
+    
+    with col2:
+        st.markdown("**🌡️ Temperatura Média**")
+        df_temp = df_mensal[['Mes', 'Temp_Inst']].set_index('Mes')
+        st.line_chart(df_temp, height=350, color='#e74c3c')
+    
+    st.markdown("---")
+    
+    # Gráfico combinado
+    st.markdown("**📊 Comparativo Mensal**")
+    
+    # Preparar dados para exibição combinada
+    df_combinado = df_mensal[['Mes', 'Precipitacao', 'Temp_Inst']].copy()
+    if 'GDD_Acumulado' in df_mensal.columns:
+        df_combinado['GDD_Acumulado'] = df_mensal['GDD_Acumulado']
+    if 'ETo_Total_mm' in df_mensal.columns:
+        df_combinado['ETo_Total_mm'] = df_mensal['ETo_Total_mm']
+    
+    st.dataframe(df_combinado.set_index('Mes'), use_container_width=True)
+    
+    # Indicadores
+    st.markdown("---")
+    st.markdown("### 🌱 Indicadores Acumulados")
+    
+    col_i1, col_i2, col_i3, col_i4 = st.columns(4)
+    
+    with col_i1:
+        if 'Precipitacao' in df_mensal.columns:
+            st.metric("☔ Precipitação Total", f"{df_mensal['Precipitacao'].sum():.0f} mm")
+    
+    with col_i2:
+        if 'GDD_Acumulado' in df_mensal.columns:
+            st.metric("🌾 GDD Total", f"{df_mensal['GDD_Acumulado'].sum():.0f}")
+    
+    with col_i3:
+        if 'ETo_Total_mm' in df_mensal.columns:
+            st.metric("💧 ETo Total", f"{df_mensal['ETo_Total_mm'].sum():.0f} mm")
+    
+    with col_i4:
+        if 'Horas_Frio_10C' in df_mensal.columns:
+            st.metric("❄️ Horas de Frio", f"{df_mensal['Horas_Frio_10C'].sum():.0f} h")
+
+# ============================================================================
+# REMOVA TODAS AS REFERÊNCIAS A matplotlib e plotly
+# ============================================================================
 
 # ============================================================================
 # CONFIGURAÇÃO DA PÁGINA E ESTILO

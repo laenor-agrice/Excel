@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 from io import BytesIO
 from datetime import datetime
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import base64
 from sklearn.impute import KNNImputer
 from sklearn.ensemble import IsolationForest

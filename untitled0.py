@@ -17,7 +17,7 @@ warnings.filterwarnings('ignore')
 # ============================================================================
 
 def gerar_climograma_profissional(df_mensal):
-    """Geração de climograma usando apenas streamlit nativo"""
+    """Geração de climograma usando apenas streamlit nativo (sem matplotlib/plotly)"""
     
     col1, col2 = st.columns(2)
     
@@ -33,21 +33,24 @@ def gerar_climograma_profissional(df_mensal):
     
     st.markdown("---")
     
-    # Gráfico combinado
-    st.markdown("**📊 Comparativo Mensal**")
+    # Gráfico combinado em tabela
+    st.markdown("**📊 Dados Mensais Comparativos**")
     
-    # Preparar dados para exibição combinada
+    # Preparar dados para exibição
     df_combinado = df_mensal[['Mes', 'Precipitacao', 'Temp_Inst']].copy()
     if 'GDD_Acumulado' in df_mensal.columns:
         df_combinado['GDD_Acumulado'] = df_mensal['GDD_Acumulado']
     if 'ETo_Total_mm' in df_mensal.columns:
         df_combinado['ETo_Total_mm'] = df_mensal['ETo_Total_mm']
+    if 'Horas_Frio_10C' in df_mensal.columns:
+        df_combinado['Horas_Frio'] = df_mensal['Horas_Frio_10C']
     
-    st.dataframe(df_combinado.set_index('Mes'), use_container_width=True)
+    df_combinado = df_combinado.set_index('Mes')
+    st.dataframe(df_combinado, use_container_width=True)
     
-    # Indicadores
+    # Indicadores acumulados
     st.markdown("---")
-    st.markdown("### 🌱 Indicadores Acumulados")
+    st.markdown("### 🌱 Indicadores Acumulados no Período")
     
     col_i1, col_i2, col_i3, col_i4 = st.columns(4)
     
@@ -66,7 +69,19 @@ def gerar_climograma_profissional(df_mensal):
     with col_i4:
         if 'Horas_Frio_10C' in df_mensal.columns:
             st.metric("❄️ Horas de Frio", f"{df_mensal['Horas_Frio_10C'].sum():.0f} h")
-
+    
+    # Gráfico de linha para GDD se disponível
+    if 'GDD_Acumulado' in df_mensal.columns:
+        st.markdown("---")
+        st.markdown("**📈 Evolução do GDD Acumulado**")
+        df_gdd = df_mensal[['Mes', 'GDD_Acumulado']].set_index('Mes')
+        st.line_chart(df_gdd, height=300, color='#4caf50')
+    
+    # Gráfico de linha para ETo se disponível
+    if 'ETo_Total_mm' in df_mensal.columns:
+        st.markdown("**💧 Evolução da ETo Mensal**")
+        df_eto = df_mensal[['Mes', 'ETo_Total_mm']].set_index('Mes')
+        st.line_chart(df_eto, height=300, color='#9c27b0')
 # ============================================================================
 # REMOVA TODAS AS REFERÊNCIAS A matplotlib e plotly
 # ============================================================================

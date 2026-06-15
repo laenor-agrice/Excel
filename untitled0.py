@@ -14,7 +14,6 @@ import requests
 import json
 import re
 from datetime import timedelta
-pip install streamlit pandas numpy plotly scikit-learn scipy openpyxl requests
 warnings.filterwarnings('ignore')
 
 # ============================================================================
@@ -849,16 +848,112 @@ def calcular_indicadores_agricolas_avancados(df_diario, df_mensal, latitude=-16.
 # ============================================================================
 
 def gerar_climograma_profissional(df_mensal):
-    """Geração de climograma profissional com Plotly"""
+    """Geração de climograma profissional com matplotlib"""
     
-    fig = make_subplots(
-        rows=2, cols=1,
-        subplot_titles=('Precipitação e Temperatura', 'Indicadores Agrícolas'),
-        vertical_spacing=0.15,
-        row_heights=[0.6, 0.4]
-    )
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), gridspec_kw={'height_ratios': [0.6, 0.4]})
     
     meses = df_mensal['Mes'].astype(str).tolist()
+    x = range(len(meses))
+    
+    # ===== GRÁFICO 1: Precipitação e Temperatura =====
+    
+    # Barras de precipitação
+    if 'Precipitacao' in df_mensal.columns:
+        bars = ax1.bar(x, df_mensal['Precipitacao'], color='#3498db', alpha=0.7, width=0.8, label='Precipitação (mm)')
+        ax1.set_ylabel('Precipitação (mm)', color='#3498db', fontsize=12)
+        ax1.tick_params(axis='y', labelcolor='#3498db')
+        
+        # Adicionar valores nas barras
+        for i, (bar, valor) in enumerate(zip(bars, df_mensal['Precipitacao'])):
+            if valor > 0:
+                ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 5,
+                        f'{valor:.0f}', ha='center', va='bottom', fontsize=8, color='#3498db')
+    
+    # Linha de temperatura
+    ax1_twin = ax1.twinx()
+    if 'Temp_Inst' in df_mensal.columns:
+        line1 = ax1_twin.plot(x, df_mensal['Temp_Inst'], color='#e74c3c', marker='o', 
+                              linewidth=2.5, markersize=8, label='Temperatura Média (°C)')
+        ax1_twin.set_ylabel('Temperatura (°C)', color='#e74c3c', fontsize=12)
+        ax1_twin.tick_params(axis='y', labelcolor='#e74c3c')
+        
+        # Adicionar valores nos pontos
+        for i, temp in enumerate(df_mensal['Temp_Inst']):
+            ax1_twin.annotate(f'{temp:.1f}°C', (i, temp), 
+                            textcoords="offset points", xytext=(0, 10), 
+                            ha='center', fontsize=8, color='#e74c3c')
+    
+    # Temperaturas máximas e mínimas
+    if 'Tmax' in df_mensal.columns and 'Tmin' in df_mensal.columns:
+        ax1_twin.plot(x, df_mensal['Tmax'], color='#ff9800', marker='^', 
+                     linewidth=1.5, markersize=6, linestyle='--', label='T Máxima')
+        ax1_twin.plot(x, df_mensal['Tmin'], color='#2196f3', marker='v', 
+                     linewidth=1.5, markersize=6, linestyle='--', label='T Mínima')
+    
+    # Configurar eixo X do gráfico 1
+    ax1.set_xticks(x)
+    ax1.set_xticklabels(meses, rotation=45, ha='right', fontsize=10)
+    ax1.set_xlabel('Mês', fontsize=12)
+    ax1.set_title('🌡️ Precipitação e Temperatura', fontsize=14, fontweight='bold', pad=15)
+    
+    # ===== GRÁFICO 2: Indicadores Agrícolas =====
+    
+    # GDD Acumulado
+    if 'GDD_Acumulado' in df_mensal.columns:
+        bars2 = ax2.bar(x, df_mensal['GDD_Acumulado'], color='#4caf50', alpha=0.7, width=0.4, 
+                       label='GDD Acumulado', position=0)
+        
+        # Adicionar valores
+        for i, (bar, valor) in enumerate(zip(bars2, df_mensal['GDD_Acumulado'])):
+            if valor > 0:
+                ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 10,
+                        f'{valor:.0f}', ha='center', va='bottom', fontsize=8, color='#4caf50')
+    
+    # ETo Total
+    ax2_twin = ax2.twinx()
+    if 'ETo_Total_mm' in df_mensal.columns:
+        ax2_twin.plot(x, df_mensal['ETo_Total_mm'], color='#9c27b0', marker='s', 
+                     linewidth=2, markersize=7, label='ETo Total (mm)')
+        ax2_twin.set_ylabel('ETo (mm)', color='#9c27b0', fontsize=12)
+        ax2_twin.tick_params(axis='y', labelcolor='#9c27b0')
+        
+        # Adicionar valores
+        for i, eto in enumerate(df_mensal['ETo_Total_mm']):
+            ax2_twin.annotate(f'{eto:.0f}', (i, eto), 
+                            textcoords="offset points", xytext=(0, 10), 
+                            ha='center', fontsize=8, color='#9c27b0')
+    
+    # Horas de Frio (se disponível)
+    if 'Horas_Frio_10C' in df_mensal.columns:
+        ax2_bar = ax2.bar([i + 0.35 for i in x], df_mensal['Horas_Frio_10C'], 
+                         color='#00bcd4', alpha=0.7, width=0.35, label='Horas de Frio (10°C)')
+    
+    # Configurar eixo X do gráfico 2
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(meses, rotation=45, ha='right', fontsize=10)
+    ax2.set_xlabel('Mês', fontsize=12)
+    ax2.set_ylabel('GDD / Horas de Frio', fontsize=12)
+    ax2.set_title('🌱 Indicadores Agrícolas', fontsize=14, fontweight='bold', pad=15)
+    
+    # ===== LEGENDAS =====
+    # Coletar todas as legendas
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines1_twin, labels1_twin = ax1_twin.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    lines2_twin, labels2_twin = ax2_twin.get_legend_handles_labels()
+    
+    ax1.legend(lines1 + lines1_twin, labels1 + labels1_twin, loc='upper left', fontsize=9)
+    ax2.legend(lines2 + lines2_twin, labels2 + labels2_twin, loc='upper left', fontsize=9)
+    
+    # ===== AJUSTES FINAIS =====
+    plt.suptitle(f'📊 Análise Climática Completa - {df_mensal["Mes"].iloc[0][:4]} a {df_mensal["Mes"].iloc[-1][:4]}', 
+                 fontsize=16, fontweight='bold', y=1.02)
+    
+    plt.tight_layout()
+    return fig
     
     # Gráfico 1: Precipitação (barras) e Temperatura (linha)
     fig.add_trace(

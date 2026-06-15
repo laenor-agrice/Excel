@@ -14,6 +14,7 @@ import requests
 import json
 import re
 from datetime import timedelta
+pip install streamlit pandas numpy plotly scikit-learn scipy openpyxl requests
 warnings.filterwarnings('ignore')
 
 # ============================================================================

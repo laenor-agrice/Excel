@@ -6,11 +6,7 @@ import requests
 import zipfile
 import json
 import os
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.express as px
 from io import BytesIO
-from docx import Document
 
 st.write(sys.version)
 
@@ -44,7 +40,6 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Estilo geral */
     .main {
         padding-top: 0.5rem;
         background-color: #f5f7fa;
@@ -56,7 +51,6 @@ st.markdown(
         max-width: 1200px;
     }
     
-    /* Cards personalizados */
     .custom-card {
         background-color: white;
         border-radius: 12px;
@@ -66,7 +60,6 @@ st.markdown(
         border: 1px solid #e8ecf1;
     }
     
-    /* Título principal com gradiente */
     .main-header {
         background: linear-gradient(135deg, #1a5276 0%, #2e86c1 100%);
         padding: 2rem 2.5rem;
@@ -88,7 +81,6 @@ st.markdown(
         font-size: 1.05rem;
     }
     
-    /* Botões */
     .stButton > button {
         background-color: #1a5276;
         color: white;
@@ -106,7 +98,6 @@ st.markdown(
         box-shadow: 0 4px 12px rgba(26, 82, 118, 0.3);
     }
     
-    /* Área de upload */
     .stFileUploader > div {
         border: 2px dashed #2e86c1;
         border-radius: 12px;
@@ -120,7 +111,6 @@ st.markdown(
         background-color: #f0f4f8;
     }
     
-    /* Métricas */
     .stMetric {
         background-color: white;
         border-radius: 12px;
@@ -129,11 +119,6 @@ st.markdown(
         border: 1px solid #e8ecf1;
     }
     
-    .stMetric > div {
-        background-color: transparent !important;
-    }
-    
-    /* Abas */
     .stTabs [data-baseweb="tab-list"] {
         gap: 4px;
         background-color: white;
@@ -161,7 +146,6 @@ st.markdown(
         font-weight: 600;
     }
     
-    /* Caixas de informação */
     .info-box {
         background-color: #eaf4f9;
         border-left: 4px solid #2e86c1;
@@ -171,23 +155,6 @@ st.markdown(
         color: #1a3a4a;
     }
     
-    .success-box {
-        background-color: #e8f5e9;
-        border-left: 4px solid #27ae60;
-        padding: 1rem 1.2rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-    }
-    
-    .warning-box {
-        background-color: #fff3e0;
-        border-left: 4px solid #f39c12;
-        padding: 1rem 1.2rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-    }
-    
-    /* Seções */
     .section-title {
         font-size: 1.1rem;
         font-weight: 600;
@@ -197,82 +164,6 @@ st.markdown(
         border-bottom: 2px solid #e8ecf1;
     }
     
-    /* Inputs e selects */
-    .stTextInput > div > div > input,
-    .stTextArea > div > div > textarea,
-    .stSelectbox > div > div {
-        border-radius: 8px;
-        border: 1px solid #dce1e8;
-    }
-    
-    .stTextInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus {
-        border-color: #2e86c1;
-        box-shadow: 0 0 0 2px rgba(46, 134, 193, 0.2);
-    }
-    
-    /* Checkbox */
-    .stCheckbox > label {
-        font-weight: 500;
-        color: #1a3a4a;
-    }
-    
-    /* Dataframes */
-    .stDataFrame {
-        border-radius: 8px;
-        border: 1px solid #e8ecf1;
-        overflow: hidden;
-    }
-    
-    .stDataFrame > div {
-        border-radius: 8px;
-    }
-    
-    /* Footer */
-    footer {
-        visibility: hidden;
-    }
-    
-    /* Métricas personalizadas */
-    .metric-container {
-        background: white;
-        border-radius: 12px;
-        padding: 1.2rem;
-        text-align: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        border: 1px solid #e8ecf1;
-        transition: all 0.3s;
-    }
-    
-    .metric-container:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #1a5276;
-    }
-    
-    .metric-label {
-        font-size: 0.9rem;
-        color: #7f8c8d;
-        margin-top: 0.3rem;
-    }
-    
-    /* Badge de tipo */
-    .type-badge {
-        display: inline-block;
-        background-color: #2e86c1;
-        color: white;
-        padding: 0.2rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 500;
-    }
-    
-    /* Rodapé */
     .footer {
         text-align: center;
         font-size: 12px;
@@ -405,9 +296,6 @@ with tab0:
 # =============================================================================
 
 def detectar_delimitador(arquivo):
-    """
-    Detecta automaticamente o delimitador do arquivo.
-    """
     try:
         arquivo.seek(0)
         amostra = arquivo.read(5000)
@@ -435,8 +323,7 @@ def detectar_encoding(arquivo):
     return "latin1"
 
 def remover_colunas_duplicadas(df):
-    df = df.loc[:, ~df.columns.duplicated()]
-    return df
+    return df.loc[:, ~df.columns.duplicated()]
 
 def converter_colunas_numericas(df):
     df2 = df.copy()
@@ -480,10 +367,8 @@ def identificar_tipo_planilha(df):
 
 def ler_planilha_universal(arquivo):
     nome = arquivo.name.lower()
-    # Excel
     if nome.endswith((".xlsx", ".xls")):
         df = pd.read_excel(arquivo)
-    # Texto
     else:
         delimitador = detectar_delimitador(arquivo)
         encoding = detectar_encoding(arquivo)
@@ -942,94 +827,12 @@ with tab4:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# GRÁFICOS CIENTÍFICOS
-# =============================================================================
-
-def obter_numericas(df):
-    return df.select_dtypes(include=np.number).columns.tolist()
-
-def obter_data(df):
-    for col in df.columns:
-        nome = str(col).lower()
-        if any(termo in nome for termo in ["data", "date", "datetime", "tempo"]):
-            return col
-    return None
-
-def grafico_temporal(df, variavel, data_col):
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df[data_col], df[variavel], color="#2e86c1", linewidth=2, marker='o', markersize=4)
-    ax.set_title(f"Série Temporal - {variavel}", fontsize=14, fontweight='bold')
-    ax.set_xlabel("Data", fontsize=12)
-    ax.set_ylabel(variavel, fontsize=12)
-    ax.grid(True, alpha=0.3)
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    return fig
-
-def grafico_histograma(df, variavel):
-    fig, ax = plt.subplots(figsize=(8, 5))
-    sns.histplot(df[variavel].dropna(), bins=30, kde=True, ax=ax, color="#2e86c1")
-    ax.set_title(f"Histograma - {variavel}", fontsize=14, fontweight='bold')
-    ax.set_xlabel(variavel, fontsize=12)
-    ax.set_ylabel("Frequência", fontsize=12)
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    return fig
-
-def grafico_boxplot(df, variavel):
-    fig, ax = plt.subplots(figsize=(6, 5))
-    sns.boxplot(y=df[variavel], ax=ax, color="#2e86c1")
-    ax.set_title(f"Boxplot - {variavel}", fontsize=14, fontweight='bold')
-    ax.set_ylabel(variavel, fontsize=12)
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    return fig
-
-def grafico_violin(df, variavel):
-    fig, ax = plt.subplots(figsize=(6, 5))
-    sns.violinplot(y=df[variavel], ax=ax, color="#2e86c1")
-    ax.set_title(f"Violino - {variavel}", fontsize=14, fontweight='bold')
-    ax.set_ylabel(variavel, fontsize=12)
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    return fig
-
-def grafico_dispersao(df, x_var, y_var):
-    fig, ax = plt.subplots(figsize=(7, 5))
-    sns.scatterplot(x=df[x_var], y=df[y_var], ax=ax, color="#2e86c1", alpha=0.6)
-    ax.set_title(f"{x_var} x {y_var}", fontsize=14, fontweight='bold')
-    ax.set_xlabel(x_var, fontsize=12)
-    ax.set_ylabel(y_var, fontsize=12)
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    return fig
-
-def heatmap_correlacao(df):
-    fig, ax = plt.subplots(figsize=(10, 8))
-    corr = df.select_dtypes(include=np.number).corr()
-    sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax, fmt='.2f', square=True)
-    ax.set_title("Matriz de Correlação", fontsize=14, fontweight='bold')
-    plt.tight_layout()
-    return fig
-
-def grafico_tendencia(df, variavel, data_col):
-    fig, ax = plt.subplots(figsize=(10, 5))
-    sns.regplot(x=df[data_col], y=df[variavel], scatter_kws={"alpha": 0.5}, ax=ax, color="#2e86c1")
-    ax.set_title(f"Tendência - {variavel}", fontsize=14, fontweight='bold')
-    ax.set_xlabel("Data", fontsize=12)
-    ax.set_ylabel(variavel, fontsize=12)
-    ax.grid(True, alpha=0.3)
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    return fig
-
-# =============================================================================
-# ABA 5 - GRÁFICOS CIENTÍFICOS
+# ABA 5 - GRÁFICOS (APENAS STREAMLIT NATIVO)
 # =============================================================================
 
 with tab5:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📊 Gráficos Científicos</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📊 Visualização de Dados</div>', unsafe_allow_html=True)
     
     if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Primeiro consolide os dados.")
@@ -1038,54 +841,34 @@ with tab5:
         numericas = df.select_dtypes(include=np.number).columns.tolist()
         
         if not numericas:
-            st.warning("Sem colunas numéricas para plotar.")
+            st.warning("Sem colunas numéricas para visualizar.")
         else:
-            data_col = obter_data(df)
+            st.markdown("### Gráfico de Linhas")
+            coluna_linha = st.selectbox("Selecione uma coluna numérica para o gráfico de linhas", numericas, key="linha")
+            if coluna_linha:
+                st.line_chart(df[coluna_linha])
             
-            tipo_grafico = st.selectbox(
-                "Tipo de Gráfico",
-                ["Série Temporal", "Histograma", "Boxplot", "Violino", "Dispersão", "Correlação", "Tendência"]
-            )
+            st.markdown("---")
+            st.markdown("### Gráfico de Barras")
+            coluna_barra = st.selectbox("Selecione uma coluna numérica para o gráfico de barras", numericas, key="barra")
+            if coluna_barra:
+                st.bar_chart(df[coluna_barra])
             
-            if tipo_grafico in ["Série Temporal", "Histograma", "Boxplot", "Violino", "Tendência"]:
-                variavel = st.selectbox("Selecione a variável", numericas)
-                
-                if tipo_grafico == "Série Temporal" and data_col:
-                    fig = grafico_temporal(df, variavel, data_col)
-                    st.pyplot(fig)
-                elif tipo_grafico == "Histograma":
-                    fig = grafico_histograma(df, variavel)
-                    st.pyplot(fig)
-                elif tipo_grafico == "Boxplot":
-                    fig = grafico_boxplot(df, variavel)
-                    st.pyplot(fig)
-                elif tipo_grafico == "Violino":
-                    fig = grafico_violin(df, variavel)
-                    st.pyplot(fig)
-                elif tipo_grafico == "Tendência" and data_col:
-                    fig = grafico_tendencia(df, variavel, data_col)
-                    st.pyplot(fig)
-                else:
-                    st.warning("Dados insuficientes para este gráfico.")
+            st.markdown("---")
+            st.markdown("### Área do Gráfico")
+            coluna_area = st.selectbox("Selecione uma coluna numérica para a área do gráfico", numericas, key="area")
+            if coluna_area:
+                st.area_chart(df[coluna_area])
             
-            elif tipo_grafico == "Dispersão":
-                if len(numericas) >= 2:
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        x_var = st.selectbox("Eixo X", numericas, key="x_disp")
-                    with col2:
-                        y_var = st.selectbox("Eixo Y", [v for v in numericas if v != x_var], key="y_disp")
-                    fig = grafico_dispersao(df, x_var, y_var)
-                    st.pyplot(fig)
-                else:
-                    st.warning("Precisa de pelo menos 2 variáveis numéricas para dispersão.")
-            
-            elif tipo_grafico == "Correlação":
-                if len(numericas) >= 2:
-                    fig = heatmap_correlacao(df)
-                    st.pyplot(fig)
-                else:
-                    st.warning("Precisa de pelo menos 2 variáveis numéricas para correlação.")
+            st.markdown("---")
+            st.markdown("### Estatísticas Rápidas")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Mínimo", round(df[numericas[0]].min(), 2))
+            with col2:
+                st.metric("Máximo", round(df[numericas[0]].max(), 2))
+            with col3:
+                st.metric("Média", round(df[numericas[0]].mean(), 2))
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1219,7 +1002,7 @@ with tab6:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# EXPORTAÇÃO XLSX
+# EXPORTAÇÃO
 # =============================================================================
 
 def gerar_excel_completo():
@@ -1233,44 +1016,6 @@ def gerar_excel_completo():
             st.session_state["estatisticas"].to_excel(writer, sheet_name="Estatisticas", index=False)
     buffer.seek(0)
     return buffer
-
-def gerar_docx():
-    doc = Document()
-    doc.add_heading("Relatório Técnico", level=0)
-    doc.add_paragraph("Documento gerado automaticamente pelo sistema.")
-    if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
-        doc.add_heading("Análise da Inteligência Artificial", level=1)
-        doc.add_paragraph(st.session_state["relatorio_ia"])
-    arquivo = BytesIO()
-    doc.save(arquivo)
-    arquivo.seek(0)
-    return arquivo
-
-def gerar_html():
-    html = """
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Relatório Técnico</title>
-        <style>
-            body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: auto; }
-            h1 { color: #1a5276; }
-            h2 { color: #2e86c1; }
-        </style>
-    </head>
-    <body>
-        <h1>Relatório Técnico</h1>
-    """
-    if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
-        html += f"""
-        <h2>Análise da IA</h2>
-        <p>{st.session_state['relatorio_ia']}</p>
-        """
-    html += """
-    </body>
-    </html>
-    """
-    return html
 
 def gerar_zip():
     memoria = BytesIO()
@@ -1296,7 +1041,7 @@ with tab7:
     
     st.markdown("""
     <div class="info-box">
-        Exporte seus resultados em Excel, DOCX, HTML ou ZIP.
+        Exporte seus resultados em Excel ou ZIP.
     </div>
     """, unsafe_allow_html=True)
     
@@ -1310,23 +1055,7 @@ with tab7:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
-        docx = gerar_docx()
-        st.download_button(
-            "📝 Relatório DOCX",
-            data=docx,
-            file_name="relatorio.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True
-        )
     with col2:
-        html = gerar_html()
-        st.download_button(
-            "🌐 Relatório HTML",
-            data=html,
-            file_name="relatorio.html",
-            mime="text/html",
-            use_container_width=True
-        )
         zip_file = gerar_zip()
         st.download_button(
             "📦 Pacote Completo",
@@ -1337,7 +1066,7 @@ with tab7:
         )
     
     st.markdown("---")
-    st.success("Exportação pronta para Excel, Word, HTML e Backup ZIP.")
+    st.success("Exportação pronta para Excel e ZIP.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1363,9 +1092,6 @@ def calcular_precipitacao_acumulada(df, coluna):
 
 def calcular_soma_termica(gdd):
     return gdd.cumsum()
-
-def calcular_balanco_hidrico(precipitacao, eto):
-    return precipitacao - eto
 
 def calcular_eto_hargreaves(tmin, tmax, tmed):
     eto = 0.0023 * (tmed + 17.8) * np.sqrt(tmax - tmin)
@@ -1434,12 +1160,6 @@ st.markdown("""
     meteorológicos e agrometeorológicos.<br><br>
     Este aplicativo não substitui análises técnicas oficiais, laudos periciais, pareceres especializados ou sistemas
     operacionais de instituições governamentais.<br><br>
-    Parte dos métodos, conceitos e indicadores utilizados baseia-se em literatura científica, manuais técnicos e referências
-    amplamente adotadas na área de Meteorologia, Climatologia, Agrometeorologia e Ciências Agrárias, incluindo publicações do
-    Instituto Nacional de Meteorologia (INMET), da Organização Meteorológica Mundial (OMM/WMO), da FAO e de trabalhos
-    científicos especializados.<br><br>
-    Os resultados gerados devem ser interpretados por profissionais qualificados e utilizados apenas como ferramenta complementar
-    de apoio à tomada de decisão.<br><br>
     © 2026 AgroClimate AI — Versão Acadêmica Experimental
 </div>
 """, unsafe_allow_html=True)

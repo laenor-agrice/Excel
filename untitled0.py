@@ -1765,7 +1765,7 @@ def main():
                 "📥 **Downloads**"
             ])
             
-                                    # Tab 1: Dados Consolidados
+                                               # Tab 1: Dados Consolidados
             with tab1:
                 st.markdown("### 📊 Tabela de Dados Mensais Consolidados")
                 
@@ -1814,29 +1814,67 @@ def main():
                 
                 with col_est1:
                     if 'Temp_Inst' in df_mensal.columns:
-                        st.metric("🌡️ Temperatura Média", f"{df_mensal['Temp_Inst'].mean():.1f}°C")
-                        st.caption(f"Min: {df_mensal['Temp_Inst'].min():.1f}°C | Max: {df_mensal['Temp_Inst'].max():.1f}°C")
+                        try:
+                            media_temp = df_mensal['Temp_Inst'].mean()
+                            min_temp = df_mensal['Temp_Inst'].min()
+                            max_temp = df_mensal['Temp_Inst'].max()
+                            
+                            if pd.notna(media_temp):
+                                st.metric("🌡️ Temperatura Média", f"{media_temp:.1f}°C")
+                                st.caption(f"Min: {min_temp:.1f}°C | Max: {max_temp:.1f}°C")
+                            else:
+                                st.info("Dados de temperatura não disponíveis")
+                        except Exception:
+                            st.info("Dados de temperatura não disponíveis")
                     else:
                         st.info("Dados de temperatura não disponíveis")
                 
                 with col_est2:
                     if 'Precipitacao' in df_mensal.columns:
-                        st.metric("☔ Precipitação Total", f"{df_mensal['Precipitacao'].sum():.0f} mm")
-                        st.caption(f"Média mensal: {df_mensal['Precipitacao'].mean():.1f} mm")
+                        try:
+                            soma_precip = df_mensal['Precipitacao'].sum()
+                            media_precip = df_mensal['Precipitacao'].mean()
+                            
+                            if pd.notna(soma_precip):
+                                st.metric("☔ Precipitação Total", f"{soma_precip:.0f} mm")
+                                st.caption(f"Média mensal: {media_precip:.1f} mm")
+                            else:
+                                st.info("Dados de precipitação não disponíveis")
+                        except Exception:
+                            st.info("Dados de precipitação não disponíveis")
                     else:
                         st.info("Dados de precipitação não disponíveis")
                 
                 with col_est3:
                     if 'UR_Inst' in df_mensal.columns:
-                        st.metric("💧 Umidade Média", f"{df_mensal['UR_Inst'].mean():.1f}%")
-                        st.caption(f"Min: {df_mensal['UR_Inst'].min():.1f}% | Max: {df_mensal['UR_Inst'].max():.1f}%")
+                        try:
+                            media_ur = df_mensal['UR_Inst'].mean()
+                            min_ur = df_mensal['UR_Inst'].min()
+                            max_ur = df_mensal['UR_Inst'].max()
+                            
+                            if pd.notna(media_ur):
+                                st.metric("💧 Umidade Média", f"{media_ur:.1f}%")
+                                st.caption(f"Min: {min_ur:.1f}% | Max: {max_ur:.1f}%")
+                            else:
+                                st.info("Dados de umidade não disponíveis")
+                        except Exception:
+                            st.info("Dados de umidade não disponíveis")
                     else:
                         st.info("Dados de umidade não disponíveis")
                 
                 with col_est4:
                     if 'U2' in df_mensal.columns:
-                        st.metric("💨 Velocidade do Vento", f"{df_mensal['U2'].mean():.1f} m/s")
-                        st.caption(f"Máxima: {df_mensal['U2'].max():.1f} m/s")
+                        try:
+                            media_vento = df_mensal['U2'].mean()
+                            max_vento = df_mensal['U2'].max()
+                            
+                            if pd.notna(media_vento):
+                                st.metric("💨 Velocidade do Vento", f"{media_vento:.1f} m/s")
+                                st.caption(f"Máxima: {max_vento:.1f} m/s")
+                            else:
+                                st.info("Dados de vento não disponíveis")
+                        except Exception:
+                            st.info("Dados de vento não disponíveis")
                     else:
                         st.info("Dados de vento não disponíveis")
             
@@ -1850,7 +1888,7 @@ def main():
                     colunas_existentes_ind = [c for c in colunas_ind if c in df_indicadores.columns]
                     
                     if colunas_existentes_ind:
-                        df_ind_exibicao = df_indicadores[colunas_existentes_ind]
+                        df_ind_exibicao = df_indicadores[colunas_existentes_ind].copy()
                         
                         # Renomear
                         renomeios_ind = {
@@ -1961,24 +1999,85 @@ def main():
                     
                     if st.button("🚀 **Executar Análise com IA**", use_container_width=True):
                         with st.spinner("🤖 Consultando IA Gemini. Analisando dados climáticos..."):
-                            # Preparar contexto
+                            # Preparar contexto de forma segura
                             contexto = f"""
                             Dados da estação {nome_estacao}:
                             - Período analisado: {df_mensal['Mes'].iloc[0]} a {df_mensal['Mes'].iloc[-1]}
-                            - Temperatura média: {df_mensal['Temp_Inst'].mean():.1f}°C
-                            - Precipitação total: {df_mensal['Precipitacao'].sum():.1f} mm
-                            - Temperatura máxima registrada: {df_mensal['Tmax'].max():.1f}°C
-                            - Temperatura mínima registrada: {df_mensal['Tmin'].min():.1f}°C
-                            - Umidade média: {df_mensal['UR_Inst'].mean():.1f}%
-                            - Velocidade média do vento: {df_mensal['U2'].mean():.1f} m/s
                             """
                             
-                            if df_indicadores is not None:
-                                contexto += f"""
-                                - GDD acumulado total: {df_indicadores['GDD_Acumulado'].sum():.0f}
-                                - ETo total: {df_indicadores['ETo_Total_mm'].sum():.1f} mm
-                                - Horas de frio total: {df_indicadores['Horas_Frio_10C'].sum():.0f} horas
-                                """
+                            # Adicionar métricas de forma segura
+                            if 'Temp_Inst' in df_mensal.columns:
+                                try:
+                                    media_temp = df_mensal['Temp_Inst'].mean()
+                                    if pd.notna(media_temp):
+                                        contexto += f"- Temperatura média: {media_temp:.1f}°C\n"
+                                except:
+                                    pass
+                            
+                            if 'Precipitacao' in df_mensal.columns:
+                                try:
+                                    soma_precip = df_mensal['Precipitacao'].sum()
+                                    if pd.notna(soma_precip):
+                                        contexto += f"- Precipitação total: {soma_precip:.1f} mm\n"
+                                except:
+                                    pass
+                            
+                            if 'Tmax' in df_mensal.columns:
+                                try:
+                                    max_temp = df_mensal['Tmax'].max()
+                                    if pd.notna(max_temp):
+                                        contexto += f"- Temperatura máxima registrada: {max_temp:.1f}°C\n"
+                                except:
+                                    pass
+                            
+                            if 'Tmin' in df_mensal.columns:
+                                try:
+                                    min_temp = df_mensal['Tmin'].min()
+                                    if pd.notna(min_temp):
+                                        contexto += f"- Temperatura mínima registrada: {min_temp:.1f}°C\n"
+                                except:
+                                    pass
+                            
+                            if 'UR_Inst' in df_mensal.columns:
+                                try:
+                                    media_ur = df_mensal['UR_Inst'].mean()
+                                    if pd.notna(media_ur):
+                                        contexto += f"- Umidade média: {media_ur:.1f}%\n"
+                                except:
+                                    pass
+                            
+                            if 'U2' in df_mensal.columns:
+                                try:
+                                    media_vento = df_mensal['U2'].mean()
+                                    if pd.notna(media_vento):
+                                        contexto += f"- Velocidade média do vento: {media_vento:.1f} m/s\n"
+                                except:
+                                    pass
+                            
+                            if df_indicadores is not None and len(df_indicadores) > 0:
+                                try:
+                                    if 'GDD_Acumulado' in df_indicadores.columns:
+                                        gdd_total = df_indicadores['GDD_Acumulado'].sum()
+                                        if pd.notna(gdd_total):
+                                            contexto += f"- GDD acumulado total: {gdd_total:.0f}\n"
+                                except:
+                                    pass
+                                
+                                try:
+                                    if 'ETo_Total_mm' in df_indicadores.columns:
+                                        eto_total = df_indicadores['ETo_Total_mm'].sum()
+                                        if pd.notna(eto_total):
+                                            contexto += f"- ETo total: {eto_total:.1f} mm\n"
+                                except:
+                                    pass
+                                
+                                try:
+                                    if 'Horas_Frio_10C' in df_indicadores.columns:
+                                        horas_frio_total = df_indicadores['Horas_Frio_10C'].sum()
+                                        if pd.notna(horas_frio_total):
+                                            contexto += f"- Horas de frio total: {horas_frio_total:.0f} horas\n"
+                                except:
+                                    pass
                             
                             if eventos:
                                 contexto += f"\n- Eventos extremos detectados: {len(eventos)}"
@@ -2092,9 +2191,18 @@ def main():
                                 if not df_diario.empty:
                                     df_diario.head(5000).to_excel(writer, sheet_name='Dados_Diarios', index=False)
                                 if qualidade:
-                                    df_qualidade = pd.DataFrame([{k: v for k, v in info.items() if isinstance(v, (int, float, str))} 
-                                                                for var, info in qualidade.items() if isinstance(info, dict)])
-                                    if not df_qualidade.empty:
+                                    # Criar DataFrame de qualidade de forma segura
+                                    qualidade_dados = []
+                                    for var, info in qualidade.items():
+                                        if isinstance(info, dict):
+                                            linha = {}
+                                            for k, v in info.items():
+                                                if isinstance(v, (int, float, str)):
+                                                    linha[k] = v
+                                            if linha:
+                                                qualidade_dados.append(linha)
+                                    if qualidade_dados:
+                                        df_qualidade = pd.DataFrame(qualidade_dados)
                                         df_qualidade.to_excel(writer, sheet_name='Qualidade_Dados', index=False)
                             
                             st.download_button(
@@ -2113,360 +2221,40 @@ def main():
                 
                 # Criar resumo para exibição
                 if df_mensal is not None and not df_mensal.empty:
-                    resumo = {
-                        "Estação": nome_estacao,
-                        "Período": f"{df_mensal['Mes'].iloc[0]} a {df_mensal['Mes'].iloc[-1]}" if 'Mes' in df_mensal.columns else "N/A",
-                        "Meses analisados": len(df_mensal),
-                        "Qualidade média dos dados": f"{np.mean([v.get('percentual_completo', 0) for v in qualidade.values() if isinstance(v, dict) and 'percentual_completo' in v]):.1f}%" if qualidade else "N/A",
-                        "Eventos extremos": len(eventos),
-                        "Indicadores calculados": len([c for c in df_indicadores.columns if c not in ['Mes', 'Ano', 'Numero_Mes']]) if df_indicadores is not None else 0
-                    }
-                    st.json(resumo)
-                else:
-                    st.warning("⚠️ Não há dados suficientes para exibir o resumo")
-            
-            # Tab 2: Indicadores Agrícolas
-            with tab2:
-                if incluir_indicadores and df_indicadores is not None and len(df_indicadores) > 0:
-                    st.markdown("### 🌱 Indicadores Agrícolas e Climáticos")
-                    
-                    # Selecionar colunas para exibição
-                    colunas_ind = ['Mes', 'GDD_Acumulado', 'Horas_Frio_10C', 'ETo_Total_mm', 'Indice_Aridade', 'Classificacao_Aridade']
-                    colunas_existentes_ind = [c for c in colunas_ind if c in df_indicadores.columns]
-                    
-                    if colunas_existentes_ind:
-                        df_ind_exibicao = df_indicadores[colunas_existentes_ind]
+                    try:
+                        # Calcular qualidade média de forma segura
+                        qualidade_media = "N/A"
+                        if qualidade:
+                            percentuais = []
+                            for v in qualidade.values():
+                                if isinstance(v, dict) and 'percentual_completo' in v:
+                                    try:
+                                        percentual = float(v['percentual_completo'])
+                                        if not np.isnan(percentual):
+                                            percentuais.append(percentual)
+                                    except:
+                                        pass
+                            if percentuais:
+                                qualidade_media = f"{np.mean(percentuais):.1f}%"
                         
-                        # Renomear
-                        renomeios_ind = {
-                            'Mes': 'Mês',
-                            'GDD_Acumulado': 'GDD Acumulado',
-                            'Horas_Frio_10C': 'Horas de Frio (10°C)',
-                            'ETo_Total_mm': 'ETo Total (mm)',
-                            'Indice_Aridade': 'Índice de Aridez',
-                            'Classificacao_Aridade': 'Classificação'
+                        # Calcular número de indicadores de forma segura
+                        num_indicadores = 0
+                        if df_indicadores is not None:
+                            num_indicadores = len([c for c in df_indicadores.columns if c not in ['Mes', 'Ano', 'Numero_Mes']])
+                        
+                        resumo = {
+                            "Estação": str(nome_estacao),
+                            "Período": f"{df_mensal['Mes'].iloc[0]} a {df_mensal['Mes'].iloc[-1]}" if 'Mes' in df_mensal.columns else "N/A",
+                            "Meses analisados": int(len(df_mensal)),
+                            "Qualidade média dos dados": qualidade_media,
+                            "Eventos extremos": int(len(eventos)) if eventos else 0,
+                            "Indicadores calculados": int(num_indicadores)
                         }
-                        df_ind_exibicao = df_ind_exibicao.rename(columns={k: v for k, v in renomeios_ind.items() if k in df_ind_exibicao.columns})
-                        
-                        st.dataframe(df_ind_exibicao, use_container_width=True)
-                    else:
-                        st.warning("Indicadores não disponíveis para os dados atuais")
-                    
-                    # Cards explicativos
-                    st.markdown("---")
-                    st.markdown("### 📖 Interpretação dos Indicadores")
-                    
-                    col_int1, col_int2, col_int3 = st.columns(3)
-                    
-                    with col_int1:
-                        st.info("""
-                        **🌾 GDD (Graus-Dia)**  
-                        Soma térmica diária (Tb=10°C).  
-                        Essencial para prever:  
-                        • Ciclo das culturas  
-                        • Época de floração  
-                        • Estimativa de colheita
-                        """)
-                    
-                    with col_int2:
-                        st.info("""
-                        **❄️ Horas de Frio**  
-                        Horas com Tmin ≤ 10°C.  
-                        Fundamental para:  
-                        • Frutíferas temperadas  
-                        • Dormência de gemas  
-                        • Produção de maçã, uva
-                        """)
-                    
-                    with col_int3:
-                        st.info("""
-                        **💧 ETo (Evapotranspiração)**  
-                        Demanda evaporativa atmosférica.  
-                        Aplica-se em:  
-                        • Manejo de irrigação  
-                        • Balanço hídrico  
-                        • Dimensionamento de projetos
-                        """)
-                else:
-                    st.info("ℹ️ Indicadores agrícolas não disponíveis ou desativados nas configurações")
-            
-            # Tab 3: Visualizações
-            with tab3:
-                st.markdown("### 📈 Visualizações Interativas")
-                
-                # Climograma
-                if len(df_mensal) > 0:
-                    gerar_climograma_streamlit(df_mensal)
-                else:
-                    st.warning("Dados insuficientes para gerar visualizações")
-            
-            # Tab 4: Eventos Extremos
-            with tab4:
-                if incluir_eventos and eventos:
-                    st.markdown("### ⚠️ Eventos Climáticos Extremos Detectados")
-                    
-                    for evento in eventos:
-                        if evento['gravidade'] == 'Crítica':
-                            st.error(f"🔴 **{evento['tipo']}** - Gravidade: {evento['gravidade']}")
-                        elif evento['gravidade'] == 'Alta':
-                            st.warning(f"🟠 **{evento['tipo']}** - Gravidade: {evento['gravidade']}")
-                        else:
-                            st.info(f"🟡 **{evento['tipo']}** - Gravidade: {evento['gravidade']}")
-                        
-                        st.write(evento['descricao'])
-                        if evento.get('datas'):
-                            with st.expander(f"📅 Datas dos eventos ({len(evento['datas'])} ocorrências)"):
-                                st.write(', '.join(evento['datas'][:10]))
-                                if len(evento['datas']) > 10:
-                                    st.write(f"... e mais {len(evento['datas']) - 10} ocorrências")
-                        st.markdown("---")
-                else:
-                    st.success("✅ Nenhum evento climático extremo detectado no período analisado")
-            
-            # Tab 5: Análise com IA Gemini
-            with tab5:
-                st.markdown("### 🤖 Análise Inteligente com IA Gemini")
-                
-                if usar_ia:
-                    st.markdown("A IA analisará os dados climáticos e fornecerá insights profissionais")
-                    
-                    col_ia1, col_ia2 = st.columns([2, 1])
-                    
-                    with col_ia1:
-                        tipo_analise = st.selectbox(
-                            "**Selecione o tipo de análise:**",
-                            ["Análise Climática Geral", "Identificação de Fenômenos (El Niño/La Niña)", 
-                             "Impactos na Agricultura", "Previsão de Tendências", "Análise Personalizada"]
-                        )
-                    
-                    with col_ia2:
-                        pergunta_personalizada = ""
-                        if tipo_analise == "Análise Personalizada":
-                            pergunta_personalizada = st.text_input("Sua pergunta específica:")
-                    
-                    if st.button("🚀 **Executar Análise com IA**", use_container_width=True):
-                        with st.spinner("🤖 Consultando IA Gemini. Analisando dados climáticos..."):
-                            # Preparar contexto
-                            contexto = f"""
-                            Dados da estação {nome_estacao}:
-                            - Período analisado: {df_mensal['Mes'].iloc[0]} a {df_mensal['Mes'].iloc[-1]}
-                            - Temperatura média: {df_mensal['Temp_Inst'].mean():.1f}°C
-                            - Precipitação total: {df_mensal['Precipitacao'].sum():.1f} mm
-                            - Temperatura máxima registrada: {df_mensal['Tmax'].max():.1f}°C
-                            - Temperatura mínima registrada: {df_mensal['Tmin'].min():.1f}°C
-                            - Umidade média: {df_mensal['UR_Inst'].mean():.1f}%
-                            - Velocidade média do vento: {df_mensal['U2'].mean():.1f} m/s
-                            """
-                            
-                            if df_indicadores is not None:
-                                contexto += f"""
-                                - GDD acumulado total: {df_indicadores['GDD_Acumulado'].sum():.0f}
-                                - ETo total: {df_indicadores['ETo_Total_mm'].sum():.1f} mm
-                                - Horas de frio total: {df_indicadores['Horas_Frio_10C'].sum():.0f} horas
-                                """
-                            
-                            if eventos:
-                                contexto += f"\n- Eventos extremos detectados: {len(eventos)}"
-                            
-                            # Montar prompt
-                            if tipo_analise == "Análise Personalizada" and pergunta_personalizada:
-                                prompt = pergunta_personalizada
-                            elif tipo_analise == "Identificação de Fenômenos (El Niño/La Niña)":
-                                prompt = f"""Analise os dados climáticos e identifique possíveis evidências de fenômenos como 
-                                El Niño, La Niña ou outras oscilações climáticas. Compare com padrões históricos esperados 
-                                para a região de latitude {latitude:.1f}°."""
-                            elif tipo_analise == "Impactos na Agricultura":
-                                prompt = f"""Com base nos dados climáticos, analise os potenciais impactos na agricultura. 
-                                Inclua recomendações sobre épocas de plantio, irrigação, escolha de culturas e manejo 
-                                fitossanitário. Considere GDD, horas de frio e eventos extremos detectados."""
-                            elif tipo_analise == "Previsão de Tendências":
-                                prompt = f"""Projete tendências climáticas para os próximos meses baseado nos padrões 
-                                identificados na série histórica. Destaque possíveis anomalias e recomendações de adaptação."""
-                            else:
-                                prompt = f"""Faça uma análise climática completa dos dados fornecidos. Identifique padrões, 
-                                anomalias e forneça um diagnóstico profissional sobre o comportamento climático no período."""
-                            
-                            resposta_ia = consultar_gemini(prompt, contexto)
-                            
-                            st.markdown("---")
-                            st.markdown("### 🧠 Resposta da IA Gemini")
-                            st.markdown(resposta_ia)
-                else:
-                    st.info("ℹ️ Ative a análise com IA Gemini na barra lateral para obter insights inteligentes")
-            
-            # Tab 6: Downloads
-            with tab6:
-                st.markdown("### 💾 Download de Relatórios e Dados")
-                
-                col_down1, col_down2 = st.columns(2)
-                
-                with col_down1:
-                    st.markdown("#### 📊 Dados em CSV")
-                    
-                    # Dados mensais
-                    if df_mensal is not None and not df_mensal.empty:
-                        try:
-                            csv_mensal = df_mensal.to_csv(index=False, sep=';', decimal=',')
-                            st.download_button(
-                                label="📥 Dados Mensais Consolidados (CSV)",
-                                data=csv_mensal,
-                                file_name=f"{nome_estacao.replace(' ', '_')}_dados_mensais.csv",
-                                mime="text/csv"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao gerar CSV mensal: {str(e)}")
-                    else:
-                        st.warning("⚠️ Dados mensais não disponíveis")
-                    
-                    # Indicadores agrícolas
-                    if df_indicadores is not None and len(df_indicadores) > 0:
-                        try:
-                            csv_indicadores = df_indicadores.to_csv(index=False, sep=';', decimal=',')
-                            st.download_button(
-                                label="🌱 Indicadores Agrícolas (CSV)",
-                                data=csv_indicadores,
-                                file_name=f"{nome_estacao.replace(' ', '_')}_indicadores_agricolas.csv",
-                                mime="text/csv"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao gerar CSV de indicadores: {str(e)}")
-                    else:
-                        st.info("📌 Indicadores agrícolas não disponíveis")
-                    
-                    # Dados diários (amostra)
-                    if not df_diario.empty:
-                        try:
-                            csv_diario = df_diario.head(1000).to_csv(index=False, sep=';', decimal=',')
-                            st.download_button(
-                                label="📋 Amostra de Dados Diários (CSV)",
-                                data=csv_diario,
-                                file_name=f"{nome_estacao.replace(' ', '_')}_dados_diarios_amostra.csv",
-                                mime="text/csv"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao gerar CSV diário: {str(e)}")
-                
-                with col_down2:
-                    st.markdown("#### 📄 Relatório Completo")
-                    
-                    # Relatório PDF (HTML)
-                    if df_mensal is not None and not df_mensal.empty:
-                        try:
-                            relatorio_html = gerar_relatorio_pdf_completo(
-                                df_mensal, df_indicadores, qualidade, eventos, 
-                                nome_estacao, info_estacao
-                            )
-                            
-                            b64 = base64.b64encode(relatorio_html.encode()).decode()
-                            href = f'<a href="data:text/html;base64,{b64}" download="{nome_estacao.replace(" ", "_")}_relatorio_completo.html" style="text-decoration: none;">'
-                            href += '<button style="background: linear-gradient(135deg, #2e7d32, #1b5e20); border: none; border-radius: 30px; padding: 10px 25px; color: white; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 10px;">📑 Baixar Relatório HTML</button></a>'
-                            st.markdown(href, unsafe_allow_html=True)
-                        except Exception as e:
-                            st.error(f"Erro ao gerar relatório: {str(e)}")
-                    else:
-                        st.warning("⚠️ Dados insuficientes para gerar relatório")
-                    
-                    # Excel com todas as abas
-                    if df_mensal is not None and not df_mensal.empty:
-                        try:
-                            output_excel = BytesIO()
-                            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                                df_mensal.to_excel(writer, sheet_name='Dados_Mensais', index=False)
-                                if df_indicadores is not None and len(df_indicadores) > 0:
-                                    df_indicadores.to_excel(writer, sheet_name='Indicadores_Agricolas', index=False)
-                                if not df_diario.empty:
-                                    df_diario.head(5000).to_excel(writer, sheet_name='Dados_Diarios', index=False)
-                                if qualidade:
-                                    df_qualidade = pd.DataFrame([{k: v for k, v in info.items() if isinstance(v, (int, float, str))} 
-                                                                for var, info in qualidade.items() if isinstance(info, dict)])
-                                    if not df_qualidade.empty:
-                                        df_qualidade.to_excel(writer, sheet_name='Qualidade_Dados', index=False)
-                            
-                            st.download_button(
-                                label="📊 Excel Completo (Todas as Abas)",
-                                data=output_excel.getvalue(),
-                                file_name=f"{nome_estacao.replace(' ', '_')}_dados_completos.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao gerar Excel: {str(e)}")
-                    else:
-                        st.warning("⚠️ Dados insuficientes para gerar Excel")
-                
-                st.markdown("---")
-                st.markdown("### 📋 Resumo do Processamento")
-                
-                # Criar resumo para exibição
-                if df_mensal is not None and not df_mensal.empty:
-                    resumo = {
-                        "Estação": nome_estacao,
-                        "Período": f"{df_mensal['Mes'].iloc[0]} a {df_mensal['Mes'].iloc[-1]}" if 'Mes' in df_mensal.columns else "N/A",
-                        "Meses analisados": len(df_mensal),
-                        "Qualidade média dos dados": f"{np.mean([v.get('percentual_completo', 0) for v in qualidade.values() if isinstance(v, dict) and 'percentual_completo' in v]):.1f}%" if qualidade else "N/A",
-                        "Eventos extremos": len(eventos),
-                        "Indicadores calculados": len([c for c in df_indicadores.columns if c not in ['Mes', 'Ano', 'Numero_Mes']]) if df_indicadores is not None else 0
-                    }
-                    st.json(resumo)
+                        st.json(resumo)
+                    except Exception as e:
+                        st.warning(f"Não foi possível gerar o resumo completo: {str(e)}")
                 else:
                     st.warning("⚠️ Não há dados suficientes para exibir o resumo")
-    
-    else:
-        # Tela inicial sem arquivo
-        st.markdown("""
-        <div style="text-align: center; padding: 50px;">
-            <h2 style="color: #81c784;">🌾 Bem-vindo ao INMET Smart Processor</h2>
-            <p style="color: #a0c4d6; font-size: 1.1rem;">
-                Sistema completo para tratamento, análise e visualização de dados meteorológicos do INMET
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        col_info1, col_info2, col_info3 = st.columns(3)
-        
-        with col_info1:
-            st.markdown("""
-            <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px;">
-                <h3 style="color: #81c784;">📊 1. Upload</h3>
-                <p>Faça upload do arquivo CSV/TXT baixado do INMET</p>
-                <p style="font-size: 0.9rem;">✅ Auto-detecção de formato</p>
-                <p style="font-size: 0.9rem;">✅ Correção automática de separadores</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_info2:
-            st.markdown("""
-            <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px;">
-                <h3 style="color: #81c784;">⚙️ 2. Processamento</h3>
-                <p>Tratamento inteligente dos dados</p>
-                <p style="font-size: 0.9rem;">✅ Preenchimento de falhas</p>
-                <p style="font-size: 0.9rem;">✅ Detecção de outliers</p>
-                <p style="font-size: 0.9rem;">✅ Consolidação mensal</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_info3:
-            st.markdown("""
-            <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px;">
-                <h3 style="color: #81c784;">📈 3. Análise</h3>
-                <p>Indicadores e relatórios avançados</p>
-                <p style="font-size: 0.9rem;">✅ GDD, Horas de Frio, ETo</p>
-                <p style="font-size: 0.9rem;">✅ Eventos climáticos extremos</p>
-                <p style="font-size: 0.9rem;">✅ Análise com IA Gemini</p>
-                <p style="font-size: 0.9rem;">✅ Relatório profissional</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        st.markdown("""
-        <div style="text-align: center; padding: 20px;">
-            <p style="color: #a0c4d6;">
-                🔬 Desenvolvido para profissionais da agricultura, meteorologia, pesquisa acadêmica e gestão de recursos hídricos
-            </p>
-            <p style="color: #81c784; font-size: 0.9rem;">
-                Faça o upload de um arquivo INMET na barra lateral para começar!
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
 
 
 # ============================================================================

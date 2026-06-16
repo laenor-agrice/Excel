@@ -1436,7 +1436,7 @@ def analise_completa_qualidade(df):
             pass
     
     return qualidade, outliers_info
-        # Passo 7: Detecção de eventos extremos
+               # Passo 7: Detecção de eventos extremos
         with st.spinner("⚠️ Detectando eventos climáticos extremos..."):
             eventos_extremos = detectar_eventos_extremos(df)
             resultados['eventos_extremos'] = eventos_extremos
@@ -1446,18 +1446,18 @@ def analise_completa_qualidade(df):
             df_mensal = consolidacao_avancada_por_mes(df)
             resultados['dados_mensais'] = df_mensal
         
-        # Passo 9: Cálculo de indicadores agrícolas
-        with st.spinner("🌱 Calculando indicadores agrícolas..."):
-            latitude = config.get('latitude', info_estacao.get('latitude', -16.0))
-            df_indicadores, df = calcular_indicadores_agricolas_avancados(df, df_mensal, latitude)
-            resultados['indicadores'] = df_indicadores
-            resultados['dados_diarios'] = df
-        
-        return resultados
-        
-    except Exception as e:
-        st.error(f"❌ Erro no processamento: {str(e)}")
-        return None
+         # Passo 9: Cálculo de indicadores agrícolas
+    with st.spinner("🌱 Calculando indicadores agrícolas..."):
+        latitude = config.get('latitude', info_estacao.get('latitude', -16.0))
+        df_indicadores, df = calcular_indicadores_agricolas_avancados(df, df_mensal, latitude)
+        resultados['indicadores'] = df_indicadores
+        resultados['dados_diarios'] = df
+    
+    return resultados
+    
+except Exception as e:
+    st.error(f"❌ Erro no processamento: {str(e)}")
+    return None
 
 # ============================================================================
 # INTERFACE PRINCIPAL DO STREAMLIT

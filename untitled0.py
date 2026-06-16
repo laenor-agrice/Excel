@@ -1615,7 +1615,7 @@ def main():
                 else:
                     st.success("✅ Nenhum evento climático extremo detectado no período analisado")
             
-            # Tab 5: Análise com IA Gemini
+                       # Tab 5: Análise com IA Gemini
             with tab5:
                 st.markdown("### 🤖 Análise Inteligente com IA Gemini")
                 
@@ -1685,9 +1685,6 @@ def main():
                             st.markdown(resposta_ia)
                 else:
                     st.info("ℹ️ Ative a análise com IA Gemini na barra lateral para obter insights inteligentes")
-                        # Tab 5: Análise com IA Gemini
-            with tab5:
-                # ... código existente da tab5 ...
             
             # Tab 6: Downloads
             with tab6:
@@ -1803,92 +1800,7 @@ def main():
                     }
                     st.json(resumo)
                 else:
-                    st.warning("⚠️ Não há dados suficientes para exibir o resumo")        
-            
-                                # Dados mensais
-                    if df_mensal is not None and not df_mensal.empty:
-                        try:
-                            csv_mensal = df_mensal.to_csv(index=False, sep=';', decimal=',')
-                            st.download_button(
-                                label="📥 Dados Mensais Consolidados (CSV)",
-                                data=csv_mensal,
-                                file_name=f"{nome_estacao.replace(' ', '_')}_dados_mensais.csv",
-                                mime="text/csv"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao gerar CSV: {str(e)}")
-                    else:
-                        st.warning("⚠️ Nenhum dado mensal disponível para download")
-                    
-                    # Indicadores agrícolas
-                    if df_indicadores is not None and len(df_indicadores) > 0:
-                        csv_indicadores = df_indicadores.to_csv(index=False, sep=';', decimal=',')
-                        st.download_button(
-                            label="🌱 Indicadores Agrícolas (CSV)",
-                            data=csv_indicadores,
-                            file_name=f"{nome_estacao.replace(' ', '_')}_indicadores_agricolas.csv",
-                            mime="text/csv"
-                        )
-                    
-                    # Dados diários (amostra)
-                    if not df_diario.empty:
-                        csv_diario = df_diario.head(1000).to_csv(index=False, sep=';', decimal=',')
-                        st.download_button(
-                            label="📋 Amostra de Dados Diários (CSV)",
-                            data=csv_diario,
-                            file_name=f"{nome_estacao.replace(' ', '_')}_dados_diarios_amostra.csv",
-                            mime="text/csv"
-                        )
-                
-                with col_down2:
-                    st.markdown("#### 📄 Relatório Completo")
-                    
-                    # Relatório PDF (HTML)
-                    relatorio_html = gerar_relatorio_pdf_completo(
-                        df_mensal, df_indicadores, qualidade, eventos, 
-                        nome_estacao, info_estacao
-                    )
-                    
-                    b64 = base64.b64encode(relatorio_html.encode()).decode()
-                    href = f'<a href="data:text/html;base64,{b64}" download="{nome_estacao.replace(" ", "_")}_relatorio_completo.html" style="text-decoration: none;">'
-                    href += '<button style="background: linear-gradient(135deg, #2e7d32, #1b5e20); border: none; border-radius: 30px; padding: 10px 25px; color: white; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 10px;">📑 Baixar Relatório HTML</button></a>'
-                    st.markdown(href, unsafe_allow_html=True)
-                    
-                    # Excel com todas as abas
-                    output_excel = BytesIO()
-                    with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                        df_mensal.to_excel(writer, sheet_name='Dados_Mensais', index=False)
-                        if df_indicadores is not None and len(df_indicadores) > 0:
-                            df_indicadores.to_excel(writer, sheet_name='Indicadores_Agricolas', index=False)
-                        if not df_diario.empty:
-                            df_diario.head(5000).to_excel(writer, sheet_name='Dados_Diarios', index=False)
-                        if qualidade:
-                            df_qualidade = pd.DataFrame([{k: v for k, v in info.items() if isinstance(v, (int, float, str))} 
-                                                        for var, info in qualidade.items() if isinstance(info, dict)])
-                            if not df_qualidade.empty:
-                                df_qualidade.to_excel(writer, sheet_name='Qualidade_Dados', index=False)
-                    
-                    st.download_button(
-                        label="📊 Excel Completo (Todas as Abas)",
-                        data=output_excel.getvalue(),
-                        file_name=f"{nome_estacao.replace(' ', '_')}_dados_completos.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-                
-                st.markdown("---")
-                st.markdown("### 📋 Resumo do Processamento")
-                
-                # Criar resumo para exibição
-                resumo = {
-                    "Estação": nome_estacao,
-                    "Período": f"{df_mensal['Mes'].iloc[0]} a {df_mensal['Mes'].iloc[-1]}",
-                    "Meses analisados": len(df_mensal),
-                    "Qualidade média dos dados": f"{np.mean([v.get('percentual_completo', 0) for v in qualidade.values() if isinstance(v, dict) and 'percentual_completo' in v]):.1f}%" if qualidade else "N/A",
-                    "Eventos extremos": len(eventos),
-                    "Indicadores calculados": len([c for c in df_indicadores.columns if c not in ['Mes', 'Ano', 'Numero_Mes']]) if df_indicadores is not None else 0
-                }
-                
-                st.json(resumo)
+                    st.warning("⚠️ Não há dados suficientes para exibir o resumo")
     
     else:
         # Tela inicial sem arquivo
@@ -1948,9 +1860,10 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-#============================================================================
-#PONTO DE ENTRADA PRINCIPAL
-#============================================================================
+
+# ============================================================================
+# PONTO DE ENTRADA PRINCIPAL
+# ============================================================================
 
 if __name__ == "__main__":
     try:

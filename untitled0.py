@@ -55,7 +55,6 @@ st.markdown(
         max-width: 100%;
     }
     
-    /* Cards grandes e coloridos */
     .custom-card {
         background: rgba(255, 255, 255, 0.92);
         border-radius: 20px;
@@ -66,7 +65,6 @@ st.markdown(
         border: 1px solid rgba(255,255,255,0.3);
     }
     
-    /* Título principal */
     .main-header {
         background: linear-gradient(135deg, #2d8a6e 0%, #3da88a 50%, #4dc0a0 100%);
         padding: 2.5rem 3rem;
@@ -90,7 +88,6 @@ st.markdown(
         font-size: 1.3rem;
     }
     
-    /* Botões grandes */
     .stButton > button {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
@@ -110,7 +107,6 @@ st.markdown(
         background: linear-gradient(135deg, #3da88a, #2d8a6e);
     }
     
-    /* Área de upload */
     .stFileUploader > div {
         border: 3px dashed #3da88a;
         border-radius: 20px;
@@ -130,7 +126,6 @@ st.markdown(
         box-shadow: 0 4px 20px rgba(45, 138, 110, 0.15);
     }
     
-    /* Métricas grandes */
     .stMetric {
         background: rgba(255, 255, 255, 0.9);
         border-radius: 16px;
@@ -163,7 +158,6 @@ st.markdown(
         color: #2d8a6e !important;
     }
     
-    /* Abas grandes */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background: rgba(255, 255, 255, 0.9);
@@ -195,7 +189,6 @@ st.markdown(
         box-shadow: 0 4px 20px rgba(45, 138, 110, 0.25);
     }
     
-    /* Caixas de informação */
     .info-box {
         background: linear-gradient(135deg, #e6f5ef, #d4ede4);
         border-left: 6px solid #3da88a;
@@ -223,7 +216,6 @@ st.markdown(
         font-size: 1.3rem;
     }
     
-    /* Seções */
     .section-title {
         font-size: 1.8rem;
         font-weight: 700;
@@ -234,7 +226,6 @@ st.markdown(
         display: inline-block;
     }
     
-    /* Inputs */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
@@ -356,28 +347,6 @@ st.markdown(
         padding: 0.3rem 1rem;
         border-radius: 20px;
         font-weight: 400;
-    }
-    
-    .file-info-multiple {
-        background: linear-gradient(135deg, #4dc0a0, #3da88a);
-        color: white;
-        padding: 1rem 2rem;
-        border-radius: 14px;
-        margin: 0.5rem 0;
-        font-weight: 500;
-        font-size: 1.1rem;
-        box-shadow: 0 4px 15px rgba(45, 138, 110, 0.2);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .file-info-multiple span {
-        background: rgba(255,255,255,0.2);
-        padding: 0.2rem 0.8rem;
-        border-radius: 20px;
-        font-weight: 400;
-        font-size: 0.9rem;
     }
     
     .chart-container {
@@ -1056,21 +1025,17 @@ def calcular_media_mensal(df):
     """Calcula a média mensal de TODAS as colunas numéricas (exceto data/hora)"""
     df2 = df.copy()
     
-    # Identificar coluna de data
     col_data = identificar_coluna_data(df2)
     
     if col_data is None:
         return None, "Nenhuma coluna de data encontrada."
     
-    # Garantir que a coluna de data é datetime
     df2[col_data] = pd.to_datetime(df2[col_data], errors='coerce')
     
-    # Extrair mês e ano
     df2['Ano'] = df2[col_data].dt.year
     df2['Mes'] = df2[col_data].dt.month
     df2['Ano_Mes'] = df2[col_data].dt.strftime('%Y-%m')
     
-    # Selecionar TODAS as colunas numéricas (excluindo Ano, Mes, Ano_Mes)
     numericas = df2.select_dtypes(include=np.number).columns.tolist()
     numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
     
@@ -1238,7 +1203,7 @@ with tab5:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# ABA 6 - MÉDIA MENSAL
+# ABA 6 - MÉDIA MENSAL (FUNÇÃO PRINCIPAL)
 # =============================================================================
 
 with tab6:
@@ -1247,7 +1212,7 @@ with tab6:
     
     st.markdown("""
     <div class="info-box">
-        <strong>📊 Análise de Médias Mensais</strong><br>
+        <strong>📊 Média Mensal de TODAS as Colunas</strong><br>
         Esta ferramenta calcula a média mensal de <strong>TODAS</strong> as colunas numéricas da sua planilha,
         excluindo automaticamente colunas de data, hora e identificadores.
         <br><br>
@@ -1639,7 +1604,7 @@ with tab8:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# INDICADORES AGROMETEOROLÓGICOS
+# INDICADORES AGROMETEOROLÓGICOS (OPCIONAL)
 # =============================================================================
 
 def localizar_coluna(df, palavras):
@@ -1681,7 +1646,7 @@ with tab9:
         st.warning("⚠️ Consolide os dados primeiro.")
     else:
         df = st.session_state["df_consolidado"]
-        st.markdown("Cálculo automático de indicadores agrícolas e meteorológicos.")
+        st.markdown("Cálculo automático de indicadores agrícolas e meteorológicos (Opcional).")
         
         st.markdown("""
         <div class="config-box">

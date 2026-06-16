@@ -577,6 +577,14 @@ def ler_planilha_universal(arquivo):
     df = converter_datas(df)
     return df
 
+def identificar_coluna_data(df):
+    palavras = ["data", "date", "datetime", "tempo", "timestamp"]
+    for col in df.columns:
+        nome = str(col).lower()
+        if any(p in nome for p in palavras):
+            return col
+    return None
+
 # =============================================================================
 # ABA 1 - IMPORTAÇÃO
 # =============================================================================
@@ -667,7 +675,7 @@ with tab1:
 # =============================================================================
 
 def obter_colunas_numericas(df):
-    return df.select_dtypes(include=np.number).columns.tolist()
+    return df.select_dtypes(include=[np.number]).columns.tolist()
 
 def preencher_media(df):
     df2 = df.copy()
@@ -881,14 +889,6 @@ with tab2:
 # FUNÇÕES DE CONSOLIDAÇÃO
 # =============================================================================
 
-def identificar_coluna_data(df):
-    palavras = ["data", "date", "datetime", "tempo", "timestamp"]
-    for col in df.columns:
-        nome = str(col).lower()
-        if any(p in nome for p in palavras):
-            return col
-    return None
-
 def consolidar_dataframe(df):
     df2 = df.copy()
     coluna_data = identificar_coluna_data(df2)
@@ -905,7 +905,7 @@ def gerar_resumo_consolidacao(df):
         "Linhas": len(df),
         "Colunas": len(df.columns),
         "Valores Nulos": int(df.isna().sum().sum()),
-        "Colunas Numéricas": len(df.select_dtypes(include=np.number).columns)
+        "Colunas Numéricas": len(df.select_dtypes(include=[np.number]).columns)
     }
     return resumo
 
@@ -972,7 +972,7 @@ def classificar_cv(cv):
         return "Muito Alto"
 
 def gerar_estatisticas(df):
-    numericas = df.select_dtypes(include=np.number)
+    numericas = df.select_dtypes(include=[np.number])
     resultados = []
     for col in numericas.columns:
         serie = numericas[col].dropna()
@@ -1009,7 +1009,7 @@ def gerar_estatisticas(df):
 
 def detectar_extremos(df):
     extremos = []
-    numericas = df.select_dtypes(include=np.number)
+    numericas = df.select_dtypes(include=[np.number])
     for col in numericas.columns:
         try:
             maior = numericas[col].max()
@@ -1021,7 +1021,7 @@ def detectar_extremos(df):
     return pd.DataFrame(extremos)
 
 def calcular_media_mensal(df):
-    """Calcula a média mensal de TODAS as colunas numéricas ORIGINAIS (exceto data/hora e colunas acumuladas)"""
+    """Calcula a média mensal de TODAS as colunas numéricas ORIGINAIS"""
     df2 = df.copy()
     
     # Identificar coluna de data
@@ -1038,32 +1038,36 @@ def calcular_media_mensal(df):
     df2['Mes'] = df2[col_data].dt.month
     df2['Ano_Mes'] = df2[col_data].dt.strftime('%Y-%m')
     
-    # Pegar TODAS as colunas numéricas ORIGINAIS
-    numericas = df2.select_dtypes(include=np.number).columns.tolist()
+    # Pegar TODAS as colunas numéricas
+    numericas = df2.select_dtypes(include=[np.number]).columns.tolist()
     
     # Remover colunas auxiliares que criamos
     numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
     
-    # REMOVER colunas que são claramente acumuladas (GDD, Soma, Acumulada, etc.)
-    # Estas são colunas que não devem ter média calculada, pois são somas acumuladas
+    # REMOVER apenas colunas que são claramente acumuladas
     palavras_remover = ['gdd', 'soma', 'acum', 'acumulada', 'GDD', 'Soma', 'Acum', 'Acumulada']
     numericas = [c for c in numericas if not any(palavra in str(c) for palavra in palavras_remover)]
     
-    # Remover colunas de data/hora
-    palavras_excluir = ['hora', 'hora_', 'horario', 'data_juliana', 'timestamp']
+    # Remover colunas de hora
+    palavras_excluir = ['hora', 'horario']
     numericas = [c for c in numericas if not any(palavra in str(c).lower() for palavra in palavras_excluir)]
     
+    # Se não encontrou nenhuma, pegar todas (sem filtro)
     if not numericas:
-        return None, "Nenhuma coluna numérica original encontrada para calcular médias mensais."
+        numericas = df2.select_dtypes(include=[np.number]).columns.tolist()
+        numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
     
-    # Calcular média mensal para TODAS as colunas numéricas ORIGINAIS
+    if not numericas:
+        return None, "Nenhuma coluna numérica encontrada para calcular médias mensais."
+    
+    # Calcular média mensal
     media_mensal = df2.groupby('Ano_Mes')[numericas].mean().reset_index()
     
-    # Adicionar Ano e Mes para referência
+    # Adicionar Ano e Mes
     media_mensal['Ano'] = media_mensal['Ano_Mes'].str.split('-').str[0].astype(int)
     media_mensal['Mes'] = media_mensal['Ano_Mes'].str.split('-').str[1].astype(int)
     
-    # Ordenar por data
+    # Ordenar
     media_mensal = media_mensal.sort_values('Ano_Mes').reset_index(drop=True)
     
     return media_mensal, None
@@ -1083,28 +1087,34 @@ with tab4:
         
         st.markdown("### 📊 Estatística Completa")
         estatisticas = gerar_estatisticas(df_base)
-        st.dataframe(estatisticas, use_container_width=True)
+        if estatisticas.empty:
+            st.warning("Nenhuma coluna numérica encontrada para estatísticas.")
+        else:
+            st.dataframe(estatisticas, use_container_width=True)
         
         st.markdown("---")
         
         st.markdown("### 📌 Valores Extremos")
         extremos = detectar_extremos(df_base)
-        st.dataframe(extremos, use_container_width=True)
+        if extremos.empty:
+            st.warning("Nenhum valor extremo encontrado.")
+        else:
+            st.dataframe(extremos, use_container_width=True)
         
         st.markdown("---")
         
         st.markdown("### 📋 Métricas Rápidas")
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("📊 Variáveis", len(estatisticas))
+            st.metric("📊 Variáveis", len(estatisticas) if not estatisticas.empty else 0)
         with col2:
-            st.metric("📌 Extremos", len(extremos))
+            st.metric("📌 Extremos", len(extremos) if not extremos.empty else 0)
         with col3:
             st.metric("📋 Registros", len(df_base))
         
         st.markdown("---")
         
-        numericas = df_base.select_dtypes(include=np.number).columns.tolist()
+        numericas = df_base.select_dtypes(include=[np.number]).columns.tolist()
         
         if numericas:
             st.markdown('<div class="section-title">📊 Distribuição das Variáveis</div>', unsafe_allow_html=True)
@@ -1140,15 +1150,16 @@ with tab4:
                     st.metric("📈 Máximo", round(stats['max'], 2))
         
         st.markdown("---")
-        st.session_state["estatisticas"] = estatisticas
-        csv_estatisticas = estatisticas.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "📥 Baixar Estatísticas",
-            csv_estatisticas,
-            file_name="estatisticas_descritivas.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
+        if not estatisticas.empty:
+            st.session_state["estatisticas"] = estatisticas
+            csv_estatisticas = estatisticas.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "📥 Baixar Estatísticas",
+                csv_estatisticas,
+                file_name="estatisticas_descritivas.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1163,7 +1174,7 @@ with tab5:
         st.warning("⚠️ Primeiro consolide os dados na aba 'Consolidação'.")
     else:
         df = st.session_state["df_consolidado"]
-        numericas = df.select_dtypes(include=np.number).columns.tolist()
+        numericas = df.select_dtypes(include=[np.number]).columns.tolist()
         
         if not numericas:
             st.warning("Sem colunas numéricas para visualizar.")
@@ -1219,7 +1230,7 @@ with tab5:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# ABA 6 - MÉDIA MENSAL (FUNÇÃO PRINCIPAL)
+# ABA 6 - MÉDIA MENSAL
 # =============================================================================
 
 with tab6:
@@ -1229,11 +1240,7 @@ with tab6:
     st.markdown("""
     <div class="info-box">
         <strong>📊 Média Mensal de TODAS as Colunas Originais</strong><br>
-        Esta ferramenta calcula a média mensal de <strong>TODAS</strong> as colunas numéricas ORIGINAIS da sua planilha,
-        excluindo automaticamente colunas de data, hora e colunas acumuladas (GDD, Soma, Acumulada).
-        <br><br>
-        <strong>📌 Função Principal:</strong> Analisar a variação mensal de todas as variáveis climáticas 
-        (Temperatura, Umidade, Pressão, Vento, Radiação, Chuva, etc.)
+        Esta ferramenta calcula a média mensal de <strong>TODAS</strong> as colunas numéricas ORIGINAIS da sua planilha.
     </div>
     """, unsafe_allow_html=True)
     
@@ -1245,19 +1252,27 @@ with tab6:
         col_data = identificar_coluna_data(df_base)
         
         if col_data is None:
-            st.warning("⚠️ Nenhuma coluna de data encontrada para calcular médias mensais.")
+            st.warning("⚠️ Nenhuma coluna de data encontrada.")
         else:
+            # Mostrar colunas numéricas encontradas
+            numericas = df_base.select_dtypes(include=[np.number]).columns.tolist()
+            
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("📊 Total de Linhas", len(df_base))
             with col2:
-                st.metric("📋 Colunas Numéricas Originais", len(df_base.select_dtypes(include=np.number).columns))
+                st.metric("📋 Colunas Numéricas", len(numericas))
             with col3:
                 st.metric("📅 Coluna de Data", col_data)
             
+            # Mostrar quais colunas serão calculadas
+            if numericas:
+                st.markdown("**Colunas que serão calculadas:**")
+                st.write(", ".join(numericas[:10]) + ("..." if len(numericas) > 10 else ""))
+            
             st.markdown("---")
             
-            if st.button("📊 Calcular Média Mensal de Todas as Colunas", use_container_width=True):
+            if st.button("📊 Calcular Média Mensal", use_container_width=True):
                 with st.spinner("Calculando médias mensais..."):
                     media_mensal, erro = calcular_media_mensal(df_base)
                     if erro:
@@ -1266,7 +1281,7 @@ with tab6:
                         st.session_state["df_mensal"] = media_mensal
                         num_colunas = len(media_mensal.columns) - 3
                         st.success(f"✅ Média mensal calculada com sucesso!")
-                        st.info(f"📊 Foram calculadas médias para **{num_colunas}** colunas numéricas originais (excluindo data/hora e colunas acumuladas).")
+                        st.info(f"📊 Foram calculadas médias para **{num_colunas}** colunas numéricas.")
             
             st.markdown("---")
             
@@ -1277,57 +1292,32 @@ with tab6:
                 st.dataframe(df_mensal, use_container_width=True)
                 
                 csv_mensal = df_mensal.to_csv(index=False).encode('utf-8')
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.download_button(
-                        "📥 Baixar Médias Mensais (CSV)",
-                        data=csv_mensal,
-                        file_name="medias_mensais.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
+                st.download_button(
+                    "📥 Baixar Médias Mensais (CSV)",
+                    data=csv_mensal,
+                    file_name="medias_mensais.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
                 
                 st.markdown("---")
                 
-                st.markdown("### 📊 Análise Gráfica das Médias Mensais")
+                st.markdown("### 📊 Análise Gráfica")
                 
-                colunas_para_grafico = df_mensal.select_dtypes(include=np.number).columns.tolist()
+                colunas_para_grafico = df_mensal.select_dtypes(include=[np.number]).columns.tolist()
                 colunas_para_grafico = [c for c in colunas_para_grafico if c not in ['Ano', 'Mes']]
                 
                 if colunas_para_grafico:
                     vars_selecionadas = st.multiselect(
-                        "Selecione uma ou mais variáveis para visualizar",
+                        "Selecione as variáveis",
                         colunas_para_grafico,
                         default=[colunas_para_grafico[0]] if colunas_para_grafico else []
                     )
                     
                     if vars_selecionadas:
-                        st.markdown(f"**📈 Evolução Mensal das Variáveis Selecionadas**")
+                        st.markdown(f"**📈 Evolução Mensal**")
                         df_plot = df_mensal.set_index('Ano_Mes')[vars_selecionadas]
                         st.line_chart(df_plot, use_container_width=True)
-                        
-                        st.markdown("---")
-                        
-                        if len(vars_selecionadas) == 1:
-                            st.markdown(f"**📊 Distribuição Mensal - {vars_selecionadas[0]}**")
-                            st.bar_chart(df_mensal.set_index('Ano_Mes')[vars_selecionadas[0]], use_container_width=True)
-                        else:
-                            st.markdown("**📊 Comparação Mensal (Barras)**")
-                            st.bar_chart(df_plot, use_container_width=True)
-                        
-                        st.markdown("---")
-                        st.markdown("### 📋 Estatísticas das Variáveis Selecionadas")
-                        stats_cols = st.columns(min(len(vars_selecionadas), 4))
-                        for idx, var in enumerate(vars_selecionadas[:4]):
-                            with stats_cols[idx]:
-                                dados = df_mensal[var].dropna()
-                                st.metric(
-                                    f"📊 {var}",
-                                    f"Média: {dados.mean():.2f}",
-                                    f"Min: {dados.min():.2f} | Max: {dados.max():.2f}"
-                                )
-                    else:
-                        st.info("ℹ️ Selecione pelo menos uma variável para visualizar o gráfico.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1337,7 +1327,7 @@ with tab6:
 GEMINI_API_KEY = "SUA_CHAVE_API_AQUI"
 
 def gerar_contexto_automatico(df):
-    numericas = df.select_dtypes(include=np.number)
+    numericas = df.select_dtypes(include=[np.number])
     contexto = f"""
 Total de registros: {len(df)}
 Total de variáveis: {len(df.columns)}
@@ -1351,38 +1341,15 @@ Mediana: {numericas[col].median():.2f}
 Mínimo: {numericas[col].min():.2f}
 Máximo: {numericas[col].max():.2f}
 Desvio padrão: {numericas[col].std():.2f}
-Coeficiente de variação: {(numericas[col].std()/numericas[col].mean()*100):.2f} %
 """
         except:
             pass
     return contexto
 
 PROMPTS = {
-    "📊 Relatório Científico": """
-Produza um relatório científico completo.
-Inclua:
-- Introdução dos dados
-- Interpretação estatística
-- Tendências observadas
-- Variabilidade
-- Eventos extremos
-- Conclusões técnicas
-Utilize linguagem científica.
-""",
-    "🌡️ Relatório Meteorológico": """
-Produza uma análise meteorológica detalhada.
-Avalie:
-- Temperatura
-- Precipitação
-- Umidade
-- Vento
-- Eventos extremos
-- Tendências climáticas
-""",
-    "📋 Resumo Executivo": """
-Produza um resumo executivo simples e objetivo.
-Explique os resultados em linguagem acessível.
-"""
+    "📊 Relatório Científico": "Produza um relatório científico completo...",
+    "🌡️ Relatório Meteorológico": "Produza uma análise meteorológica detalhada...",
+    "📋 Resumo Executivo": "Produza um resumo executivo simples e objetivo..."
 }
 
 def consultar_ia(prompt_usuario, contexto):
@@ -1391,20 +1358,12 @@ def consultar_ia(prompt_usuario, contexto):
         if not api_key or api_key == "SUA_CHAVE_API_AQUI":
             return "⚠️ Chave API do Gemini não configurada."
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-        payload = {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": contexto + "\n\n" + prompt_usuario}
-                    ]
-                }
-            ]
-        }
+        payload = {"contents": [{"parts": [{"text": contexto + "\n\n" + prompt_usuario}]}]}
         resposta = requests.post(f"{url}?key={api_key}", headers={"Content-Type": "application/json"}, json=payload, timeout=120)
         if resposta.status_code == 200:
             dados = resposta.json()
             return dados["candidates"][0]["content"]["parts"][0]["text"]
-        return f"❌ Erro na API Gemini: {resposta.status_code}"
+        return f"❌ Erro: {resposta.status_code}"
     except Exception as erro:
         return f"❌ Erro: {erro}"
 
@@ -1416,18 +1375,6 @@ with tab7:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">🤖 Inteligência Artificial</div>', unsafe_allow_html=True)
     
-    st.markdown("""
-    <div class="config-box">
-        <div class="config-title">🧠 IA Gemini</div>
-        <div style="display: flex; align-items: center; gap: 1rem; margin: 0.5rem 0;">
-            <span style="font-weight: 500; font-size: 1.05rem;">Ativar análise com IA Gemini</span>
-        </div>
-        <div style="color: #1a4a3a; font-size: 1rem; margin-top: 0.5rem;">
-            A IA analisará padrões climáticos e fenômenos como El Niño/La Niña
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
     ia_ativada = st.checkbox("Ativar IA Gemini", value=st.session_state["ia_ativada"])
     st.session_state["ia_ativada"] = ia_ativada
     
@@ -1437,13 +1384,8 @@ with tab7:
         if ia_ativada:
             df_base = st.session_state["df_consolidado"]
             
-            st.markdown("### 📊 Relatórios Inteligentes")
             tipo_relatorio = st.selectbox("Tipo de Relatório", list(PROMPTS.keys()))
-            pergunta = st.text_area(
-                "❓ Pergunta adicional",
-                placeholder="Exemplo: Existe tendência de aumento da temperatura?",
-                height=100
-            )
+            pergunta = st.text_area("❓ Pergunta adicional", height=100)
             
             if st.button("🚀 Gerar Relatório", use_container_width=True):
                 with st.spinner("Analisando dados..."):
@@ -1464,62 +1406,26 @@ with tab7:
                     use_container_width=True
                 )
         else:
-            st.info("ℹ️ Ative a IA Gemini para gerar relatórios inteligentes.")
+            st.info("ℹ️ Ative a IA Gemini para gerar relatórios.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
 # FUNÇÕES DE EXPORTAÇÃO
 # =============================================================================
 
-def gerar_csv_unico():
-    buffer = BytesIO()
-    if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
-        csv_data = st.session_state["df_consolidado"].to_csv(index=False)
-        buffer.write(csv_data.encode('utf-8'))
-    buffer.seek(0)
-    return buffer
-
 def gerar_zip_completo():
     memoria = BytesIO()
     with zipfile.ZipFile(memoria, "w", zipfile.ZIP_DEFLATED) as zipf:
-        if "df_tratado" in st.session_state and st.session_state["df_tratado"] is not None:
-            zipf.writestr("dados_tratados.csv", st.session_state["df_tratado"].to_csv(index=False))
         if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
             zipf.writestr("dados_consolidados.csv", st.session_state["df_consolidado"].to_csv(index=False))
         if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
             zipf.writestr("estatisticas.csv", st.session_state["estatisticas"].to_csv(index=False))
-        if "df_indicadores" in st.session_state and st.session_state["df_indicadores"] is not None:
-            zipf.writestr("indicadores.csv", st.session_state["df_indicadores"].to_csv(index=False))
-        if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
-            zipf.writestr("relatorio_ia.txt", st.session_state["relatorio_ia"])
         if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
             zipf.writestr("media_mensal.csv", st.session_state["df_mensal"].to_csv(index=False))
+        if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
+            zipf.writestr("relatorio_ia.txt", st.session_state["relatorio_ia"])
     memoria.seek(0)
     return memoria
-
-def gerar_csv_estatisticas():
-    buffer = BytesIO()
-    if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
-        csv_data = st.session_state["estatisticas"].to_csv(index=False)
-        buffer.write(csv_data.encode('utf-8'))
-    buffer.seek(0)
-    return buffer
-
-def gerar_csv_indicadores():
-    buffer = BytesIO()
-    if "df_indicadores" in st.session_state and st.session_state["df_indicadores"] is not None:
-        csv_data = st.session_state["df_indicadores"].to_csv(index=False)
-        buffer.write(csv_data.encode('utf-8'))
-    buffer.seek(0)
-    return buffer
-
-def gerar_csv_mensal():
-    buffer = BytesIO()
-    if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
-        csv_data = st.session_state["df_mensal"].to_csv(index=False)
-        buffer.write(csv_data.encode('utf-8'))
-    buffer.seek(0)
-    return buffer
 
 # =============================================================================
 # ABA 8 - EXPORTAÇÃO
@@ -1527,72 +1433,11 @@ def gerar_csv_mensal():
 
 with tab8:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📥 Exportação Profissional</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📥 Exportação</div>', unsafe_allow_html=True)
     
-    st.markdown("""
-    <div class="info-box">
-        Exporte seus resultados em formato CSV ou pacote ZIP completo.
-    </div>
-    """, unsafe_allow_html=True)
-    
-    tem_dados = (
-        "df_consolidado" in st.session_state and 
-        st.session_state["df_consolidado"] is not None
-    )
-    
-    if not tem_dados:
-        st.warning("⚠️ Não há dados consolidados para exportar. Consolide os dados primeiro.")
+    if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
+        st.warning("⚠️ Não há dados para exportar.")
     else:
-        st.markdown("### 📄 Exportar Arquivos Individuais")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            csv_file = gerar_csv_unico()
-            st.download_button(
-                "📄 Dados Consolidados",
-                data=csv_file,
-                file_name="dados_consolidados.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        
-        with col2:
-            if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
-                csv_estat = gerar_csv_estatisticas()
-                st.download_button(
-                    "📊 Estatísticas",
-                    data=csv_estat,
-                    file_name="estatisticas.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-        
-        with col3:
-            if "df_indicadores" in st.session_state and st.session_state["df_indicadores"] is not None:
-                csv_ind = gerar_csv_indicadores()
-                st.download_button(
-                    "🌡️ Indicadores",
-                    data=csv_ind,
-                    file_name="indicadores.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-        
-        with col4:
-            if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
-                csv_mensal = gerar_csv_mensal()
-                st.download_button(
-                    "📅 Média Mensal",
-                    data=csv_mensal,
-                    file_name="media_mensal.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-        
-        st.markdown("---")
-        st.markdown("### 📦 Exportar Pacote Completo")
-        
         zip_file = gerar_zip_completo()
         st.download_button(
             "📦 Baixar Pacote Completo (ZIP)",
@@ -1602,125 +1447,34 @@ with tab8:
             use_container_width=True
         )
         
-        st.markdown("---")
-        st.success("✅ Exportação disponível em CSV e ZIP!")
-    
+        if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
+            csv_mensal = st.session_state["df_mensal"].to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📄 Média Mensal (CSV)",
+                data=csv_mensal,
+                file_name="media_mensal.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# INDICADORES AGROMETEOROLÓGICOS (OPCIONAL)
-# =============================================================================
-
-def localizar_coluna(df, palavras):
-    for col in df.columns:
-        nome = str(col).lower()
-        if any(p in nome for p in palavras):
-            return col
-    return None
-
-def calcular_gdd(df, temperatura, temperatura_base=10):
-    serie = pd.to_numeric(df[temperatura], errors="coerce")
-    gdd = serie - temperatura_base
-    gdd[gdd < 0] = 0
-    return gdd
-
-def calcular_precipitacao_acumulada(df, coluna):
-    chuva = pd.to_numeric(df[coluna], errors="coerce")
-    return chuva.cumsum()
-
-def calcular_soma_termica(gdd):
-    return gdd.cumsum()
-
-def calcular_eto_hargreaves(tmin, tmax, tmed):
-    eto = 0.0023 * (tmed + 17.8) * np.sqrt(tmax - tmin)
-    return eto
-
-def indice_conforto_termico(temperatura, umidade):
-    return temperatura - (0.55 - 0.0055 * umidade) * (temperatura - 14.5)
-
-# =============================================================================
-# ABA 9 - INDICADORES
+# ABA 9 - INDICADORES (OPCIONAL)
 # =============================================================================
 
 with tab9:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🌡️ Indicadores Agrometeorológicos</div>', unsafe_allow_html=True)
-    
-    if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
-        st.warning("⚠️ Consolide os dados primeiro.")
-    else:
-        df = st.session_state["df_consolidado"]
-        st.markdown("Cálculo automático de indicadores agrícolas e meteorológicos (Opcional).")
-        
-        st.markdown("""
-        <div class="config-box">
-            <div class="config-title">📍 Parâmetros Regionais</div>
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <span style="font-weight: 500; font-size: 1.1rem;">Latitude da Estação (°):</span>
-                <span style="color: #2d8a6e; font-weight: 700; font-size: 1.3rem;">-16,0</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        temperatura = localizar_coluna(df, ["temp", "temperatura", "tmed"])
-        precipitacao = localizar_coluna(df, ["chuva", "precip", "precipitacao"])
-        umidade = localizar_coluna(df, ["umidade", "ur"])
-        tmin = localizar_coluna(df, ["tmin"])
-        tmax = localizar_coluna(df, ["tmax"])
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if temperatura is not None:
-                temperatura_base = st.number_input("🌡️ Temperatura Base (°C)", value=10.0, step=0.5)
-                gdd = calcular_gdd(df, temperatura, temperatura_base)
-                soma_termica = calcular_soma_termica(gdd)
-                st.metric("📊 Graus-dia Acumulados", round(soma_termica.iloc[-1], 2))
-                df["GDD"] = gdd
-                df["Soma_Termica"] = soma_termica
-            
-            if precipitacao is not None:
-                chuva_acumulada = calcular_precipitacao_acumulada(df, precipitacao)
-                df["Chuva_Acumulada"] = chuva_acumulada
-                st.metric("🌧️ Precipitação Acumulada (mm)", round(chuva_acumulada.iloc[-1], 2))
-        
-        with col2:
-            if tmin is not None and tmax is not None and temperatura is not None:
-                eto = calcular_eto_hargreaves(df[tmin], df[tmax], df[temperatura])
-                df["ETo"] = eto
-                st.metric("💧 ETo Média", round(eto.mean(), 2))
-            
-            if temperatura is not None and umidade is not None:
-                conforto = indice_conforto_termico(df[temperatura], df[umidade])
-                df["Indice_Conforto"] = conforto
-                st.metric("🌡️ Conforto Médio", round(conforto.mean(), 2))
-        
-        st.markdown("---")
-        st.markdown('<div class="section-title">📋 Indicadores Gerados</div>', unsafe_allow_html=True)
-        st.dataframe(df.head(100), use_container_width=True)
-        st.session_state["df_indicadores"] = df
-        
-        indicadores_disponiveis = [col for col in df.columns if col in ['GDD', 'Soma_Termica', 'Chuva_Acumulada', 'ETo', 'Indice_Conforto']]
-        if indicadores_disponiveis:
-            st.markdown("---")
-            st.markdown('<div class="section-title">📊 Visualização dos Indicadores</div>', unsafe_allow_html=True)
-            
-            for indicador in indicadores_disponiveis:
-                st.markdown(f"**{indicador}**")
-                st.line_chart(df[indicador], use_container_width=True)
+    st.markdown('<div class="section-title">🌡️ Indicadores</div>', unsafe_allow_html=True)
+    st.info("Indicadores agrometeorológicos opcionais (GDD, ETo, etc.)")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# RODAPÉ INSTITUCIONAL
+# RODAPÉ
 # =============================================================================
 
 st.markdown("""
 <div class="footer">
     <b>📊 AgroClimate AI</b><br>
-    Sistema experimental desenvolvido para fins acadêmicos, educacionais, científicos e de apoio à análise de dados
-    meteorológicos e agrometeorológicos.<br><br>
-    Este aplicativo não substitui análises técnicas oficiais, laudos periciais, pareceres especializados ou sistemas
-    operacionais de instituições governamentais.<br><br>
     © 2026 AgroClimate AI — Versão Acadêmica Experimental
 </div>
 """, unsafe_allow_html=True)

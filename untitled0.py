@@ -15,7 +15,11 @@ import zipfile
 
 from io import BytesIO
 
-from scipy.stats import zscore
+z = np.abs(zscore(df[col], nan_policy="omit"))
+
+def zscore_simples(serie):
+    return (serie - serie.mean()) / serie.std()
+z = np.abs(zscore_simples(df[col]))
 
 from docx import Document
 from openpyxl import Workbook

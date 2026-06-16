@@ -7,9 +7,7 @@ import base64
 import warnings
 import requests
 import re
-import matplotlib.pyplot as plt
-import seaborn as sns
-from plotly import graph_objs as go
+import plotly.graph_objs as go
 import plotly.express as px
 warnings.filterwarnings('ignore')
 
@@ -95,6 +93,26 @@ st.markdown("""
         border-top: 1px solid rgba(255,255,255,0.1);
         margin-top: 30px;
     }
+    
+    .stDataFrame {
+        background: rgba(255,255,255,0.05);
+        border-radius: 15px;
+        overflow: hidden;
+    }
+    
+    .stButton button {
+        background: linear-gradient(135deg, #2e7d32, #1b5e20);
+        border: none;
+        border-radius: 30px;
+        padding: 10px 25px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(46,125,50,0.4);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -154,8 +172,12 @@ def consultar_gemini(prompt, contexto=""):
 
 def detectar_formato_arquivo(arquivo_bytes):
     """Detecção avançada de formato de arquivo"""
-    conteudo = arquivo_bytes.getvalue().decode('utf-8', errors='ignore')[:5000]
-    linhas = conteudo.split('\n')
+    try:
+        conteudo = arquivo_bytes.getvalue().decode('utf-8', errors='ignore')[:5000]
+        linhas = conteudo.split('\n')
+    except:
+        conteudo = ""
+        linhas = []
     
     info = {
         'delimiter': None,
@@ -166,41 +188,44 @@ def detectar_formato_arquivo(arquivo_bytes):
         'longitude': None
     }
     
-    delimiters = [';', ',', '\t', '|']
-    for delim in delimiters:
-        if delim in linhas[0]:
-            info['delimiter'] = delim
-            break
+    if linhas:
+        delimiters = [';', ',', '\t', '|']
+        for delim in delimiters:
+            if linhas[0] and delim in linhas[0]:
+                info['delimiter'] = delim
+                break
     
     if not info['delimiter']:
         info['delimiter'] = ';'
     
-    if ',' in conteudo and '.' not in conteudo:
-        info['decimal_separator'] = ','
-    elif '.' in conteudo and ',' not in conteudo:
-        info['decimal_separator'] = '.'
-    else:
-        info['decimal_separator'] = ',' if re.search(r'\d+,\d+', conteudo) else '.'
+    if conteudo:
+        if ',' in conteudo and '.' not in conteudo:
+            info['decimal_separator'] = ','
+        elif '.' in conteudo and ',' not in conteudo:
+            info['decimal_separator'] = '.'
+        else:
+            info['decimal_separator'] = ',' if re.search(r'\d+,\d+', conteudo) else '.'
     
-    for i, linha in enumerate(linhas[:20]):
-        if 'ESTACAO' in linha.upper() or 'ESTAÇÃO' in linha.upper():
-            partes = linha.split(info['delimiter'])
-            if len(partes) > 1:
-                info['station_name'] = partes[1].strip()
-        if 'LATITUDE' in linha.upper():
-            partes = linha.split(info['delimiter'])
-            if len(partes) > 1:
-                try:
-                    info['latitude'] = float(partes[1].replace(',', '.'))
-                except:
-                    pass
-        if 'LONGITUDE' in linha.upper():
-            partes = linha.split(info['delimiter'])
-            if len(partes) > 1:
-                try:
-                    info['longitude'] = float(partes[1].replace(',', '.'))
-                except:
-                    pass
+    if linhas:
+        for i, linha in enumerate(linhas[:20]):
+            if 'ESTACAO' in linha.upper() or 'ESTAÇÃO' in linha.upper():
+                partes = linha.split(info['delimiter'])
+                if len(partes) > 1:
+                    info['station_name'] = partes[1].strip()
+            if 'LATITUDE' in linha.upper():
+                partes = linha.split(info['delimiter'])
+                if len(partes) > 1:
+                    try:
+                        info['latitude'] = float(partes[1].replace(',', '.'))
+                    except:
+                        pass
+            if 'LONGITUDE' in linha.upper():
+                partes = linha.split(info['delimiter'])
+                if len(partes) > 1:
+                    try:
+                        info['longitude'] = float(partes[1].replace(',', '.'))
+                    except:
+                        pass
     
     return info
 
@@ -219,6 +244,7 @@ def ler_arquivo_inteligente(arquivo_bytes):
     df = None
     for estrategia in estrategias:
         try:
+            arquivo_bytes.seek(0)
             df_temp = pd.read_csv(
                 arquivo_bytes,
                 sep=info['delimiter'],
@@ -236,7 +262,7 @@ def ler_arquivo_inteligente(arquivo_bytes):
             continue
     
     if df is None:
-        raise ValueError("Não foi possível ler o arquivo.")
+        raise ValueError("Não foi possível ler o arquivo. Verifique o formato.")
     
     if info['decimal_separator'] == ',':
         for col in df.select_dtypes(include=['object']).columns:
@@ -251,17 +277,18 @@ def ler_arquivo_inteligente(arquivo_bytes):
 def padronizar_colunas(df):
     """Padronização de nomes de colunas"""
     mapeamento = {
-        'data': 'Date', 'DATA': 'Date', 'Data': 'Date',
-        'hora': 'Time', 'HORA': 'Time', 'Hora': 'Time',
-        'temp_ins': 'Temp_Inst', 'temperatura_ins': 'Temp_Inst',
-        'temp_max': 'Tmax', 'temperatura_maxima': 'Tmax',
-        'temp_min': 'Tmin', 'temperatura_minima': 'Tmin',
-        'umid_ins': 'UR_Inst', 'umidade_ins': 'UR_Inst',
+        'data': 'Date', 'DATA': 'Date', 'Data': 'Date', 'dt_data': 'Date',
+        'hora': 'Time', 'HORA': 'Time', 'Hora': 'Time', 'hr_data': 'Time',
+        'temp_ins': 'Temp_Inst', 'temperatura_ins': 'Temp_Inst', 'temp_inst': 'Temp_Inst',
+        'temp_max': 'Tmax', 'temperatura_maxima': 'Tmax', 'temp_maxima': 'Tmax',
+        'temp_min': 'Tmin', 'temperatura_minima': 'Tmin', 'temp_minima': 'Tmin',
+        'umid_ins': 'UR_Inst', 'umidade_ins': 'UR_Inst', 'umid_inst': 'UR_Inst',
         'umid_max': 'URmax', 'umidade_maxima': 'URmax',
         'umid_min': 'URmin', 'umidade_minima': 'URmin',
-        'precip': 'Precipitacao', 'chuva': 'Precipitacao',
-        'vel_vento': 'U2', 'velocidade_vento': 'U2',
-        'pressao_ins': 'Press_Inst', 'pressao_atm': 'Press_Inst'
+        'precip': 'Precipitacao', 'chuva': 'Precipitacao', 'precipitacao': 'Precipitacao',
+        'vel_vento': 'U2', 'velocidade_vento': 'U2', 'vento_medio': 'U2',
+        'pressao_ins': 'Press_Inst', 'pressao_atm': 'Press_Inst',
+        'radiacao': 'Rad_KJ', 'radiacao_solar': 'Rad_KJ'
     }
     
     df_renomeado = df.copy()
@@ -289,11 +316,14 @@ def corrigir_datas(df):
     
     if not col_data:
         for col in df_corrigido.columns:
-            amostra = df_corrigido[col].dropna().iloc[0] if len(df_corrigido[col].dropna()) > 0 else ''
-            if isinstance(amostra, str) and ('/' in amostra or '-' in amostra):
-                if len(amostra) > 6:
-                    col_data = col
-                    break
+            try:
+                amostra = df_corrigido[col].dropna().iloc[0] if len(df_corrigido[col].dropna()) > 0 else ''
+                if isinstance(amostra, str) and ('/' in amostra or '-' in amostra):
+                    if len(amostra) > 6:
+                        col_data = col
+                        break
+            except:
+                continue
     
     if col_data:
         formatos = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y']
@@ -315,12 +345,15 @@ def corrigir_datas(df):
             break
     
     if col_hora and 'Date' in df_corrigido.columns:
-        df_corrigido['DateTime'] = pd.to_datetime(
-            df_corrigido['Date'].dt.strftime('%Y-%m-%d') + ' ' + 
-            df_corrigido[col_hora].astype(str).str.zfill(4).str[:2] + ':' + 
-            df_corrigido[col_hora].astype(str).str.zfill(4).str[2:4],
-            errors='coerce'
-        )
+        try:
+            df_corrigido['DateTime'] = pd.to_datetime(
+                df_corrigido['Date'].dt.strftime('%Y-%m-%d') + ' ' + 
+                df_corrigido[col_hora].astype(str).str.zfill(4).str[:2] + ':' + 
+                df_corrigido[col_hora].astype(str).str.zfill(4).str[2:4],
+                errors='coerce'
+            )
+        except:
+            df_corrigido['DateTime'] = df_corrigido['Date']
     elif 'Date' in df_corrigido.columns:
         df_corrigido['DateTime'] = df_corrigido['Date']
     
@@ -445,7 +478,6 @@ def consolidar_medias_mensais(df):
     """
     CRIA UM DATAFRAME SEPARADO com médias mensais.
     NÃO altera os dados originais.
-    Mantém todas as 2100+ linhas originais intactas.
     """
     df_temp = df.copy()
     
@@ -477,7 +509,7 @@ def consolidar_medias_mensais(df):
     df_mensal = df_temp.groupby('AnoMes').agg(agregacoes_filtradas).reset_index()
     df_mensal['Mês'] = df_mensal['AnoMes'].astype(str)
     df_mensal['Ano'] = df_mensal['AnoMes'].dt.year
-    df_mensal['Numero_Mês'] = df_mensal['AnoMes'].dt.month
+    df_mensal['Número_Mês'] = df_mensal['AnoMes'].dt.month
     
     df_mensal = df_mensal.sort_values('AnoMes').reset_index(drop=True)
     
@@ -545,10 +577,20 @@ def detectar_eventos_extremos(df):
                     'quantidade': int(mask_chuva.sum())
                 })
     
+    if 'U2' in df.columns:
+        mask_vento = df['U2'] > 15
+        if mask_vento.sum() > 0:
+            eventos.append({
+                'tipo': 'Ventos Fortes',
+                'gravidade': 'Moderada',
+                'descricao': f'{mask_vento.sum()} ocorrências acima de 15 m/s',
+                'quantidade': int(mask_vento.sum())
+            })
+    
     return eventos
 
 # ============================================================================
-# FUNÇÕES DE GRÁFICOS INTERATIVOS
+# FUNÇÕES DE GRÁFICOS INTERATIVOS (APENAS PLOTLY)
 # ============================================================================
 
 def criar_grafico_temperatura(df, tipo='linha'):
@@ -557,6 +599,9 @@ def criar_grafico_temperatura(df, tipo='linha'):
         return None
     
     df_plot = df.dropna(subset=['Temp_Inst']).copy()
+    
+    if len(df_plot) == 0:
+        return None
     
     if tipo == 'linha':
         fig = go.Figure()
@@ -567,8 +612,8 @@ def criar_grafico_temperatura(df, tipo='linha'):
             name='Temperatura',
             line=dict(color='#e74c3c', width=2),
             fill='tozeroy',
-            fillcolor='rgba(231, 76, 60, 0.1)'
-        ))
+            fillcolor='rgba(231, 76, 60, 0.1)
+        )
         
         fig.update_layout(
             title='🌡️ Temperatura ao Longo do Tempo',
@@ -599,6 +644,9 @@ def criar_grafico_precipitacao(df):
     
     df_plot = df.dropna(subset=['Precipitacao']).copy()
     
+    if len(df_plot) == 0:
+        return None
+    
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=df_plot['DateTime'],
@@ -626,6 +674,9 @@ def criar_grafico_umidade(df):
         return None
     
     df_plot = df.dropna(subset=['UR_Inst']).copy()
+    
+    if len(df_plot) == 0:
+        return None
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -655,6 +706,9 @@ def criar_grafico_vento(df):
         return None
     
     df_plot = df.dropna(subset=['U2']).copy()
+    
+    if len(df_plot) == 0:
+        return None
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -752,6 +806,48 @@ def gerar_relatorio_html(df_original, df_mensal, qualidade, eventos, substituico
     
     data_geracao = datetime.now().strftime('%d/%m/%Y às %H:%M')
     
+    # Preparar tabela mensal
+    tabela_mensal = ""
+    if df_mensal is not None and not df_mensal.empty:
+        tabela_mensal = df_mensal.to_html(index=False)
+    
+    # Preparar tabela de qualidade
+    tabela_qualidade = ""
+    for var, info in qualidade.items():
+        if var != 'periodo' and isinstance(info, dict):
+            tabela_qualidade += f"""
+            <tr>
+                <td>{var}</td>
+                <td>{info.get('percentual_completo', 0)}%</td>
+                <td>{info.get('classificacao', 'N/A')}</td>
+                <td>{info.get('dados_faltantes', 0)}</td>
+            </tr>
+            """
+    
+    # Preparar substituições
+    html_substituicoes = ""
+    for s in substituicoes:
+        if s['status'] == 'PREENCHIDO':
+            html_substituicoes += f"<div class='success'>✅ {s['variavel']}: {s.get('motivo', '')}</div>"
+        elif s['status'] == 'NÃO PREENCHIDO':
+            html_substituicoes += f"<div class='warning'>⚠️ {s['variavel']}: {s.get('motivo', '')}</div>"
+    
+    # Preparar outliers
+    html_outliers = ""
+    for var, info in outliers.items():
+        html_outliers += f"<div class='warning'>🔍 {var}: {info['num_outliers']} outliers ({info['percentual']}%) - Limites: {info['limites']}</div>"
+    
+    if not html_outliers:
+        html_outliers = "<p>✅ Nenhum outlier detectado</p>"
+    
+    # Preparar eventos
+    html_eventos = ""
+    for e in eventos:
+        html_eventos += f"<div class='warning'><strong>{e['tipo']}</strong>: {e['descricao']}</div>"
+    
+    if not html_eventos:
+        html_eventos = "<p>✅ Nenhum evento extremo detectado</p>"
+    
     html_content = f"""
     <!DOCTYPE html>
     <html lang="pt-BR">
@@ -769,8 +865,8 @@ def gerar_relatorio_html(df_original, df_mensal, qualidade, eventos, substituico
             th {{ background: #1a5f7a; color: white; }}
             .metric {{ display: inline-block; background: #e8f4f8; padding: 15px; margin: 10px; border-radius: 10px; min-width: 150px; text-align: center; }}
             .metric-value {{ font-size: 24px; font-weight: bold; color: #1a5f7a; }}
-            .warning {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0; }}
-            .success {{ background: #d4edda; border-left: 4px solid #28a745; padding: 10px; margin: 10px 0; }}
+            .warning {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0; border-radius: 5px; }}
+            .success {{ background: #d4edda; border-left: 4px solid #28a745; padding: 10px; margin: 10px 0; border-radius: 5px; }}
             .footer {{ text-align: center; padding: 20px; font-size: 12px; color: #999; }}
         </style>
     </head>
@@ -800,31 +896,30 @@ def gerar_relatorio_html(df_original, df_mensal, qualidade, eventos, substituico
             
             <div class="section">
                 <h2>📅 Dados Mensais Consolidados</h2>
-                {df_mensal.to_html(index=False) if df_mensal is not None else "<p>Não disponível</p>"}
+                {tabela_mensal if tabela_mensal else "<p>Não disponível</p>"}
             </div>
             
             <div class="section">
                 <h2>📈 Qualidade dos Dados</h2>
                 <table>
                     <tr><th>Variável</th><th>Completude</th><th>Classificação</th><th>Faltantes</th></tr>
-                    {"".join([f"<tr><td>{k}</td><td>{v['percentual_completo']}%</td><td>{v['classificacao']}</td><td>{v['dados_faltantes']}</td></tr>" for k, v in qualidade.items() if k not in ['periodo']])}
+                    {tabela_qualidade if tabela_qualidade else "<tr><td colspan='4'>Nenhum dado disponível</td></tr>"}
                 </table>
             </div>
             
             <div class="section">
                 <h2>🔄 Substituições Realizadas</h2>
-                {"".join([f"<div class='success'>✅ {s['variavel']}: {s.get('motivo', '')}</div>" for s in substituicoes if s['status'] == 'PREENCHIDO'])}
-                {"".join([f"<div class='warning'>⚠️ {s['variavel']}: {s.get('motivo', '')}</div>" for s in substituicoes if s['status'] == 'NÃO PREENCHIDO'])}
+                {html_substituicoes if html_substituicoes else "<p>✅ Nenhuma substituição necessária</p>"}
             </div>
             
             <div class="section">
                 <h2>⚠️ Outliers Tratados</h2>
-                {"".join([f"<div class='warning'>🔍 {k}: {v['num_outliers']} outliers ({v['percentual']}%)</div>" for k, v in outliers.items()]) if outliers else "<p>✅ Nenhum outlier detectado</p>"}
+                {html_outliers}
             </div>
             
             <div class="section">
                 <h2>🌡️ Eventos Climáticos Extremos</h2>
-                {"".join([f"<div class='warning'><strong>{e['tipo']}</strong>: {e['descricao']}</div>" for e in eventos]) if eventos else "<p>✅ Nenhum evento extremo detectado</p>"}
+                {html_eventos}
             </div>
             
             <div class="footer">
@@ -1078,7 +1173,7 @@ def main():
                 
                 if qualidade:
                     for var, info in qualidade.items():
-                        if var != 'periodo':
+                        if var != 'periodo' and isinstance(info, dict):
                             percentual = info.get('percentual_completo', 0)
                             if percentual >= 95:
                                 st.success(f"**{var}**: {percentual:.1f}% completo ✅")
@@ -1087,11 +1182,11 @@ def main():
                             else:
                                 st.error(f"**{var}**: {percentual:.1f}% completo ❌")
                     
-                    if 'periodo' in qualidade:
+                    if 'periodo' in qualidade and isinstance(qualidade['periodo'], dict):
                         st.markdown("#### 📅 Período Analisado")
-                        st.write(f"Início: {qualidade['periodo']['inicio']}")
-                        st.write(f"Fim: {qualidade['periodo']['fim']}")
-                        st.write(f"Total de registros: {qualidade['periodo']['total_registros']:,}")
+                        st.write(f"Início: {qualidade['periodo'].get('inicio', 'N/A')}")
+                        st.write(f"Fim: {qualidade['periodo'].get('fim', 'N/A')}")
+                        st.write(f"Total de registros: {qualidade['periodo'].get('total_registros', 0):,}")
             
             # TAB 5: IA GEMINI
             with tab5:
@@ -1115,6 +1210,8 @@ def main():
                                 contexto += f"Temperatura média: {df_processado['Temp_Inst'].mean():.1f}°C\n"
                             if 'Precipitacao' in df_processado.columns:
                                 contexto += f"Precipitação total: {df_processado['Precipitacao'].sum():.1f} mm\n"
+                            if 'UR_Inst' in df_processado.columns:
+                                contexto += f"Umidade média: {df_processado['UR_Inst'].mean():.1f}%\n"
                             
                             prompt = f"Faça uma {tipo_analise.lower()} baseada nos dados fornecidos."
                             resposta = consultar_gemini(prompt, contexto)
@@ -1122,7 +1219,7 @@ def main():
                             st.markdown("### 🧠 Resposta da IA")
                             st.markdown(resposta)
                 else:
-                    st.info("Ative a IA Gemini na barra lateral")
+                    st.info("ℹ️ Ative a IA Gemini na barra lateral")
             
             # TAB 6: DOWNLOADS
             with tab6:
@@ -1137,7 +1234,8 @@ def main():
                         label="📥 Dados Originais (CSV)",
                         data=csv_original,
                         file_name=f"{nome_estacao.replace(' ', '_')}_dados_originais.csv",
-                        mime="text/csv"
+                        mime="text/csv",
+                        key="download_original"
                     )
                     
                     # CSV dos dados processados
@@ -1146,7 +1244,8 @@ def main():
                         label="📥 Dados Processados (CSV)",
                         data=csv_processado,
                         file_name=f"{nome_estacao.replace(' ', '_')}_dados_processados.csv",
-                        mime="text/csv"
+                        mime="text/csv",
+                        key="download_processado"
                     )
                 
                 with col_down2:
@@ -1157,7 +1256,8 @@ def main():
                             label="📥 Médias Mensais (CSV)",
                             data=csv_mensal,
                             file_name=f"{nome_estacao.replace(' ', '_')}_medias_mensais.csv",
-                            mime="text/csv"
+                            mime="text/csv",
+                            key="download_mensal"
                         )
                     
                     # Relatório HTML
@@ -1167,7 +1267,7 @@ def main():
                     )
                     b64 = base64.b64encode(relatorio_html.encode()).decode()
                     href = f'<a href="data:text/html;base64,{b64}" download="{nome_estacao.replace(" ", "_")}_relatorio.html" style="text-decoration: none;">'
-                    href += '<button style="background: linear-gradient(135deg, #2e7d32, #1b5e20); border: none; border-radius: 30px; padding: 10px 25px; color: white; font-weight: 600; cursor: pointer; width: 100%; margin-top: 0px;">📑 Relatório HTML</button></a>'
+                    href += '<button style="background: linear-gradient(135deg, #2e7d32, #1b5e20); border: none; border-radius: 30px; padding: 10px 25px; color: white; font-weight: 600; cursor: pointer; width: 100%; margin-top: 0px;">📑 Baixar Relatório HTML</button></a>'
                     st.markdown(href, unsafe_allow_html=True)
     
     # Footer
@@ -1175,6 +1275,7 @@ def main():
     <div class="footer">
         <p>⚠️ Smart Meteorological Processor - Aplicativo para fins acadêmicos e de pesquisa</p>
         <p>Este aplicativo não pertence ao INMET. Os dados processados devem ser validados antes de uso profissional.</p>
+        <p>Código acadêmico - v2.0</p>
     </div>
     """, unsafe_allow_html=True)
 

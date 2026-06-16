@@ -29,7 +29,6 @@ def zscore_simples(serie):
 # =============================================================================
 
 def calcular_anova_manual(df, coluna, grupos):
-    """Calcula ANOVA manualmente sem scipy"""
     grupos_dados = df.groupby(grupos)[coluna].apply(list).to_dict()
     grupos_validos = {k: v for k, v in grupos_dados.items() if len(v) > 1}
     
@@ -632,36 +631,20 @@ def remover_colunas_duplicadas(df):
     return df.loc[:, ~df.columns.duplicated()]
 
 def converter_colunas_numericas(df):
-    """Converte colunas para numérico tratando diferentes formatos"""
     df2 = df.copy()
-    
     for col in df2.columns:
         try:
-            # Converter para string e limpar
             df2[col] = df2[col].astype(str)
-            
-            # Remover espaços extras
             df2[col] = df2[col].str.strip()
-            
-            # Substituir vírgula por ponto (separador decimal)
             df2[col] = df2[col].str.replace(',', '.', regex=False)
-            
-            # Remover caracteres não numéricos (exceto ponto e sinal negativo)
             df2[col] = df2[col].str.replace(r'[^0-9.\-]', '', regex=True)
-            
-            # Substituir valores vazios por NaN
             df2[col] = df2[col].replace('', np.nan)
             df2[col] = df2[col].replace('nan', np.nan)
             df2[col] = df2[col].replace('None', np.nan)
             df2[col] = df2[col].replace('null', np.nan)
-            
-            # Converter para numérico
             df2[col] = pd.to_numeric(df2[col], errors='coerce')
-            
-        except Exception as e:
-            # Se falhar, manter como está
+        except:
             pass
-    
     return df2
 
 def detectar_colunas_data(df):
@@ -1045,6 +1028,21 @@ def gerar_resumo_consolidacao(df):
     return resumo
 
 # =============================================================================
+# FUNÇÃO PARA CALCULAR MÉDIA POR MÊS
+# =============================================================================
+
+def calcular_media_por_mes(df, coluna_data, variavel):
+    """Calcula a média de uma variável para cada mês (todos os anos combinados)"""
+    df2 = df.copy()
+    df2['Mes'] = df2[coluna_data].dt.month
+    media_mensal = df2.groupby('Mes')[variavel].mean().reset_index()
+    # Adicionar nomes dos meses
+    nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
+                   'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+    media_mensal['Mes_Nome'] = media_mensal['Mes'].apply(lambda x: nomes_meses[x-1] if 1 <= x <= 12 else str(x))
+    return media_mensal
+
+# =============================================================================
 # ABA 3 - CONSOLIDAÇÃO
 # =============================================================================
 
@@ -1115,6 +1113,7 @@ with tab4:
     else:
         df = st.session_state["df_consolidado"]
         numericas = df.select_dtypes(include=[np.number]).columns.tolist()
+        col_data = identificar_coluna_data(df)
         
         if not numericas:
             st.error("❌ Nenhuma coluna numérica encontrada para análise.")
@@ -1129,9 +1128,48 @@ with tab4:
             st.dataframe(pd.DataFrame({"Coluna": df.columns, "Tipo": df.dtypes.astype(str)}))
         else:
             st.success(f"✅ Encontradas {len(numericas)} colunas numéricas para análise.")
-            st.write("**Colunas numéricas:**", ", ".join(numericas[:10]))
             
-            st.markdown("### 📊 Selecione o tipo de análise")
+            # ============================================================
+            # MÉDIA POR MÊS - DESTAQUE PRINCIPAL
+            # ============================================================
+            if col_data is not None:
+                st.markdown("### 📊 Média Mensal (Todos os anos combinados)")
+                st.markdown("Média de cada variável para cada mês do ano (ex: média de todos os janeiros, todos os fevereiros, etc.)")
+                
+                df[col_data] = pd.to_datetime(df[col_data], errors='coerce')
+                
+                var_mensal = st.selectbox(
+                    "Selecione a variável para análise mensal",
+                    numericas,
+                    key="var_mensal"
+                )
+                
+                if var_mensal:
+                    media_mensal = calcular_media_por_mes(df, col_data, var_mensal)
+                    if not media_mensal.empty:
+                        st.dataframe(media_mensal, use_container_width=True)
+                        
+                        # Gráfico da média mensal
+                        st.markdown(f"**📈 Média Mensal - {var_mensal}**")
+                        st.bar_chart(media_mensal.set_index('Mes_Nome')['Media'], use_container_width=True)
+                        
+                        # Adicionar estatísticas descritivas da média mensal
+                        st.markdown("**📋 Estatísticas da Média Mensal**")
+                        stats = media_mensal['Media'].describe()
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Mínimo", round(stats['min'], 2))
+                        with col2:
+                            st.metric("Máximo", round(stats['max'], 2))
+                        with col3:
+                            st.metric("Média", round(stats['mean'], 2))
+                        with col4:
+                            st.metric("Desvio Padrão", round(stats['std'], 2))
+            else:
+                st.info("ℹ️ Nenhuma coluna de data encontrada para calcular médias mensais.")
+            
+            st.markdown("---")
+            st.markdown("### 📊 Selecione o tipo de análise estatística")
             
             tipo_analise = st.selectbox(
                 "Escolha a análise estatística",
@@ -1381,7 +1419,7 @@ with tab4:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# ABA 5 - GRÁFICOS
+# ABA 5 - GRÁFICOS (APENAS LINHAS E BARRAS)
 # =============================================================================
 
 with tab5:
@@ -1401,7 +1439,7 @@ with tab5:
             st.markdown("#### Selecione o tipo de gráfico")
             tipo_grafico = st.selectbox(
                 "Selecione o tipo de gráfico",
-                ["📈 Linhas", "📊 Barras", "📉 Área", "📊 Histograma"],
+                ["📈 Linhas", "📊 Barras"],
                 key="tipo_graf_aba5"
             )
             
@@ -1420,22 +1458,6 @@ with tab5:
                 elif tipo_grafico == "📊 Barras":
                     st.markdown(f"**📊 Barras - {var_graf}**")
                     st.bar_chart(df[var_graf], use_container_width=True)
-                
-                elif tipo_grafico == "📉 Área":
-                    st.markdown(f"**📉 Área - {var_graf}**")
-                    st.area_chart(df[var_graf], use_container_width=True)
-                
-                elif tipo_grafico == "📊 Histograma":
-                    st.markdown(f"**📊 Histograma - {var_graf}**")
-                    hist_data = df[var_graf].dropna()
-                    if len(hist_data) > 0:
-                        bins = np.histogram_bin_edges(hist_data, bins='auto')
-                        hist_counts = np.histogram(hist_data, bins=bins)[0]
-                        hist_df = pd.DataFrame({
-                            'Intervalo': [f'{bins[i]:.2f}-{bins[i+1]:.2f}' for i in range(len(bins)-1)],
-                            'Frequência': hist_counts
-                        })
-                        st.bar_chart(hist_df.set_index('Intervalo')['Frequência'], use_container_width=True)
             
             st.markdown("---")
             st.markdown("### 📋 Estatísticas Rápidas")

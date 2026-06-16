@@ -229,7 +229,7 @@ st.set_page_config(
 )
 
 # =============================================================================
-# CSS GLOBAL - EXATAMENTE COMO NA IMAGEM
+# CSS GLOBAL - CORRIGIDO COM SCROLLBAR
 # =============================================================================
 
 st.markdown(
@@ -243,20 +243,22 @@ st.markdown(
         width: 100%;
         max-width: 100%;
         margin: 0;
+        overflow-x: hidden;
     }
     
     .block-container {
         padding: 0.5rem 2rem !important;
         max-width: 100% !important;
         width: 100% !important;
+        overflow-x: hidden;
     }
     
     /* ============ CABEÇALHO - DESTAQUE AZUL ============ */
     .main-header {
         background: linear-gradient(135deg, #0d2b45 0%, #1a5276 50%, #2e86c1 100%);
-        padding: 2.5rem 3rem;
+        padding: 2rem 2.5rem;
         border-radius: 16px;
-        margin-bottom: 1.8rem;
+        margin-bottom: 1.5rem;
         color: white;
         box-shadow: 0 4px 25px rgba(0,0,0,0.25);
         text-align: center;
@@ -266,16 +268,16 @@ st.markdown(
     
     .main-header h1 {
         margin: 0;
-        font-size: 2.5rem;
+        font-size: 2.2rem;
         font-weight: 700;
         letter-spacing: -1px;
         color: white;
     }
     
     .main-header p {
-        margin: 0.5rem 0 0 0;
+        margin: 0.4rem 0 0 0;
         opacity: 0.9;
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         color: rgba(255,255,255,0.9);
     }
     
@@ -283,13 +285,73 @@ st.markdown(
     .custom-card {
         background: linear-gradient(145deg, rgba(180, 230, 210, 0.92), rgba(140, 210, 190, 0.88));
         border-radius: 16px;
-        padding: 2rem;
+        padding: 1.8rem;
         box-shadow: 0 4px 20px rgba(0,50,30,0.12);
         margin-bottom: 1.5rem;
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255,255,255,0.2);
         width: 100%;
         color: #1a4a3a;
+        overflow: hidden;
+    }
+    
+    /* ============ DATAFRAMES - COM SCROLLBAR ============ */
+    .stDataFrame {
+        border-radius: 12px;
+        border: 1px solid rgba(100, 200, 170, 0.2);
+        overflow: auto !important;
+        background: rgba(255,255,255,0.85);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .stDataFrame > div {
+        border-radius: 12px;
+        width: 100%;
+        overflow: auto !important;
+    }
+    
+    .stDataFrame table {
+        width: 100% !important;
+        table-layout: auto;
+    }
+    
+    .stDataFrame thead tr th {
+        white-space: nowrap;
+        padding: 8px 12px !important;
+        position: sticky;
+        top: 0;
+        background: rgba(200, 240, 225, 0.9);
+        z-index: 10;
+    }
+    
+    .stDataFrame tbody tr td {
+        padding: 6px 10px !important;
+        white-space: nowrap;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Scrollbar para dataframes */
+    .stDataFrame::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    .stDataFrame::-webkit-scrollbar-track {
+        background: rgba(200, 240, 225, 0.3);
+        border-radius: 8px;
+    }
+    
+    .stDataFrame::-webkit-scrollbar-thumb {
+        background: #3da88a;
+        border-radius: 8px;
+    }
+    
+    .stDataFrame::-webkit-scrollbar-thumb:hover {
+        background: #2d8a6e;
     }
     
     /* ============ BOTÕES ============ */
@@ -299,7 +361,7 @@ st.markdown(
         border-radius: 12px;
         border: none;
         font-weight: 600;
-        padding: 0.7rem 1.5rem;
+        padding: 0.6rem 1.5rem;
         font-size: 1rem;
         transition: all 0.3s ease;
         width: 100%;
@@ -316,10 +378,10 @@ st.markdown(
     .stFileUploader > div {
         border: 2px dashed #3da88a;
         border-radius: 12px;
-        padding: 2.5rem 2rem;
+        padding: 2rem;
         background: rgba(200, 240, 225, 0.3);
         transition: all 0.3s ease;
-        min-height: 120px;
+        min-height: 100px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -354,13 +416,13 @@ st.markdown(
     }
     
     .stMetric label {
-        font-size: 0.95rem !important;
+        font-size: 0.9rem !important;
         font-weight: 600 !important;
         color: #1a4a3a !important;
     }
     
     .stMetric div[data-testid="stMetricValue"] {
-        font-size: 1.8rem !important;
+        font-size: 1.6rem !important;
         font-weight: 700 !important;
         color: #1a6e5a !important;
     }
@@ -373,10 +435,10 @@ st.markdown(
     }
     
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 6px;
         background: rgba(200, 240, 225, 0.7);
         border-radius: 12px;
-        padding: 8px 12px;
+        padding: 6px 10px;
         box-shadow: 0 2px 15px rgba(0,0,0,0.06);
         backdrop-filter: blur(5px);
         margin-bottom: 1.2rem;
@@ -388,13 +450,13 @@ st.markdown(
     
     .stTabs [data-baseweb="tab"] {
         border-radius: 10px;
-        padding: 0.6rem 1.8rem;
+        padding: 0.5rem 1.5rem;
         font-weight: 600;
-        font-size: 1rem;
+        font-size: 0.95rem;
         transition: all 0.3s ease;
         color: #1a4a3a;
         white-space: nowrap;
-        min-width: 100px;
+        min-width: 80px;
         text-align: center;
         justify-content: center;
         background: transparent;
@@ -418,11 +480,11 @@ st.markdown(
     .info-box {
         background: rgba(200, 240, 225, 0.45);
         border-left: 4px solid #3da88a;
-        padding: 1rem 1.5rem;
+        padding: 0.8rem 1.2rem;
         border-radius: 10px;
-        margin: 1rem 0;
+        margin: 0.8rem 0;
         color: #1a4a3a;
-        font-size: 1rem;
+        font-size: 0.95rem;
         box-shadow: 0 2px 10px rgba(45, 138, 110, 0.05);
     }
     
@@ -430,24 +492,24 @@ st.markdown(
         background: rgba(200, 240, 225, 0.35);
         border: 1px solid rgba(100, 200, 170, 0.2);
         border-radius: 12px;
-        padding: 1.5rem;
-        margin: 1rem 0;
+        padding: 1.2rem;
+        margin: 0.8rem 0;
         box-shadow: 0 2px 10px rgba(0,0,0,0.03);
     }
     
     .config-title {
         font-weight: 600;
         color: #1a4a3a;
-        margin-bottom: 0.5rem;
-        font-size: 1.1rem;
+        margin-bottom: 0.4rem;
+        font-size: 1.05rem;
     }
     
     .section-title {
-        font-size: 1.4rem;
+        font-size: 1.3rem;
         font-weight: 700;
         color: #1a4a3a;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
+        margin-bottom: 0.8rem;
+        padding-bottom: 0.4rem;
         border-bottom: 3px solid #3da88a;
         display: inline-block;
     }
@@ -458,8 +520,8 @@ st.markdown(
     .stNumberInput > div > div > input {
         border-radius: 10px;
         border: 1px solid rgba(100, 200, 170, 0.3);
-        padding: 0.6rem 0.8rem;
-        font-size: 0.95rem;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.9rem;
         transition: all 0.3s ease;
         background: rgba(255,255,255,0.85);
         color: #1a4a3a !important;
@@ -474,28 +536,28 @@ st.markdown(
     }
     
     .stSelectbox {
-        margin-bottom: 1rem;
-        min-height: 50px;
+        margin-bottom: 0.8rem;
+        min-height: 45px;
     }
     
     .stSelectbox > div {
-        min-height: 45px;
+        min-height: 40px;
     }
     
     .stSelectbox > div > div {
         border-radius: 10px;
         border: 1px solid rgba(100, 200, 170, 0.3);
-        padding: 0.4rem 0.8rem;
-        font-size: 0.95rem;
+        padding: 0.3rem 0.8rem;
+        font-size: 0.9rem;
         transition: all 0.3s ease;
         background: rgba(255,255,255,0.85);
         color: #1a4a3a !important;
-        min-height: 42px;
+        min-height: 38px;
     }
     
     .stSelectbox > div > div > div {
         color: #1a4a3a !important;
-        font-size: 0.95rem !important;
+        font-size: 0.9rem !important;
     }
     
     .stSelectbox > div > div:focus {
@@ -505,8 +567,8 @@ st.markdown(
     
     .stSelectbox > div > div > div > div {
         color: #1a4a3a !important;
-        font-size: 0.9rem !important;
-        padding: 6px 10px !important;
+        font-size: 0.85rem !important;
+        padding: 5px 10px !important;
     }
     
     .stSelectbox > div > div > div > div:hover {
@@ -514,7 +576,7 @@ st.markdown(
     }
     
     .stSelectbox > div > div > div:first-child {
-        min-height: 32px;
+        min-height: 30px;
         display: flex;
         align-items: center;
     }
@@ -522,26 +584,7 @@ st.markdown(
     .stCheckbox > label {
         font-weight: 600;
         color: #1a4a3a;
-        font-size: 0.95rem;
-    }
-    
-    /* ============ DATAFRAMES ============ */
-    .stDataFrame {
-        border-radius: 12px;
-        border: 1px solid rgba(100, 200, 170, 0.2);
-        overflow: hidden;
-        background: rgba(255,255,255,0.85);
-        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-        width: 100%;
-    }
-    
-    .stDataFrame > div {
-        border-radius: 12px;
-        width: 100%;
-    }
-    
-    .stDataFrame table {
-        width: 100% !important;
+        font-size: 0.9rem;
     }
     
     footer {
@@ -551,12 +594,12 @@ st.markdown(
     /* ============ RODAPÉ ============ */
     .footer {
         text-align: center;
-        font-size: 12px;
+        font-size: 11px;
         color: rgba(255,255,255,0.6);
-        padding-top: 1.5rem;
-        padding-bottom: 1.5rem;
+        padding-top: 1.2rem;
+        padding-bottom: 1.2rem;
         border-top: 1px solid rgba(255,255,255,0.08);
-        margin-top: 1.5rem;
+        margin-top: 1.2rem;
         width: 100%;
     }
     
@@ -568,11 +611,11 @@ st.markdown(
     .file-info {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
-        padding: 1rem 1.5rem;
+        padding: 0.8rem 1.2rem;
         border-radius: 12px;
-        margin: 0.8rem 0;
+        margin: 0.6rem 0;
         font-weight: 600;
-        font-size: 1rem;
+        font-size: 0.95rem;
         box-shadow: 0 2px 15px rgba(45, 138, 110, 0.25);
         display: flex;
         justify-content: space-between;
@@ -585,14 +628,14 @@ st.markdown(
         padding: 0.2rem 0.8rem;
         border-radius: 16px;
         font-weight: 400;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
     }
     
     .media-mensal-title {
-        font-size: 1.3rem;
+        font-size: 1.2rem;
         font-weight: 700;
         color: #1a6e5a;
-        margin-bottom: 0.8rem;
+        margin-bottom: 0.6rem;
     }
     
     .row-widget {
@@ -603,7 +646,7 @@ st.markdown(
         width: 100% !important;
     }
     
-    /* ============ SCROLLBAR ============ */
+    /* ============ SCROLLBAR GLOBAL ============ */
     ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
@@ -621,6 +664,13 @@ st.markdown(
     
     ::-webkit-scrollbar-thumb:hover {
         background: #2d8a6e;
+    }
+    
+    /* ============ CONTAINER DAS TABELAS ============ */
+    .table-container {
+        overflow: auto;
+        max-width: 100%;
+        border-radius: 12px;
     }
     </style>
     """,
@@ -707,7 +757,7 @@ with tab0:
         cidade = st.text_input("📍 Cidade")
         estado = st.text_input("🗺️ Estado")
     
-    observacoes = st.text_area("📝 Observações", height=80)
+    observacoes = st.text_area("📝 Observações", height=70)
     
     if st.button("💾 Salvar Cadastro", use_container_width=True):
         st.session_state["usuario"] = {
@@ -857,7 +907,7 @@ with tab1:
     st.markdown("""
     <div class="config-box">
         <div class="config-title">📁 Upload do Arquivo INMET</div>
-        <div style="color: #1a4a3a; font-size: 1rem;">
+        <div style="color: #1a4a3a; font-size: 0.95rem;">
             <strong>200MB per file</strong> - CSV, TXT, DAT, XLS, XLSX
         </div>
     </div>
@@ -898,7 +948,7 @@ with tab1:
             
             st.markdown("---")
             st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
-            st.dataframe(df.head(100), use_container_width=True)
+            st.dataframe(df.head(50), use_container_width=True)
             
             st.markdown("---")
             st.markdown('<div class="section-title">📋 Estrutura das Colunas</div>', unsafe_allow_html=True)
@@ -1053,7 +1103,7 @@ with tab2:
         st.markdown("""
         <div class="config-box">
             <div class="config-title">📊 Métodos de Preenchimento</div>
-            <p style="margin: 0; color: #1a4a3a; font-size: 0.95rem;">Técnica para preenchimento de falhas:</p>
+            <p style="margin: 0; color: #1a4a3a; font-size: 0.9rem;">Técnica para preenchimento de falhas:</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1064,7 +1114,7 @@ with tab2:
         )
         
         st.markdown("""
-        <div class="config-box" style="margin-top: 1rem;">
+        <div class="config-box" style="margin-top: 0.8rem;">
             <div class="config-title">🎯 Detecção de Outliers</div>
         </div>
         """, unsafe_allow_html=True)
@@ -1082,7 +1132,7 @@ with tab2:
             )
         
         st.markdown("""
-        <div class="config-box" style="margin-top: 1rem;">
+        <div class="config-box" style="margin-top: 0.8rem;">
             <div class="config-title">⚙️ Opções Adicionais</div>
         </div>
         """, unsafe_allow_html=True)
@@ -1133,7 +1183,7 @@ with tab2:
             df_resultado = st.session_state["df_tratado"]
             st.markdown("---")
             st.markdown('<div class="section-title">📊 Resultado do Tratamento</div>', unsafe_allow_html=True)
-            st.dataframe(df_resultado.head(100), use_container_width=True)
+            st.dataframe(df_resultado.head(50), use_container_width=True)
             
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -1212,7 +1262,7 @@ with tab3:
             
             st.markdown("---")
             st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
-            st.dataframe(df_consolidado.head(200), use_container_width=True)
+            st.dataframe(df_consolidado.head(50), use_container_width=True)
             
             st.markdown("---")
             st.markdown("### 🔍 Diagnóstico dos Dados")
@@ -1634,7 +1684,7 @@ with tab5:
             df_base = st.session_state["df_consolidado"]
             
             tipo_relatorio = st.selectbox("Tipo de Relatório", list(PROMPTS.keys()))
-            pergunta = st.text_area("❓ Pergunta adicional", height=80)
+            pergunta = st.text_area("❓ Pergunta adicional", height=70)
             
             if st.button("🚀 Gerar Relatório", use_container_width=True):
                 with st.spinner("Analisando dados..."):

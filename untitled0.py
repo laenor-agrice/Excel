@@ -234,10 +234,9 @@ st.markdown(
         display: inline-block;
     }
     
-    /* Inputs grandes */
+    /* Inputs grandes - CORRIGIDO: texto em verde escuro */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
-    .stSelectbox > div > div,
     .stNumberInput > div > div > input {
         border-radius: 12px;
         border: 2px solid #e0e4ed;
@@ -245,14 +244,44 @@ st.markdown(
         font-size: 1.05rem;
         transition: all 0.3s ease;
         background: white;
+        color: #1a5c1a !important;
     }
     
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus,
-    .stSelectbox > div > div:focus,
     .stNumberInput > div > div > input:focus {
         border-color: #667eea;
         box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+        color: #1a5c1a !important;
+    }
+    
+    /* Selectbox - CORRIGIDO: texto em verde escuro */
+    .stSelectbox > div > div {
+        border-radius: 12px;
+        border: 2px solid #e0e4ed;
+        padding: 0.3rem 1rem;
+        font-size: 1.05rem;
+        transition: all 0.3s ease;
+        background: white;
+        color: #1a5c1a !important;
+    }
+    
+    .stSelectbox > div > div > div {
+        color: #1a5c1a !important;
+    }
+    
+    .stSelectbox > div > div:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+    }
+    
+    /* Selectbox options - CORRIGIDO: texto em verde escuro */
+    .stSelectbox > div > div > div > div {
+        color: #1a5c1a !important;
+    }
+    
+    .stSelectbox > div > div > div > div:hover {
+        background-color: #e8f5e9 !important;
     }
     
     /* Checkbox grande */
@@ -1098,10 +1127,8 @@ with tab4:
                 
                 with col1:
                     st.markdown(f"**📊 Histograma - {var_selecionada}**")
-                    # Usando value_counts para criar histograma
                     hist_data = df_base[var_selecionada].dropna()
                     if len(hist_data) > 0:
-                        # Criar bins automáticos
                         bins = np.histogram_bin_edges(hist_data, bins='auto')
                         hist_counts = np.histogram(hist_data, bins=bins)[0]
                         hist_df = pd.DataFrame({

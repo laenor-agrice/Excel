@@ -196,6 +196,23 @@ def calcular_correlacao(df, coluna1, coluna2):
     return df_temp[coluna1].corr(df_temp[coluna2])
 
 # =============================================================================
+# FUNÇÃO PARA CALCULAR MÉDIA POR MÊS
+# =============================================================================
+
+def calcular_media_por_mes(df, coluna_data, variavel):
+    """Calcula a média de uma variável para cada mês (todos os anos combinados)"""
+    df2 = df.copy()
+    df2['Mes'] = df2[coluna_data].dt.month
+    media_mensal = df2.groupby('Mes')[variavel].mean().reset_index()
+    # Renomear a coluna da média para 'Media'
+    media_mensal.columns = ['Mes', 'Media']
+    # Adicionar nomes dos meses
+    nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
+                   'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+    media_mensal['Mes_Nome'] = media_mensal['Mes'].apply(lambda x: nomes_meses[x-1] if 1 <= x <= 12 else str(x))
+    return media_mensal
+
+# =============================================================================
 # CONFIGURAÇÃO DA PÁGINA
 # =============================================================================
 
@@ -1028,21 +1045,6 @@ def gerar_resumo_consolidacao(df):
     return resumo
 
 # =============================================================================
-# FUNÇÃO PARA CALCULAR MÉDIA POR MÊS
-# =============================================================================
-
-def calcular_media_por_mes(df, coluna_data, variavel):
-    """Calcula a média de uma variável para cada mês (todos os anos combinados)"""
-    df2 = df.copy()
-    df2['Mes'] = df2[coluna_data].dt.month
-    media_mensal = df2.groupby('Mes')[variavel].mean().reset_index()
-    # Adicionar nomes dos meses
-    nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
-                   'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-    media_mensal['Mes_Nome'] = media_mensal['Mes'].apply(lambda x: nomes_meses[x-1] if 1 <= x <= 12 else str(x))
-    return media_mensal
-
-# =============================================================================
 # ABA 3 - CONSOLIDAÇÃO
 # =============================================================================
 
@@ -1086,7 +1088,6 @@ with tab3:
             st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
             st.dataframe(df_consolidado.head(200), use_container_width=True)
             
-            # Mostrar informações de diagnóstico
             st.markdown("---")
             st.markdown("### 🔍 Diagnóstico dos Dados")
             colunas_num = df_consolidado.select_dtypes(include=[np.number]).columns.tolist()
@@ -1151,7 +1152,11 @@ with tab4:
                         
                         # Gráfico da média mensal
                         st.markdown(f"**📈 Média Mensal - {var_mensal}**")
-                        st.bar_chart(media_mensal.set_index('Mes_Nome')['Media'], use_container_width=True)
+                        # Verificar se a coluna 'Media' existe antes de usar
+                        if 'Media' in media_mensal.columns:
+                            st.bar_chart(media_mensal.set_index('Mes_Nome')['Media'], use_container_width=True)
+                        else:
+                            st.warning("Coluna 'Media' não encontrada nos dados.")
                         
                         # Adicionar estatísticas descritivas da média mensal
                         st.markdown("**📋 Estatísticas da Média Mensal**")

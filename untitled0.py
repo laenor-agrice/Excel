@@ -8,10 +8,6 @@ import json
 import os
 from io import BytesIO
 import csv
-import plotly.graph_objects as go
-import plotly.express as px
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 st.write(sys.version)
 
@@ -48,7 +44,7 @@ st.markdown(
     /* Estilo geral */
     .main {
         padding-top: 0.5rem;
-        background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+        background: linear-gradient(135deg, #f0f2f6 0%, #e8ecf1 100%);
     }
     
     .block-container {
@@ -65,7 +61,6 @@ st.markdown(
         box-shadow: 0 4px 20px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
         margin-bottom: 1.5rem;
         border: 1px solid rgba(255,255,255,0.8);
-        backdrop-filter: blur(10px);
     }
     
     /* Título principal */
@@ -298,18 +293,6 @@ st.markdown(
         margin: 1rem 0;
     }
     
-    /* Badge */
-    .badge {
-        display: inline-block;
-        background: linear-gradient(135deg, #2e86c1, #3498db);
-        color: white;
-        padding: 0.2rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 500;
-    }
-    
-    /* Títulos de gráficos */
     .chart-title {
         font-size: 1.1rem;
         font-weight: 600;
@@ -982,7 +965,7 @@ with tab4:
         with col3:
             st.metric("Registros", len(df_base))
         
-        # Gráficos de distribuição com Plotly
+        # Gráficos com Streamlit nativo
         if len(df_base.select_dtypes(include=np.number).columns) > 0:
             st.markdown("---")
             st.markdown('<div class="section-title">📊 Distribuição das Variáveis</div>', unsafe_allow_html=True)
@@ -994,39 +977,18 @@ with tab4:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    # Histograma com Plotly
-                    fig_hist = px.histogram(
-                        df_base, 
-                        x=var_selecionada,
-                        title=f"Histograma - {var_selecionada}",
-                        color_discrete_sequence=['#2e86c1'],
-                        nbins=30
-                    )
-                    fig_hist.update_layout(
-                        showlegend=False,
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        title_font_size=14,
-                        title_font_color='#0d2b45'
-                    )
-                    st.plotly_chart(fig_hist, use_container_width=True)
+                    st.markdown(f"**Histograma - {var_selecionada}**")
+                    st.bar_chart(df_base[var_selecionada].value_counts().head(20))
                 
                 with col2:
-                    # Boxplot com Plotly
-                    fig_box = px.box(
-                        df_base,
-                        y=var_selecionada,
-                        title=f"Boxplot - {var_selecionada}",
-                        color_discrete_sequence=['#2e86c1']
-                    )
-                    fig_box.update_layout(
-                        showlegend=False,
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        title_font_size=14,
-                        title_font_color='#0d2b45'
-                    )
-                    st.plotly_chart(fig_box, use_container_width=True)
+                    st.markdown(f"**Boxplot - {var_selecionada}**")
+                    # Criando um boxplot simples com estatísticas
+                    stats = df_base[var_selecionada].describe()
+                    st.metric("Mínimo", round(stats['min'], 2))
+                    st.metric("Q1", round(stats['25%'], 2))
+                    st.metric("Mediana", round(stats['50%'], 2))
+                    st.metric("Q3", round(stats['75%'], 2))
+                    st.metric("Máximo", round(stats['max'], 2))
         
         st.session_state["estatisticas"] = estatisticas
         csv_estatisticas = estatisticas.to_csv(index=False).encode("utf-8")
@@ -1040,12 +1002,12 @@ with tab4:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# ABA 5 - GRÁFICOS AVANÇADOS
+# ABA 5 - GRÁFICOS
 # =============================================================================
 
 with tab5:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📊 Visualização Avançada de Dados</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📊 Visualização de Dados</div>', unsafe_allow_html=True)
     
     if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Primeiro consolide os dados.")
@@ -1059,156 +1021,43 @@ with tab5:
             # Tipo de gráfico
             tipo_grafico = st.selectbox(
                 "Selecione o tipo de gráfico",
-                ["Linhas", "Barras", "Dispersão", "Histograma", "Boxplot", "Correlação", "Área"]
+                ["Linhas", "Barras", "Área", "Histograma"]
             )
             
             if tipo_grafico == "Linhas":
                 col_linha = st.selectbox("Selecione a variável", numericas, key="linha_graf")
                 if col_linha:
-                    fig = px.line(
-                        df,
-                        y=col_linha,
-                        title=f"Série Temporal - {col_linha}",
-                        color_discrete_sequence=['#2e86c1'],
-                        markers=True
-                    )
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        title_font_size=16,
-                        title_font_color='#0d2b45',
-                        xaxis_title="Índice",
-                        yaxis_title=col_linha,
-                        hovermode='x unified'
-                    )
-                    fig.update_traces(line=dict(width=2.5))
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.markdown(f"**Série Temporal - {col_linha}**")
+                    st.line_chart(df[col_linha], use_container_width=True)
             
             elif tipo_grafico == "Barras":
                 col_barra = st.selectbox("Selecione a variável", numericas, key="barra_graf")
                 if col_barra:
-                    fig = px.bar(
-                        df,
-                        y=col_barra,
-                        title=f"Gráfico de Barras - {col_barra}",
-                        color_discrete_sequence=['#2e86c1']
-                    )
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        title_font_size=16,
-                        title_font_color='#0d2b45',
-                        xaxis_title="Índice",
-                        yaxis_title=col_barra,
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            elif tipo_grafico == "Dispersão":
-                if len(numericas) >= 2:
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        x_var = st.selectbox("Eixo X", numericas, key="x_disp")
-                    with col2:
-                        y_var = st.selectbox("Eixo Y", [v for v in numericas if v != x_var], key="y_disp")
-                    
-                    fig = px.scatter(
-                        df,
-                        x=x_var,
-                        y=y_var,
-                        title=f"{x_var} × {y_var}",
-                        color_discrete_sequence=['#2e86c1'],
-                        trendline="ols",
-                        trendline_color_override="#e74c3c"
-                    )
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        title_font_size=16,
-                        title_font_color='#0d2b45'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("Precisa de pelo menos 2 variáveis numéricas para dispersão.")
-            
-            elif tipo_grafico == "Histograma":
-                col_hist = st.selectbox("Selecione a variável", numericas, key="hist_graf")
-                if col_hist:
-                    fig = px.histogram(
-                        df,
-                        x=col_hist,
-                        title=f"Histograma - {col_hist}",
-                        color_discrete_sequence=['#2e86c1'],
-                        nbins=30,
-                        marginal="box"
-                    )
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        title_font_size=16,
-                        title_font_color='#0d2b45',
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            elif tipo_grafico == "Boxplot":
-                col_box = st.selectbox("Selecione a variável", numericas, key="box_graf")
-                if col_box:
-                    fig = px.box(
-                        df,
-                        y=col_box,
-                        title=f"Boxplot - {col_box}",
-                        color_discrete_sequence=['#2e86c1'],
-                        points="outliers"
-                    )
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        title_font_size=16,
-                        title_font_color='#0d2b45',
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            elif tipo_grafico == "Correlação":
-                if len(numericas) >= 2:
-                    corr = df[numericas].corr()
-                    fig = px.imshow(
-                        corr,
-                        text_auto='.2f',
-                        aspect="auto",
-                        color_continuous_scale="RdBu_r",
-                        title="Matriz de Correlação"
-                    )
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        title_font_size=16,
-                        title_font_color='#0d2b45'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("Precisa de pelo menos 2 variáveis numéricas para correlação.")
+                    st.markdown(f"**Gráfico de Barras - {col_barra}**")
+                    st.bar_chart(df[col_barra], use_container_width=True)
             
             elif tipo_grafico == "Área":
                 col_area = st.selectbox("Selecione a variável", numericas, key="area_graf")
                 if col_area:
-                    fig = px.area(
-                        df,
-                        y=col_area,
-                        title=f"Gráfico de Área - {col_area}",
-                        color_discrete_sequence=['#2e86c1']
-                    )
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        title_font_size=16,
-                        title_font_color='#0d2b45',
-                        xaxis_title="Índice",
-                        yaxis_title=col_area,
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.markdown(f"**Gráfico de Área - {col_area}**")
+                    st.area_chart(df[col_area], use_container_width=True)
+            
+            elif tipo_grafico == "Histograma":
+                col_hist = st.selectbox("Selecione a variável", numericas, key="hist_graf")
+                if col_hist:
+                    st.markdown(f"**Histograma - {col_hist}**")
+                    st.bar_chart(df[col_hist].value_counts().head(30), use_container_width=True)
+            
+            # Estatísticas rápidas
+            st.markdown("---")
+            st.markdown("### 📋 Estatísticas Rápidas")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Mínimo", round(df[numericas[0]].min(), 2))
+            with col2:
+                st.metric("Máximo", round(df[numericas[0]].max(), 2))
+            with col3:
+                st.metric("Média", round(df[numericas[0]].mean(), 2))
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1564,29 +1413,15 @@ with tab8:
         st.dataframe(df.head(100), use_container_width=True)
         st.session_state["df_indicadores"] = df
         
-        # Gráfico dos indicadores
-        if len(df.select_dtypes(include=np.number).columns) > 0:
+        # Gráfico dos indicadores com Streamlit nativo
+        indicadores_disponiveis = [col for col in df.columns if col in ['GDD', 'Soma_Termica', 'Chuva_Acumulada', 'ETo', 'Indice_Conforto']]
+        if indicadores_disponiveis:
             st.markdown("---")
             st.markdown('<div class="section-title">📊 Visualização dos Indicadores</div>', unsafe_allow_html=True)
             
-            indicadores_disponiveis = [col for col in df.columns if col in ['GDD', 'Soma_Termica', 'Chuva_Acumulada', 'ETo', 'Indice_Conforto']]
-            if indicadores_disponiveis:
-                fig = px.line(
-                    df,
-                    y=indicadores_disponiveis,
-                    title="Evolução dos Indicadores Agrometeorológicos",
-                    color_discrete_sequence=px.colors.qualitative.Set2
-                )
-                fig.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    title_font_size=16,
-                    title_font_color='#0d2b45',
-                    legend_title_text='Indicadores',
-                    xaxis_title="Índice",
-                    yaxis_title="Valor"
-                )
-                st.plotly_chart(fig, use_container_width=True)
+            for indicador in indicadores_disponiveis:
+                st.markdown(f"**{indicador}**")
+                st.line_chart(df[indicador], use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================

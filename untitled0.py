@@ -1686,23 +1686,20 @@ def main():
                 else:
                     st.info("ℹ️ Ative a análise com IA Gemini na barra lateral para obter insights inteligentes")
             
-            # Tab 6: Downloads
-            with tab6:
-                st.markdown("### 💾 Download de Relatórios e Dados")
-                
-                col_down1, col_down2 = st.columns(2)
-                
-                with col_down1:
-                    st.markdown("#### 📊 Dados em CSV")
-                    
-                    # Dados mensais
-                    csv_mensal = df_mensal.to_csv(index=False, sep=';', decimal=',')
-                    st.download_button(
-                        label="📥 Dados Mensais Consolidados (CSV)",
-                        data=csv_mensal,
-                        file_name=f"{nome_estacao.replace(' ', '_')}_dados_mensais.csv",
-                        mime="text/csv"
-                    )
+                                # Dados mensais
+                    if df_mensal is not None and not df_mensal.empty:
+                        try:
+                            csv_mensal = df_mensal.to_csv(index=False, sep=';', decimal=',')
+                            st.download_button(
+                                label="📥 Dados Mensais Consolidados (CSV)",
+                                data=csv_mensal,
+                                file_name=f"{nome_estacao.replace(' ', '_')}_dados_mensais.csv",
+                                mime="text/csv"
+                            )
+                        except Exception as e:
+                            st.error(f"Erro ao gerar CSV: {str(e)}")
+                    else:
+                        st.warning("⚠️ Nenhum dado mensal disponível para download")
                     
                     # Indicadores agrícolas
                     if df_indicadores is not None and len(df_indicadores) > 0:
@@ -1832,10 +1829,13 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-
-# ============================================================================
-# PONTO DE ENTRADA PRINCIPAL
-# ============================================================================
+#============================================================================
+#PONTO DE ENTRADA PRINCIPAL
+#============================================================================
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        st.error(f"❌ Erro na execução do aplicativo: {str(e)}")
+        st.info("Verifique se todos os dados necessários foram preenchidos corretamente.")

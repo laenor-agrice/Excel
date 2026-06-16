@@ -1356,10 +1356,12 @@ def pipeline_completo_processamento(arquivo_bytes, config):
             resultados['qualidade'] = qualidade
             resultados['outliers'] = outliers
         
-                # Passo 6: Preenchimento de falhas
+                 # Passo 6: Preenchimento de falhas
         with st.spinner("🔄 Preenchendo falhas nos dados..."):
             metodo_falhas = config.get('metodo_falhas', 'multivariado')
             df = preenchimento_inteligente_falhas(df, metodo=metodo_falhas)
+    except Exception as e:
+        pass
 
 def analise_completa_qualidade(df):
     """Análise completa da qualidade dos dados"""

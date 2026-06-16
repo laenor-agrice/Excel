@@ -15,10 +15,17 @@ import zipfile
 
 from io import BytesIO
 
-z = np.abs(zscore(df[col], nan_policy="omit"))
+zdef zscore_simples(serie):
 
-def zscore_simples(serie):
-    return (serie - serie.mean()) / serie.std()
+    serie = pd.to_numeric(serie, errors="coerce")
+
+    media = serie.mean()
+    desvio = serie.std()
+
+    if desvio == 0 or pd.isna(desvio):
+        return np.zeros(len(serie))
+
+    return (serie - media) / desvio
 z = np.abs(zscore_simples(df[col]))
 
 from docx import Document

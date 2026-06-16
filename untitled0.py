@@ -632,13 +632,36 @@ def remover_colunas_duplicadas(df):
     return df.loc[:, ~df.columns.duplicated()]
 
 def converter_colunas_numericas(df):
+    """Converte colunas para numérico tratando diferentes formatos"""
     df2 = df.copy()
+    
     for col in df2.columns:
         try:
-            # Tenta converter para numérico
-            df2[col] = pd.to_numeric(df2[col], errors="coerce")
-        except:
+            # Converter para string e limpar
+            df2[col] = df2[col].astype(str)
+            
+            # Remover espaços extras
+            df2[col] = df2[col].str.strip()
+            
+            # Substituir vírgula por ponto (separador decimal)
+            df2[col] = df2[col].str.replace(',', '.', regex=False)
+            
+            # Remover caracteres não numéricos (exceto ponto e sinal negativo)
+            df2[col] = df2[col].str.replace(r'[^0-9.\-]', '', regex=True)
+            
+            # Substituir valores vazios por NaN
+            df2[col] = df2[col].replace('', np.nan)
+            df2[col] = df2[col].replace('nan', np.nan)
+            df2[col] = df2[col].replace('None', np.nan)
+            df2[col] = df2[col].replace('null', np.nan)
+            
+            # Converter para numérico
+            df2[col] = pd.to_numeric(df2[col], errors='coerce')
+            
+        except Exception as e:
+            # Se falhar, manter como está
             pass
+    
     return df2
 
 def detectar_colunas_data(df):
@@ -1070,9 +1093,11 @@ with tab3:
             st.markdown("### 🔍 Diagnóstico dos Dados")
             colunas_num = df_consolidado.select_dtypes(include=[np.number]).columns.tolist()
             if colunas_num:
-                st.success(f"✅ Encontradas {len(colunas_num)} colunas numéricas: {', '.join(colunas_num[:10])}")
+                st.success(f"✅ Encontradas {len(colunas_num)} colunas numéricas")
+                st.write("**Colunas numéricas:**", ", ".join(colunas_num[:10]))
             else:
                 st.warning("⚠️ Nenhuma coluna numérica encontrada. Verifique se os dados foram carregados corretamente.")
+                st.write("**Colunas disponíveis:**", df_consolidado.columns.tolist())
             
             st.success("✅ Base pronta para Análise Estatística!")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1085,20 +1110,16 @@ with tab4:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📈 Análise Estatística</div>', unsafe_allow_html=True)
     
-    # VERIFICAR SE HÁ DADOS
     if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Primeiro consolide os dados na aba 'Consolidação'.")
     else:
         df = st.session_state["df_consolidado"]
-        
-        # VERIFICAR SE HÁ COLUNAS NUMÉRICAS
         numericas = df.select_dtypes(include=[np.number]).columns.tolist()
         
         if not numericas:
             st.error("❌ Nenhuma coluna numérica encontrada para análise.")
-            st.info("💡 Dica: Verifique se os dados foram carregados corretamente e se as colunas numéricas estão no formato correto.")
+            st.info("💡 Verifique se os dados foram carregados corretamente.")
             
-            # Mostrar estrutura do DataFrame para diagnóstico
             st.markdown("### 📋 Estrutura do DataFrame")
             st.write(f"**Total de colunas:** {len(df.columns)}")
             st.write(f"**Total de linhas:** {len(df)}")
@@ -1108,10 +1129,8 @@ with tab4:
             st.dataframe(pd.DataFrame({"Coluna": df.columns, "Tipo": df.dtypes.astype(str)}))
         else:
             st.success(f"✅ Encontradas {len(numericas)} colunas numéricas para análise.")
+            st.write("**Colunas numéricas:**", ", ".join(numericas[:10]))
             
-            # ============================================================
-            # SELEÇÃO DE MÉTRICA
-            # ============================================================
             st.markdown("### 📊 Selecione o tipo de análise")
             
             tipo_analise = st.selectbox(
@@ -1217,9 +1236,9 @@ with tab4:
                                         st.metric("📊 GL", f"{resultado['df_between']}/{resultado['df_within']}")
                                     
                                     if resultado['significativo']:
-                                        st.success(f"✅ Resultado SIGNIFICATIVO (p < 0.05) - Há diferença entre os grupos")
+                                        st.success("✅ Resultado SIGNIFICATIVO (p < 0.05) - Há diferença entre os grupos")
                                     else:
-                                        st.info(f"ℹ️ Resultado NÃO SIGNIFICATIVO (p >= 0.05) - Não há diferença entre os grupos")
+                                        st.info("ℹ️ Resultado NÃO SIGNIFICATIVO (p >= 0.05) - Não há diferença entre os grupos")
                                     
                                     st.markdown("#### Grupos Analisados")
                                     st.write(f"**{len(resultado['grupos'])} grupos:** {', '.join(map(str, resultado['grupos']))}")
@@ -1278,9 +1297,9 @@ with tab4:
                                         st.metric("📈 P-Value", round(resultado['p_value'], 4))
                                     
                                     if resultado['significativo']:
-                                        st.success(f"✅ Resultado SIGNIFICATIVO (p < 0.05) - Há diferença entre os grupos")
+                                        st.success("✅ Resultado SIGNIFICATIVO (p < 0.05) - Há diferença entre os grupos")
                                     else:
-                                        st.info(f"ℹ️ Resultado NÃO SIGNIFICATIVO (p >= 0.05) - Não há diferença entre os grupos")
+                                        st.info("ℹ️ Resultado NÃO SIGNIFICATIVO (p >= 0.05) - Não há diferença entre os grupos")
                                     
                                     st.markdown("#### Médias dos Grupos")
                                     st.metric(f"{resultado['grupo1']}", round(resultado['media1'], 4))

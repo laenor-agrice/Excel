@@ -1361,7 +1361,7 @@ def pipeline_completo_processamento(arquivo_bytes, config):
             metodo_falhas = config.get('metodo_falhas', 'multivariado')
             df = preenchimento_inteligente_falhas(df, metodo=metodo_falhas)
         def analise_completa_qualidade(df):
-    """Análise completa da qualidade dos dados"""
+        """Análise completa da qualidade dos dados"""
     
     qualidade = {}
     

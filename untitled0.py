@@ -1,28 +1,25 @@
 # =============================================================================
-# IMPORTS
+# IMPORTS (ORDEM CORRETA)
 # =============================================================================
+
+import streamlit as st
 import sys
 
 st.write(sys.version)
 
-import streamlit as st
 import pandas as pd
 import numpy as np
 
 import plotly.graph_objects as go
-try:
-    import plotly
-    print("Plotly carregado:", plotly.__version__)
+import plotly.express as px
 
-    import plotly.express as px
-
-except Exception as e:
-    st.error(f"Erro Plotly: {e}")
-    raise
 import requests
 import zipfile
+
 from io import BytesIO
+
 from scipy.stats import zscore
+
 from docx import Document
 from openpyxl import Workbook
 

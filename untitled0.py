@@ -1063,8 +1063,7 @@ def gerar_climograma_streamlit(df_mensal):
         st.vega_lite_chart(df_vega, {
             "layer": [
                 {"mark": {"type": "bar", "tooltip": True}, "encoding": {"y": {"field": "Precipitacao", "type": "quantitative", "title": "Precipitação (mm)"}}},
-                {"mark": {"type": "line", "color": "red", "tooltip": True}, "encoding": {"y": {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)", "axis": {"titleColor": "red"}}}
-            ],
+                {"mark": {"type": "line", "color": "red", "tooltip": True}, "encoding": {"y": {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)", "axis": {"titleColor": "red"}}}}],
             "encoding": {"x": {"field": "Mes", "type": "ordinal", "title": "Mês", "sort": None}},
             "title": "Precipitação e Temperatura"
         }, use_container_width=True)

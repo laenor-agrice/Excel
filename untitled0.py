@@ -8,6 +8,7 @@ import warnings
 import requests
 import json
 import re
+import math
 warnings.filterwarnings('ignore')
 
 # ============================================================================
@@ -473,6 +474,79 @@ def corrigir_datas(df):
 # FUNÇÕES AVANÇADAS DE QUALIDADE DE DADOS
 # ============================================================================
 
+def validar_consistencia_fisica(df):
+    """
+    Valida a consistência física dos dados meteorológicos.
+    
+    Verifica se os valores estão dentro de faixas plausíveis:
+    - Temperatura: -50°C a 60°C
+    - Umidade: 0% a 100%
+    - Precipitação: >= 0 mm
+    - Velocidade do vento: >= 0 m/s
+    - Pressão: 800 hPa a 1100 hPa
+    
+    Retorna:
+        df_validado: DataFrame com os dados originais
+        alertas: Lista de dicionários com os registros inconsistentes
+    """
+    df_validado = df.copy()
+    alertas = []
+    
+    # Verificar temperatura
+    for col in ['Tmax', 'Tmin', 'Temp_Inst']:
+        if col in df_validado.columns:
+            mask_invalid = (df_validado[col] < -50) | (df_validado[col] > 60)
+            if mask_invalid.any():
+                alertas.append({
+                    'variavel': col,
+                    'quantidade': mask_invalid.sum(),
+                    'exemplos': df_validado.loc[mask_invalid, 'DateTime'].dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+                })
+    
+    # Verificar umidade
+    for col in ['UR_Inst', 'URmax', 'URmin']:
+        if col in df_validado.columns:
+            mask_invalid = (df_validado[col] < 0) | (df_validado[col] > 100)
+            if mask_invalid.any():
+                alertas.append({
+                    'variavel': col,
+                    'quantidade': mask_invalid.sum(),
+                    'exemplos': df_validado.loc[mask_invalid, 'DateTime'].dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+                })
+    
+    # Verificar precipitação
+    if 'Precipitacao' in df_validado.columns:
+        mask_invalid = df_validado['Precipitacao'] < 0
+        if mask_invalid.any():
+            alertas.append({
+                'variavel': 'Precipitacao',
+                'quantidade': mask_invalid.sum(),
+                'exemplos': df_validado.loc[mask_invalid, 'DateTime'].dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+            })
+    
+    # Verificar vento
+    if 'U2' in df_validado.columns:
+        mask_invalid = df_validado['U2'] < 0
+        if mask_invalid.any():
+            alertas.append({
+                'variavel': 'U2',
+                'quantidade': mask_invalid.sum(),
+                'exemplos': df_validado.loc[mask_invalid, 'DateTime'].dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+            })
+    
+    # Verificar pressão
+    for col in ['Press_Inst', 'Pressmax', 'Pressmin']:
+        if col in df_validado.columns:
+            mask_invalid = (df_validado[col] < 800) | (df_validado[col] > 1100)
+            if mask_invalid.any():
+                alertas.append({
+                    'variavel': col,
+                    'quantidade': mask_invalid.sum(),
+                    'exemplos': df_validado.loc[mask_invalid, 'DateTime'].dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+                })
+    
+    return df_validado, alertas
+
 def analise_completa_qualidade(df):
     """Análise completa da qualidade dos dados"""
     
@@ -533,7 +607,15 @@ def analise_completa_qualidade(df):
     return qualidade, outliers_info
 
 def preenchimento_inteligente_falhas(df, metodo='multivariado'):
-    """Preenchimento avançado de falhas usando múltiplas técnicas (sem sklearn)"""
+    """
+    Preenchimento avançado de falhas usando múltiplas técnicas.
+    
+    Métodos disponíveis:
+    - interpolacao_linear: Interpolação linear entre pontos válidos
+    - interpolacao_spline: Interpolação spline cúbica
+    - media_movel: Média móvel com janela de 24 horas
+    - multivariado: Combinação de métodos (recomendado)
+    """
     
     df_filled = df.copy()
     
@@ -722,7 +804,16 @@ def consolidacao_avancada_por_mes(df):
     return df_consolidado
 
 def calcular_indicadores_agricolas_avancados(df_diario, df_mensal, latitude=-16.0):
-    """Cálculo avançado de indicadores agrícolas"""
+    """
+    Cálculo avançado de indicadores agrícolas.
+    
+    Inclui:
+    - GDD (Graus-Dia de Desenvolvimento) com Tb=10°C
+    - Horas de Frio para limiares de 7°C, 10°C e 13°C
+    - ETo (Evapotranspiração Potencial) pelo método de Hargreaves com Ra calculado
+    - Índice de Aridez (P/ETo)
+    - Amplitude Térmica Média
+    """
     
     indicadores = df_mensal[['Mes', 'Ano', 'Numero_Mes']].copy()
     
@@ -761,16 +852,41 @@ def calcular_indicadores_agricolas_avancados(df_diario, df_mensal, latitude=-16.
             horas_mensal['Mes'] = horas_mensal['Period'].astype(str)
             indicadores = indicadores.merge(horas_mensal[['Mes', f'Horas_Frio_{limiar}C']], on='Mes', how='left')
     
-    # ===== Evapotranspiração Potencial (ETo) - Método Hargreaves simplificado =====
+    # ===== Evapotranspiração Potencial (ETo) - Método Hargreaves melhorado =====
     if all(x in df_diario.columns for x in ['Tmax', 'Tmin']):
+        import math
+        
+        # Radiação extraterrestre (Ra) por latitude
+        def calc_ra(lat, dia_ano):
+            """
+            Calcula a radiação solar no topo da atmosfera (Ra) em MJ/m²/dia.
+            
+            Baseado na equação da FAO (Allen et al., 1998).
+            
+            Parâmetros:
+                lat: latitude em graus (negativo para Sul)
+                dia_ano: dia do ano (1-365/366)
+            
+            Retorna:
+                Ra em MJ/m²/dia
+            """
+            Gsc = 0.0820  # Constante solar (MJ/m²/min)
+            phi = math.radians(lat)
+            delta = 0.4093 * math.sin(2 * math.pi / 365 * dia_ano - 1.405)
+            ws = math.acos(-math.tan(phi) * math.tan(delta))
+            dr = 1 + 0.033 * math.cos(2 * math.pi / 365 * dia_ano)
+            ra = (24 * 60 / math.pi) * Gsc * dr * (ws * math.sin(phi) * math.sin(delta) + 
+                                                   math.cos(phi) * math.cos(delta) * math.sin(ws))
+            return ra
+        
+        df_diario['Dia_Ano'] = df_diario['DateTime'].dt.dayofyear
+        df_diario['Ra'] = df_diario['Dia_Ano'].apply(lambda d: calc_ra(latitude, d))
+        
         t_media_diaria = (df_diario['Tmax'] + df_diario['Tmin']) / 2
         amplitude = df_diario['Tmax'] - df_diario['Tmin']
         
-        # Ra simplificado (constante média para região tropical)
-        ra = 15.0  # MJ/m²/dia (valor médio)
-        
         # ETo pelo método Hargreaves
-        eto_diario = 0.0023 * ra * np.sqrt(amplitude) * (t_media_diaria + 17.8)
+        eto_diario = 0.0023 * df_diario['Ra'] * np.sqrt(amplitude) * (t_media_diaria + 17.8)
         df_diario['ETo'] = np.maximum(0, eto_diario)
         
         # ETo mensal
@@ -816,25 +932,17 @@ def calcular_indicadores_agricolas_avancados(df_diario, df_mensal, latitude=-16.
         indicadores = indicadores.merge(amplitude_mensal[['Mes', 'Amplitude_Termica_Media']], on='Mes', how='left')
     
     return indicadores, df_diario
-# ============================================================================
-# FUNÇÃO DE DIAGNÓSTICO (ADICIONAR AQUI)
-# ============================================================================
 
-def diagnosticar_df(df, nome="DataFrame"):
-    """Função para diagnosticar o conteúdo do DataFrame"""
-    st.write(f"### 🔍 Diagnóstico: {nome}")
-    st.write(f"**Shape:** {df.shape}")
-    st.write(f"**Colunas:** {list(df.columns)}")
-    if len(df) > 0:
-        st.write(f"**Primeiras linhas:**")
-        st.dataframe(df.head(3))
-    st.markdown("---")
 # ============================================================================
-# FUNÇÕES DE VISUALIZAÇÃO AVANÇADA (SEM MATPLOTLIB/SEM PLOTLY)
+# FUNÇÕES DE VISUALIZAÇÃO AVANÇADA
 # ============================================================================
 
 def gerar_climograma_streamlit(df_mensal):
-    """Geração de climograma usando apenas streamlit nativo (com verificação de colunas)"""
+    """
+    Geração de climograma usando streamlit nativo e Vega-Lite.
+    
+    Verifica a existência das colunas necessárias e exibe os gráficos disponíveis.
+    """
     
     # Verificar se o DataFrame está vazio
     if df_mensal is None or df_mensal.empty:
@@ -917,6 +1025,52 @@ def gerar_climograma_streamlit(df_mensal):
     
     st.markdown("---")
     
+    # ===== GRÁFICO COMBINADO INTERATIVO (Vega-Lite) =====
+    if col_precip and col_temp and df_exibicao['Precipitacao'].sum() > 0 and df_exibicao['Temp_Inst'].sum() != 0:
+        st.markdown("### 📊 Análise Combinada (Precipitação vs Temperatura)")
+        
+        # Preparar dados para Vega-Lite
+        df_vega = df_exibicao[['Mes', 'Precipitacao', 'Temp_Inst']].copy()
+        df_vega['Precipitacao'] = df_vega['Precipitacao'].round(1)
+        df_vega['Temp_Inst'] = df_vega['Temp_Inst'].round(1)
+        
+        # Gráfico combinado com Vega-Lite
+        chart = {
+            "title": "Relação entre Precipitação e Temperatura",
+            "mark": {"type": "bar", "tooltip": True},
+            "encoding": {
+                "x": {"field": "Mes", "type": "ordinal", "title": "Mês", "sort": None},
+                "y": {"field": "Precipitacao", "type": "quantitative", "title": "Precipitação (mm)"},
+                "tooltip": [
+                    {"field": "Mes", "type": "nominal", "title": "Mês"},
+                    {"field": "Precipitacao", "type": "quantitative", "title": "Precipitação (mm)", "format": ".1f"},
+                    {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)", "format": ".1f"}
+                ]
+            }
+        }
+        
+        line_chart = {
+            "mark": {"type": "line", "color": "red", "tooltip": True},
+            "encoding": {
+                "y": {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)", "axis": {"titleColor": "red"}}
+            }
+        }
+        
+        chart['layer'] = [{"mark": "bar"}, {"mark": {"type": "line", "color": "red"}}]
+        chart['encoding']['y'] = {"field": "Precipitacao", "type": "quantitative", "title": "Precipitação (mm)"}
+        chart['encoding']['y2'] = {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)"}
+        
+        st.vega_lite_chart(df_vega, {
+            "layer": [
+                {"mark": {"type": "bar", "tooltip": True}, "encoding": {"y": {"field": "Precipitacao", "type": "quantitative", "title": "Precipitação (mm)"}}},
+                {"mark": {"type": "line", "color": "red", "tooltip": True}, "encoding": {"y": {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)", "axis": {"titleColor": "red"}}}
+            ],
+            "encoding": {"x": {"field": "Mes", "type": "ordinal", "title": "Mês", "sort": None}},
+            "title": "Precipitação e Temperatura"
+        }, use_container_width=True)
+    
+    st.markdown("---")
+    
     # ===== GRÁFICO COMBINADO =====
     st.markdown("### 📊 Dados Mensais Consolidados")
     
@@ -984,7 +1138,6 @@ def gerar_relatorio_pdf_completo(df_mensal, df_indicadores, qualidade, eventos_e
     
     data_geracao = datetime.now().strftime('%d/%m/%Y às %H:%M')
     
-  
     # Preparar tabela de dados mensais
     tabela_mensal = ""
     for _, row in df_mensal.iterrows():
@@ -1302,28 +1455,41 @@ def pipeline_completo_processamento(arquivo_bytes, config):
         with st.spinner("📅 Corrigindo datas..."):
             df = corrigir_datas(df)
         
-        # Passo 4: Análise de qualidade
+        # Passo 4: Validação de consistência física
+        with st.spinner("🔬 Validando consistência física dos dados..."):
+            df, alertas_fisicos = validar_consistencia_fisica(df)
+            if alertas_fisicos:
+                st.warning(f"⚠️ Foram encontrados {len(alertas_fisicos)} tipos de inconsistências físicas nos dados.")
+                with st.expander("📋 Detalhes das inconsistências encontradas"):
+                    for alerta in alertas_fisicos:
+                        st.write(f"**Variável:** {alerta['variavel']}")
+                        st.write(f"**Quantidade de registros inconsistentes:** {alerta['quantidade']}")
+                        if alerta['exemplos']:
+                            st.write(f"**Exemplos (data/hora):** {', '.join(alerta['exemplos'][:3])}")
+                        st.markdown("---")
+        
+        # Passo 5: Análise de qualidade
         with st.spinner("📊 Analisando qualidade dos dados..."):
             qualidade, outliers = analise_completa_qualidade(df)
             resultados['qualidade'] = qualidade
             resultados['outliers'] = outliers
         
-        # Passo 5: Preenchimento de falhas
+        # Passo 6: Preenchimento de falhas
         with st.spinner("🔄 Preenchendo falhas nos dados..."):
             metodo_falhas = config.get('metodo_falhas', 'multivariado')
             df = preenchimento_inteligente_falhas(df, metodo=metodo_falhas)
         
-        # Passo 6: Detecção de eventos extremos
+        # Passo 7: Detecção de eventos extremos
         with st.spinner("⚠️ Detectando eventos climáticos extremos..."):
             eventos_extremos = detectar_eventos_extremos(df)
             resultados['eventos_extremos'] = eventos_extremos
         
-        # Passo 7: Consolidação mensal
+        # Passo 8: Consolidação mensal
         with st.spinner("📆 Consolidando dados por mês..."):
             df_mensal = consolidacao_avancada_por_mes(df)
             resultados['dados_mensais'] = df_mensal
         
-        # Passo 8: Cálculo de indicadores agrícolas
+        # Passo 9: Cálculo de indicadores agrícolas
         with st.spinner("🌱 Calculando indicadores agrícolas..."):
             latitude = config.get('latitude', info_estacao.get('latitude', -16.0))
             df_indicadores, df = calcular_indicadores_agricolas_avancados(df, df_mensal, latitude)
@@ -1615,7 +1781,7 @@ def main():
                 else:
                     st.success("✅ Nenhum evento climático extremo detectado no período analisado")
             
-                       # Tab 5: Análise com IA Gemini
+            # Tab 5: Análise com IA Gemini
             with tab5:
                 st.markdown("### 🤖 Análise Inteligente com IA Gemini")
                 

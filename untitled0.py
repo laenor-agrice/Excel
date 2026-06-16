@@ -11,7 +11,8 @@ import zipfile
 
 from io import BytesIO
 
-from docx import Document
+def gerar_txt():
+    return "Relatório gerado pelo sistema"
 from openpyxl import Workbook
 
 

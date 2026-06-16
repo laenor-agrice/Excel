@@ -338,7 +338,29 @@ def ler_arquivo_inteligente(arquivo_bytes):
                 pass
     
     return df, info
-
+# Adicione esta função após a leitura do arquivo
+def diagnosticar_colunas(df):
+    st.markdown("### 🔍 Diagnóstico de Colunas")
+    st.write("**Colunas encontradas no arquivo:**")
+    st.write(list(df.columns))
+    
+    # Verificar colunas de umidade
+    col_umidade = [c for c in df.columns if any(x in c.lower() for x in ['umid', 'ur', 'umidade'])]
+    st.write(f"**Colunas de umidade detectadas:** {col_umidade}")
+    
+    # Verificar colunas de vento
+    col_vento = [c for c in df.columns if any(x in c.lower() for x in ['vento', 'vel', 'u2'])]
+    st.write(f"**Colunas de vento detectadas:** {col_vento}")
+    
+    # Verificar colunas de temperatura
+    col_temp = [c for c in df.columns if any(x in c.lower() for x in ['temp', 'temperatura'])]
+    st.write(f"**Colunas de temperatura detectadas:** {col_temp}")
+    
+    # Verificar colunas de precipitação
+    col_precip = [c for c in df.columns if any(x in c.lower() for x in ['precip', 'chuva'])]
+    st.write(f"**Colunas de precipitação detectadas:** {col_precip}")
+    
+    return col_umidade, col_vento, col_temp, col_precip
 # ============================================================================
 # FUNÇÕES AVANÇADAS DE TRATAMENTO DE DADOS
 # ============================================================================
@@ -356,34 +378,41 @@ def padronizar_colunas(df):
         'temp_ins': 'Temp_Inst', 'temperatura_ins': 'Temp_Inst',
         'temp_inst': 'Temp_Inst', 'TEMP_INS': 'Temp_Inst',
         'temp_max': 'Tmax', 'temperatura_maxima': 'Tmax', 'TEMPERATURA MAXIMA': 'Tmax',
-        'temp_maxima': 'Tmax', 'TEMP_MAX': 'Tmax',
+        'temp_maxima': 'Tmax', 'TEMP_MAX': 'Tmax', 'temp_max_inst': 'Tmax',
         'temp_min': 'Tmin', 'temperatura_minima': 'Tmin', 'TEMPERATURA MINIMA': 'Tmin',
-        'temp_minima': 'Tmin', 'TEMP_MIN': 'Tmin',
+        'temp_minima': 'Tmin', 'TEMP_MIN': 'Tmin', 'temp_min_inst': 'Tmin',
         
-        # Umidade
+        # Umidade (ADICIONAR MAIS VARIAÇÕES)
         'umid_ins': 'UR_Inst', 'umidade_ins': 'UR_Inst', 'UMIDADE INST': 'UR_Inst',
+        'umid_inst': 'UR_Inst', 'umidade_inst': 'UR_Inst', 'umidade_instantanea': 'UR_Inst',
+        'ur_inst': 'UR_Inst', 'UR_inst': 'UR_Inst',
         'umid_max': 'URmax', 'umidade_maxima': 'URmax', 'UMIDADE MAXIMA': 'URmax',
+        'ur_max': 'URmax', 'UR_max': 'URmax',
         'umid_min': 'URmin', 'umidade_minima': 'URmin', 'UMIDADE MINIMA': 'URmin',
+        'ur_min': 'URmin', 'UR_min': 'URmin',
+        'umidade': 'UR_Inst', 'umidade_relativa': 'UR_Inst',
         
         # Pressão
         'pressao_ins': 'Press_Inst', 'pressao_atm': 'Press_Inst',
         'pressao_max': 'Pressmax', 'pressao_min': 'Pressmin',
         
-        # Vento
+        # Vento (ADICIONAR MAIS VARIAÇÕES)
         'vel_vento': 'U2', 'velocidade_vento': 'U2', 'VEL_VENTO': 'U2',
-        'vento_medio': 'U2', 'vento_rajada': 'Raj_vento',
-        'dir_vento': 'Dir_vento', 'direcao_vento': 'Dir_vento',
+        'vento_medio': 'U2', 'vento': 'U2', 'vel_vento_medio': 'U2',
+        'vento_rajada': 'Raj_vento', 'vento_raj': 'Raj_vento', 'rajada': 'Raj_vento',
+        'dir_vento': 'Dir_vento', 'direcao_vento': 'Dir_vento', 'vento_dir': 'Dir_vento',
         
         # Radiação e precipitação
-        'radiacao': 'Rad_KJ', 'radiacao_solar': 'Rad_KJ',
+        'radiacao': 'Rad_KJ', 'radiacao_solar': 'Rad_KJ', 'rad_solar': 'Rad_KJ',
         'precip': 'Precipitacao', 'chuva': 'Precipitacao', 'PRECIPITACAO': 'Precipitacao',
         'precipitacao_total': 'Precipitacao', 'precipitacao_mensal': 'Precipitacao',
+        'precipitacao_instantanea': 'Precipitacao', 'precip_inst': 'Precipitacao',
         
         # Ponto de orvalho
         'pto_orvalho': 'Td_Inst', 'ponto_orvalho': 'Td_Inst',
         'pto_orvalho_max': 'Tdmax', 'pto_orvalho_min': 'Tdmin'
     }
-    
+        
     df_renomeado = df.copy()
     
     # Renomear colunas

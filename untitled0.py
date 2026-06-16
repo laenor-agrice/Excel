@@ -13,7 +13,7 @@ from io import BytesIO
 
 def gerar_txt():
     return "Relatório gerado pelo sistema"
-from openpyxl import Workbook
+
 
 
 # =============================================================================

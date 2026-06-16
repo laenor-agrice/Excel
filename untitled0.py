@@ -199,27 +199,26 @@ def calcular_correlacao(df, coluna1, coluna2):
 # FUNÇÃO PARA CALCULAR MÉDIA POR MÊS
 # =============================================================================
 
-def calcular_media_por_mes(df, coluna_data, variavel, mes=None):
-    """Calcula a média de uma variável para cada mês ou para um mês específico"""
+def calcular_media_por_mes(df, coluna_data, variavel):
+    """Calcula a média de uma variável para cada mês"""
     df2 = df.copy()
     df2['Mes'] = df2[coluna_data].dt.month
     
-    if mes is not None:
-        df2 = df2[df2['Mes'] == mes]
-    
+    # Calcular média por mês
     media_mensal = df2.groupby('Mes')[variavel].mean().reset_index()
     media_mensal.columns = ['Mes', 'Media']
     
-    todos_meses = pd.DataFrame({'Mes': list(range(1, 13))})
-    media_mensal_completo = todos_meses.merge(media_mensal, on='Mes', how='left')
-    
+    # Adicionar nomes dos meses
     nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
                    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-    media_mensal_completo['Mes_Nome'] = media_mensal_completo['Mes'].apply(
-        lambda x: nomes_meses[x-1] if 1 <= x <= 12 else str(x)
+    media_mensal['Mes_Nome'] = media_mensal['Mes'].apply(
+        lambda x: nomes_meses[int(x)-1] if 1 <= int(x) <= 12 else str(x)
     )
     
-    return media_mensal_completo
+    # Ordenar por mês
+    media_mensal = media_mensal.sort_values('Mes').reset_index(drop=True)
+    
+    return media_mensal
 
 # =============================================================================
 # CONFIGURAÇÃO DA PÁGINA - TELA CHEIA
@@ -258,67 +257,67 @@ st.markdown(
     /* Elementos principais - verde piscina */
     .custom-card {
         background: linear-gradient(145deg, rgba(180, 230, 210, 0.95), rgba(140, 210, 190, 0.92));
-        border-radius: 20px;
-        padding: 2.5rem;
-        box-shadow: 0 8px 32px rgba(0,50,30,0.15);
-        margin-bottom: 2rem;
+        border-radius: 16px;
+        padding: 1.8rem;
+        box-shadow: 0 4px 20px rgba(0,50,30,0.12);
+        margin-bottom: 1.5rem;
         backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.25);
+        border: 1px solid rgba(255,255,255,0.2);
         width: 100%;
     }
     
     .main-header {
         background: linear-gradient(135deg, #0d2b45 0%, #1a5276 50%, #2e86c1 100%);
-        padding: 2.5rem 3rem;
-        border-radius: 20px;
-        margin-bottom: 2rem;
+        padding: 1.8rem 2.5rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
         color: white;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
         text-align: center;
         width: 100%;
     }
     
     .main-header h1 {
         margin: 0;
-        font-size: 3rem;
-        font-weight: 800;
+        font-size: 2.2rem;
+        font-weight: 700;
         letter-spacing: -1px;
     }
     
     .main-header p {
-        margin: 0.8rem 0 0 0;
-        opacity: 0.95;
-        font-size: 1.3rem;
+        margin: 0.4rem 0 0 0;
+        opacity: 0.9;
+        font-size: 1.1rem;
     }
     
     /* Botões em verde piscina */
     .stButton > button {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
-        border-radius: 14px;
+        border-radius: 12px;
         border: none;
-        font-weight: 700;
-        padding: 0.9rem 2.5rem;
-        font-size: 1.1rem;
+        font-weight: 600;
+        padding: 0.6rem 1.5rem;
+        font-size: 1rem;
         transition: all 0.3s ease;
         width: 100%;
-        box-shadow: 0 4px 20px rgba(45, 138, 110, 0.3);
+        box-shadow: 0 2px 15px rgba(45, 138, 110, 0.25);
     }
     
     .stButton > button:hover {
-        transform: translateY(-3px) scale(1.02);
-        box-shadow: 0 8px 30px rgba(45, 138, 110, 0.4);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 25px rgba(45, 138, 110, 0.35);
         background: linear-gradient(135deg, #3da88a, #2d8a6e);
     }
     
     /* Upload em verde piscina */
     .stFileUploader > div {
-        border: 3px dashed #3da88a;
-        border-radius: 20px;
-        padding: 3rem 2rem;
-        background: rgba(200, 240, 225, 0.6);
+        border: 2px dashed #3da88a;
+        border-radius: 16px;
+        padding: 2.5rem 2rem;
+        background: rgba(200, 240, 225, 0.4);
         transition: all 0.3s ease;
-        min-height: 150px;
+        min-height: 120px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -326,25 +325,25 @@ st.markdown(
     
     .stFileUploader > div:hover {
         border-color: #2d8a6e;
-        background: rgba(180, 230, 215, 0.7);
+        background: rgba(180, 230, 215, 0.5);
         transform: scale(1.01);
-        box-shadow: 0 4px 20px rgba(45, 138, 110, 0.15);
+        box-shadow: 0 4px 20px rgba(45, 138, 110, 0.1);
     }
     
-    /* Métricas em verde piscina */
+    /* Métricas em verde piscina - tamanho uniforme */
     .stMetric {
-        background: rgba(200, 240, 225, 0.85);
-        border-radius: 16px;
-        padding: 1.5rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(200, 240, 225, 0.8);
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.05);
+        border: 1px solid rgba(255,255,255,0.15);
         transition: all 0.3s ease;
         backdrop-filter: blur(5px);
     }
     
     .stMetric:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+        transform: translateY(-3px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         background: rgba(200, 240, 225, 0.95);
     }
     
@@ -353,18 +352,18 @@ st.markdown(
     }
     
     .stMetric label {
-        font-size: 1.1rem !important;
+        font-size: 0.95rem !important;
         font-weight: 600 !important;
         color: #1a4a3a !important;
     }
     
     .stMetric div[data-testid="stMetricValue"] {
-        font-size: 2.2rem !important;
+        font-size: 1.8rem !important;
         font-weight: 700 !important;
         color: #1a6e5a !important;
     }
     
-    /* Abas centralizadas e maiores */
+    /* Abas centralizadas e com tamanho uniforme */
     .stTabs {
         display: flex;
         justify-content: center;
@@ -372,93 +371,93 @@ st.markdown(
     }
     
     .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
-        background: rgba(200, 240, 225, 0.85);
-        border-radius: 16px;
-        padding: 12px 20px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        gap: 8px;
+        background: rgba(200, 240, 225, 0.8);
+        border-radius: 12px;
+        padding: 8px 12px;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.06);
         backdrop-filter: blur(5px);
-        margin-bottom: 1.5rem;
+        margin-bottom: 1.2rem;
         justify-content: center;
         width: 100%;
         flex-wrap: wrap;
-        border: 1px solid rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.1);
     }
     
     .stTabs [data-baseweb="tab"] {
-        border-radius: 12px;
-        padding: 0.9rem 2rem;
+        border-radius: 10px;
+        padding: 0.6rem 1.5rem;
         font-weight: 600;
-        font-size: 1.1rem;
+        font-size: 0.95rem;
         transition: all 0.3s ease;
         color: #1a4a3a;
         white-space: nowrap;
-        min-width: 110px;
+        min-width: 90px;
         text-align: center;
         justify-content: center;
         background: transparent;
     }
     
     .stTabs [data-baseweb="tab"]:hover {
-        background-color: rgba(45, 138, 110, 0.12);
+        background-color: rgba(45, 138, 110, 0.1);
         color: #1a6e5a;
-        transform: translateY(-2px);
+        transform: translateY(-1px);
     }
     
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white !important;
-        font-weight: 700;
-        box-shadow: 0 4px 20px rgba(45, 138, 110, 0.3);
-        transform: translateY(-2px);
+        font-weight: 600;
+        box-shadow: 0 2px 15px rgba(45, 138, 110, 0.25);
+        transform: translateY(-1px);
     }
     
     /* Caixas de informação em verde piscina */
     .info-box {
-        background: linear-gradient(135deg, rgba(200, 240, 225, 0.8), rgba(160, 220, 200, 0.7));
-        border-left: 6px solid #3da88a;
-        padding: 1.5rem 2rem;
-        border-radius: 14px;
-        margin: 1.5rem 0;
+        background: linear-gradient(135deg, rgba(200, 240, 225, 0.7), rgba(160, 220, 200, 0.6));
+        border-left: 4px solid #3da88a;
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
         color: #1a4a3a;
-        font-size: 1.1rem;
-        box-shadow: 0 4px 15px rgba(45, 138, 110, 0.08);
+        font-size: 1rem;
+        box-shadow: 0 2px 10px rgba(45, 138, 110, 0.06);
     }
     
     .config-box {
-        background: rgba(200, 240, 225, 0.7);
-        border: 2px solid rgba(100, 200, 170, 0.3);
-        border-radius: 16px;
-        padding: 2rem;
-        margin: 1.5rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        background: rgba(200, 240, 225, 0.6);
+        border: 1px solid rgba(100, 200, 170, 0.25);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
     }
     
     .config-title {
-        font-weight: 700;
+        font-weight: 600;
         color: #1a4a3a;
-        margin-bottom: 0.8rem;
-        font-size: 1.3rem;
+        margin-bottom: 0.5rem;
+        font-size: 1.1rem;
     }
     
     .section-title {
-        font-size: 1.8rem;
+        font-size: 1.4rem;
         font-weight: 700;
         color: #1a4a3a;
-        margin-bottom: 1.5rem;
-        padding-bottom: 0.8rem;
-        border-bottom: 4px solid #3da88a;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #3da88a;
         display: inline-block;
     }
     
-    /* Inputs em verde piscina */
+    /* Inputs em verde piscina - tamanho uniforme */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
-        border-radius: 12px;
-        border: 2px solid rgba(100, 200, 170, 0.4);
-        padding: 0.8rem 1rem;
-        font-size: 1.05rem;
+        border-radius: 10px;
+        border: 1px solid rgba(100, 200, 170, 0.35);
+        padding: 0.6rem 0.8rem;
+        font-size: 0.95rem;
         transition: all 0.3s ease;
         background: rgba(255,255,255,0.9);
         color: #1a4a3a !important;
@@ -468,53 +467,53 @@ st.markdown(
     .stTextArea > div > div > textarea:focus,
     .stNumberInput > div > div > input:focus {
         border-color: #3da88a;
-        box-shadow: 0 0 0 4px rgba(45, 138, 110, 0.15);
+        box-shadow: 0 0 0 3px rgba(45, 138, 110, 0.12);
         color: #1a4a3a !important;
     }
     
-    /* Selectbox em verde piscina */
+    /* Selectbox em verde piscina - tamanho uniforme */
     .stSelectbox {
-        margin-bottom: 1.5rem;
-        min-height: 70px;
+        margin-bottom: 1rem;
+        min-height: 55px;
     }
     
     .stSelectbox > div {
-        min-height: 60px;
+        min-height: 50px;
     }
     
     .stSelectbox > div > div {
-        border-radius: 12px;
-        border: 2px solid rgba(100, 200, 170, 0.4);
-        padding: 0.5rem 1rem;
-        font-size: 1.05rem;
+        border-radius: 10px;
+        border: 1px solid rgba(100, 200, 170, 0.35);
+        padding: 0.4rem 0.8rem;
+        font-size: 0.95rem;
         transition: all 0.3s ease;
         background: rgba(255,255,255,0.9);
         color: #1a4a3a !important;
-        min-height: 50px;
+        min-height: 45px;
     }
     
     .stSelectbox > div > div > div {
         color: #1a4a3a !important;
-        font-size: 1.05rem !important;
+        font-size: 0.95rem !important;
     }
     
     .stSelectbox > div > div:focus {
         border-color: #3da88a;
-        box-shadow: 0 0 0 4px rgba(45, 138, 110, 0.15);
+        box-shadow: 0 0 0 3px rgba(45, 138, 110, 0.12);
     }
     
     .stSelectbox > div > div > div > div {
         color: #1a4a3a !important;
-        font-size: 1rem !important;
-        padding: 8px 12px !important;
+        font-size: 0.9rem !important;
+        padding: 6px 10px !important;
     }
     
     .stSelectbox > div > div > div > div:hover {
-        background-color: rgba(200, 240, 225, 0.5) !important;
+        background-color: rgba(200, 240, 225, 0.4) !important;
     }
     
     .stSelectbox > div > div > div:first-child {
-        min-height: 40px;
+        min-height: 35px;
         display: flex;
         align-items: center;
     }
@@ -522,21 +521,21 @@ st.markdown(
     .stCheckbox > label {
         font-weight: 600;
         color: #1a4a3a;
-        font-size: 1.05rem;
+        font-size: 0.95rem;
     }
     
-    /* Dataframes em verde piscina */
+    /* Dataframes - ocupam toda a largura */
     .stDataFrame {
-        border-radius: 16px;
-        border: 1px solid rgba(100, 200, 170, 0.3);
+        border-radius: 12px;
+        border: 1px solid rgba(100, 200, 170, 0.25);
         overflow: hidden;
         background: rgba(255,255,255,0.9);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
         width: 100%;
     }
     
     .stDataFrame > div {
-        border-radius: 16px;
+        border-radius: 12px;
         width: 100%;
     }
     
@@ -550,29 +549,29 @@ st.markdown(
     
     .footer {
         text-align: center;
-        font-size: 14px;
-        color: rgba(255,255,255,0.7);
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        border-top: 2px solid rgba(255,255,255,0.1);
-        margin-top: 2rem;
+        font-size: 12px;
+        color: rgba(255,255,255,0.6);
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        margin-top: 1.5rem;
         width: 100%;
     }
     
     .footer b {
-        color: rgba(255,255,255,0.9);
+        color: rgba(255,255,255,0.8);
     }
     
     /* Arquivo info em verde piscina */
     .file-info {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
-        padding: 1.5rem 2rem;
-        border-radius: 14px;
-        margin: 1rem 0;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        margin: 0.8rem 0;
         font-weight: 600;
-        font-size: 1.2rem;
-        box-shadow: 0 4px 20px rgba(45, 138, 110, 0.3);
+        font-size: 1rem;
+        box-shadow: 0 2px 15px rgba(45, 138, 110, 0.25);
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -581,17 +580,18 @@ st.markdown(
     
     .file-info span {
         background: rgba(255,255,255,0.2);
-        padding: 0.3rem 1rem;
-        border-radius: 20px;
+        padding: 0.2rem 0.8rem;
+        border-radius: 16px;
         font-weight: 400;
+        font-size: 0.9rem;
     }
     
     /* Título da seção de média mensal */
     .media-mensal-title {
-        font-size: 1.5rem;
+        font-size: 1.3rem;
         font-weight: 700;
         color: #1a6e5a;
-        margin-bottom: 1rem;
+        margin-bottom: 0.8rem;
     }
     
     /* Ajustes de largura para elementos */
@@ -605,18 +605,18 @@ st.markdown(
     
     /* Scrollbar personalizada */
     ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
     }
     
     ::-webkit-scrollbar-track {
-        background: rgba(200, 240, 225, 0.3);
-        border-radius: 10px;
+        background: rgba(200, 240, 225, 0.2);
+        border-radius: 8px;
     }
     
     ::-webkit-scrollbar-thumb {
         background: #3da88a;
-        border-radius: 10px;
+        border-radius: 8px;
     }
     
     ::-webkit-scrollbar-thumb:hover {
@@ -707,7 +707,7 @@ with tab0:
         cidade = st.text_input("📍 Cidade")
         estado = st.text_input("🗺️ Estado")
     
-    observacoes = st.text_area("📝 Observações", height=100)
+    observacoes = st.text_area("📝 Observações", height=80)
     
     if st.button("💾 Salvar Cadastro", use_container_width=True):
         st.session_state["usuario"] = {
@@ -857,7 +857,7 @@ with tab1:
     st.markdown("""
     <div class="config-box">
         <div class="config-title">📁 Upload do Arquivo INMET</div>
-        <div style="color: #1a4a3a; font-size: 1.1rem;">
+        <div style="color: #1a4a3a; font-size: 1rem;">
             <strong>200MB per file</strong> - CSV, TXT, DAT, XLS, XLSX
         </div>
     </div>
@@ -922,9 +922,9 @@ with tab1:
             st.error(f"❌ Erro ao carregar arquivo: {erro}")
     else:
         st.markdown("""
-        <div style="text-align: center; padding: 2rem; color: #5a8a7a;">
-            <span style="font-size: 3rem;">📁</span>
-            <p style="font-size: 1.2rem; margin-top: 0.5rem;">Nenhum arquivo selecionado</p>
+        <div style="text-align: center; padding: 1.5rem; color: #5a8a7a;">
+            <span style="font-size: 2.5rem;">📁</span>
+            <p style="font-size: 1.1rem; margin-top: 0.3rem;">Nenhum arquivo selecionado</p>
             <p style="font-size: 0.9rem;">Arraste ou clique para fazer upload</p>
         </div>
         """, unsafe_allow_html=True)
@@ -1053,7 +1053,7 @@ with tab2:
         st.markdown("""
         <div class="config-box">
             <div class="config-title">📊 Métodos de Preenchimento</div>
-            <p style="margin: 0; color: #1a4a3a; font-size: 1.05rem;">Técnica para preenchimento de falhas:</p>
+            <p style="margin: 0; color: #1a4a3a; font-size: 0.95rem;">Técnica para preenchimento de falhas:</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1265,7 +1265,6 @@ with tab4:
                 
                 # Criar coluna de mês no DataFrame
                 df[col_data] = pd.to_datetime(df[col_data], errors='coerce')
-                df['Mes'] = df[col_data].dt.month
                 
                 # Seletor de variável
                 var_mensal = st.selectbox(
@@ -1274,48 +1273,29 @@ with tab4:
                     key="var_mensal"
                 )
                 
-                # Seletor de mês - sempre mostrar de Janeiro a Dezembro
-                nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
-                               'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-                
-                opcoes_meses = [0] + list(range(1, 13))
-                
-                mes_selecionado = st.selectbox(
-                    "Selecione o mês para filtrar",
-                    options=opcoes_meses,
-                    format_func=lambda x: 'Todos os meses' if x == 0 else nomes_meses[x-1]
-                )
-                
                 if var_mensal:
-                    if mes_selecionado == 0:
-                        media_mensal = calcular_media_por_mes(df, col_data, var_mensal)
-                        st.markdown(f"**📈 Média Mensal - {var_mensal} (Todos os meses)**")
-                    else:
-                        media_mensal = calcular_media_por_mes(df, col_data, var_mensal, mes_selecionado)
-                        st.markdown(f"**📈 Média Mensal - {var_mensal} ({nomes_meses[mes_selecionado-1]})**")
+                    media_mensal = calcular_media_por_mes(df, col_data, var_mensal)
                     
                     if media_mensal is not None and not media_mensal.empty:
-                        if 'Media' in media_mensal.columns:
-                            st.dataframe(media_mensal, use_container_width=True)
-                            
-                            dados_validos = media_mensal[~media_mensal['Media'].isna()]
-                            if not dados_validos.empty:
-                                st.markdown(f"**📊 Gráfico da Média Mensal - {var_mensal}**")
-                                st.bar_chart(dados_validos.set_index('Mes_Nome')['Media'], use_container_width=True)
-                                
-                                st.markdown("**📋 Estatísticas da Média Mensal**")
-                                stats = media_mensal['Media'].describe()
-                                col1, col2, col3, col4 = st.columns(4)
-                                with col1:
-                                    st.metric("Mínimo", round(stats['min'], 2) if not pd.isna(stats['min']) else "-")
-                                with col2:
-                                    st.metric("Máximo", round(stats['max'], 2) if not pd.isna(stats['max']) else "-")
-                                with col3:
-                                    st.metric("Média", round(stats['mean'], 2) if not pd.isna(stats['mean']) else "-")
-                                with col4:
-                                    st.metric("Desvio Padrão", round(stats['std'], 2) if not pd.isna(stats['std']) else "-")
-                            else:
-                                st.info("ℹ️ Nenhum dado disponível para o mês selecionado.")
+                        st.markdown(f"**📈 Média Mensal - {var_mensal}**")
+                        st.dataframe(media_mensal, use_container_width=True)
+                        
+                        # Gráfico da média mensal
+                        st.markdown(f"**📊 Gráfico da Média Mensal - {var_mensal}**")
+                        st.bar_chart(media_mensal.set_index('Mes_Nome')['Media'], use_container_width=True)
+                        
+                        # Estatísticas descritivas
+                        st.markdown("**📋 Estatísticas da Média Mensal**")
+                        stats = media_mensal['Media'].describe()
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Mínimo", round(stats['min'], 2) if not pd.isna(stats['min']) else "-")
+                        with col2:
+                            st.metric("Máximo", round(stats['max'], 2) if not pd.isna(stats['max']) else "-")
+                        with col3:
+                            st.metric("Média", round(stats['mean'], 2) if not pd.isna(stats['mean']) else "-")
+                        with col4:
+                            st.metric("Desvio Padrão", round(stats['std'], 2) if not pd.isna(stats['std']) else "-")
                     else:
                         st.warning("⚠️ Nenhum dado disponível para análise.")
             else:
@@ -1658,7 +1638,7 @@ with tab5:
             df_base = st.session_state["df_consolidado"]
             
             tipo_relatorio = st.selectbox("Tipo de Relatório", list(PROMPTS.keys()))
-            pergunta = st.text_area("❓ Pergunta adicional", height=100)
+            pergunta = st.text_area("❓ Pergunta adicional", height=80)
             
             if st.button("🚀 Gerar Relatório", use_container_width=True):
                 with st.spinner("Analisando dados..."):

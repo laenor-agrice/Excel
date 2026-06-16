@@ -98,20 +98,17 @@ st.markdown("---")
 # CRIAÇÃO DAS ABAS
 # =============================================================================
 
-tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(
-    [
-        "🏠 Início",
-        "📂 Importação",
-        "🧹 Tratamento",
-        "📅 Consolidação",
-        "📈 Estatística",
-        "📊 Gráficos",
-        "🤖 IA",
-        "📥 Exportação",
-        "🌱 Indicadores"
-        "🔍 Qualidade"
-    ]
-)
+tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    "🏠 Início",
+    "📂 Importação",
+    "🧹 Tratamento",
+    "📅 Consolidação",
+    "📈 Estatística",
+    "📊 Gráficos",
+    "🤖 IA",
+    "📥 Exportação",
+    "🌱 Indicadores"
+])
 
 # =============================================================================
 # ABA 0 - INÍCIO

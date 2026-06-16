@@ -3,26 +3,15 @@
 # =============================================================================
 
 import streamlit as st
-
 import pandas as pd
 import numpy as np
-
 import plotly.express as px
 import plotly.graph_objects as go
-
 import requests
-import json
-import os
-import io
-import csv
 import zipfile
-
 from io import BytesIO
-
 from scipy.stats import zscore
-
 from docx import Document
-
 from openpyxl import Workbook
 
 # =============================================================================
@@ -91,7 +80,7 @@ st.markdown("---")
 # CRIAÇÃO DAS ABAS
 # =============================================================================
 
-tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(
     [
         "🏠 Início",
         "📂 Importação",
@@ -102,6 +91,7 @@ tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
         "🤖 IA",
         "📥 Exportação",
         "🌱 Indicadores"
+        "🔍 Qualidade"
     ]
 )
 
@@ -1157,6 +1147,81 @@ with tab2:
                 "Base pronta para Consolidação."
             )
 # =============================================================================
+# FUNÇÕES DE CONSOLIDAÇÃO
+# =============================================================================
+
+def identificar_coluna_data(df):
+
+    palavras = [
+        "data",
+        "date",
+        "datetime",
+        "tempo",
+        "timestamp"
+    ]
+
+    for col in df.columns:
+
+        nome = str(col).lower()
+
+        if any(p in nome for p in palavras):
+            return col
+
+    return None
+
+
+def consolidar_dataframe(df):
+
+    df2 = df.copy()
+
+    coluna_data = identificar_coluna_data(df2)
+
+    if coluna_data is not None:
+
+        try:
+
+            df2 = df2.sort_values(
+                by=coluna_data
+            )
+
+        except:
+            pass
+
+    df2 = df2.reset_index(
+        drop=True
+    )
+
+    return df2
+
+
+def gerar_resumo_consolidacao(df):
+
+    resumo = {
+
+        "Linhas":
+            len(df),
+
+        "Colunas":
+            len(df.columns),
+
+        "Valores Nulos":
+            int(
+                df.isna()
+                .sum()
+                .sum()
+            ),
+
+        "Colunas Numéricas":
+            len(
+                df.select_dtypes(
+                    include=np.number
+                ).columns
+            )
+
+    }
+
+    return resumo
+# =============================================================================
 # ESTATÍSTICA DESCRITIVA
 # =============================================================================
 
@@ -1335,7 +1400,130 @@ def detectar_extremos(df):
 
     return pd.DataFrame(extremos)
 
+# =============================================================================
+# ABA 3 - CONSOLIDAÇÃO
+# =============================================================================
 
+with tab3:
+
+    st.subheader(
+        "📅 Consolidação dos Dados"
+    )
+
+    if "df_tratado" not in st.session_state:
+
+        st.warning(
+            "Primeiro execute o tratamento dos dados."
+        )
+
+    else:
+
+        df_base = (
+            st.session_state[
+                "df_tratado"
+            ].copy()
+        )
+
+        st.info(
+            """
+            Esta etapa organiza a base final,
+            ordena datas e prepara os dados
+            para análises estatísticas.
+            """
+        )
+
+        if st.button(
+            "🚀 Consolidar Dados",
+            use_container_width=True
+        ):
+
+            df_consolidado = (
+                consolidar_dataframe(
+                    df_base
+                )
+            )
+
+            st.session_state[
+                "df_consolidado"
+            ] = df_consolidado
+
+            st.success(
+                "Dados consolidados com sucesso."
+            )
+
+        if (
+            "df_consolidado"
+            in st.session_state
+        ):
+
+            df_consolidado = (
+                st.session_state[
+                    "df_consolidado"
+                ]
+            )
+
+            resumo = (
+                gerar_resumo_consolidacao(
+                    df_consolidado
+                )
+            )
+
+            st.markdown("---")
+
+            st.subheader(
+                "📊 Resumo da Consolidação"
+            )
+
+            col1, col2, col3, col4 = (
+                st.columns(4)
+            )
+
+            with col1:
+
+                st.metric(
+                    "Linhas",
+                    resumo["Linhas"]
+                )
+
+            with col2:
+
+                st.metric(
+                    "Colunas",
+                    resumo["Colunas"]
+                )
+
+            with col3:
+
+                st.metric(
+                    "Nulos",
+                    resumo[
+                        "Valores Nulos"
+                    ]
+                )
+
+            with col4:
+
+                st.metric(
+                    "Numéricas",
+                    resumo[
+                        "Colunas Numéricas"
+                    ]
+                )
+
+            st.markdown("---")
+
+            st.subheader(
+                "👁 Pré-visualização"
+            )
+
+            st.dataframe(
+                df_consolidado.head(200),
+                use_container_width=True
+            )
+
+            st.success(
+                "Base pronta para Estatística, Gráficos e IA."
+            )
 # =============================================================================
 # ABA 4 - ESTATÍSTICA DESCRITIVA
 # =============================================================================
@@ -2406,3 +2594,684 @@ with tab7:
     st.success(
         "Exportação pronta para Excel, Word, HTML e Backup ZIP."
     )
+# =============================================================================
+# INDICADORES AGROMETEOROLÓGICOS
+# =============================================================================
+
+def localizar_coluna(df, palavras):
+
+    for col in df.columns:
+
+        nome = str(col).lower()
+
+        if any(
+            p in nome
+            for p in palavras
+        ):
+            return col
+
+    return None
+
+
+# =============================================================================
+# GRAUS-DIA (GDD)
+# =============================================================================
+
+def calcular_gdd(
+    df,
+    temperatura,
+    temperatura_base=10
+):
+
+    serie = pd.to_numeric(
+        df[temperatura],
+        errors="coerce"
+    )
+
+    gdd = (
+        serie - temperatura_base
+    )
+
+    gdd[gdd < 0] = 0
+
+    return gdd
+
+
+# =============================================================================
+# PRECIPITAÇÃO ACUMULADA
+# =============================================================================
+
+def calcular_precipitacao_acumulada(
+    df,
+    coluna
+):
+
+    chuva = pd.to_numeric(
+        df[coluna],
+        errors="coerce"
+    )
+
+    return chuva.cumsum()
+
+
+# =============================================================================
+# SOMA TÉRMICA
+# =============================================================================
+
+def calcular_soma_termica(gdd):
+
+    return gdd.cumsum()
+
+
+# =============================================================================
+# BALANÇO HÍDRICO SIMPLIFICADO
+# =============================================================================
+
+def calcular_balanco_hidrico(
+    precipitacao,
+    eto
+):
+
+    return precipitacao - eto
+
+
+# =============================================================================
+# ETo SIMPLIFICADA
+# Hargreaves simplificada
+# =============================================================================
+
+def calcular_eto_hargreaves(
+    tmin,
+    tmax,
+    tmed
+):
+
+    eto = (
+
+        0.0023
+
+        *
+
+        (tmed + 17.8)
+
+        *
+
+        np.sqrt(tmax - tmin)
+
+    )
+
+    return eto
+
+
+# =============================================================================
+# ÍNDICE DE CONFORTO TÉRMICO
+# =============================================================================
+
+def indice_conforto_termico(
+    temperatura,
+    umidade
+):
+
+    return (
+
+        temperatura
+
+        -
+
+        (
+            0.55
+            -
+            0.0055 * umidade
+        )
+
+        *
+
+        (
+            temperatura - 14.5
+        )
+
+    )
+# =============================================================================
+# ABA 8 - INDICADORES AGROMETEOROLÓGICOS
+# =============================================================================
+
+with tab8:
+
+    st.subheader(
+        "🌱 Indicadores Agrometeorológicos"
+    )
+
+    if (
+        "df_consolidado"
+        not in st.session_state
+    ):
+
+        st.warning(
+            "Consolide os dados primeiro."
+        )
+
+    else:
+
+        df = st.session_state[
+            "df_consolidado"
+        ]
+
+        st.markdown(
+            """
+            Cálculo automático de indicadores
+            agrícolas e meteorológicos.
+            """
+        )
+
+        temperatura = localizar_coluna(
+
+            df,
+
+            [
+                "temp",
+                "temperatura",
+                "tmed"
+            ]
+
+        )
+
+        precipitacao = localizar_coluna(
+
+            df,
+
+            [
+                "chuva",
+                "precip",
+                "precipitacao"
+            ]
+
+        )
+
+        umidade = localizar_coluna(
+
+            df,
+
+            [
+                "umidade",
+                "ur"
+            ]
+
+        )
+
+        tmin = localizar_coluna(
+            df,
+            ["tmin"]
+        )
+
+        tmax = localizar_coluna(
+            df,
+            ["tmax"]
+        )
+
+        if temperatura is not None:
+
+            temperatura_base = st.number_input(
+
+                "Temperatura Base (°C)",
+
+                value=10.0
+
+            )
+
+            gdd = calcular_gdd(
+
+                df,
+
+                temperatura,
+
+                temperatura_base
+
+            )
+
+            soma_termica = (
+                calcular_soma_termica(
+                    gdd
+                )
+            )
+
+            st.metric(
+
+                "Graus-dia Acumulados",
+
+                round(
+                    soma_termica.iloc[-1],
+                    2
+                )
+
+            )
+
+            df["GDD"] = gdd
+
+            df["Soma_Termica"] = (
+                soma_termica
+            )
+
+        if precipitacao is not None:
+
+            chuva_acumulada = (
+
+                calcular_precipitacao_acumulada(
+
+                    df,
+
+                    precipitacao
+
+                )
+
+            )
+
+            df[
+                "Chuva_Acumulada"
+            ] = chuva_acumulada
+
+            st.metric(
+
+                "Precipitação Acumulada (mm)",
+
+                round(
+                    chuva_acumulada.iloc[-1],
+                    2
+                )
+
+            )
+
+        if (
+
+            tmin is not None
+
+            and
+
+            tmax is not None
+
+            and
+
+            temperatura is not None
+
+        ):
+
+            eto = calcular_eto_hargreaves(
+
+                df[tmin],
+
+                df[tmax],
+
+                df[temperatura]
+
+            )
+
+            df["ETo"] = eto
+
+            st.metric(
+
+                "ETo Média",
+
+                round(
+                    eto.mean(),
+                    2
+                )
+
+            )
+
+        if (
+
+            temperatura is not None
+
+            and
+
+            umidade is not None
+
+        ):
+
+            conforto = (
+
+                indice_conforto_termico(
+
+                    df[temperatura],
+
+                    df[umidade]
+
+                )
+
+            )
+
+            df[
+                "Indice_Conforto"
+            ] = conforto
+
+            st.metric(
+
+                "Conforto Médio",
+
+                round(
+                    conforto.mean(),
+                    2
+                )
+
+            )
+
+        st.markdown("---")
+
+        st.subheader(
+            "📋 Indicadores Gerados"
+        )
+
+        st.dataframe(
+            df.head(100),
+            use_container_width=True
+        )
+
+        st.session_state[
+            "df_indicadores"
+        ] = df
+# =============================================================================
+# CONTROLE DE QUALIDADE METEOROLÓGICA
+# =============================================================================
+
+def localizar_coluna_por_nome(df, palavras):
+
+    for col in df.columns:
+
+        nome = str(col).lower()
+
+        if any(
+            p in nome
+            for p in palavras
+        ):
+            return col
+
+    return None
+
+
+# =============================================================================
+# VERIFICAÇÃO DE LIMITES FÍSICOS
+# =============================================================================
+
+def verificar_limites_fisicos(df):
+
+    problemas = []
+
+    temp = localizar_coluna_por_nome(
+        df,
+        ["temp", "temperatura"]
+    )
+
+    ur = localizar_coluna_por_nome(
+        df,
+        ["umidade", "ur"]
+    )
+
+    chuva = localizar_coluna_por_nome(
+        df,
+        ["chuva", "precip"]
+    )
+
+    vento = localizar_coluna_por_nome(
+        df,
+        ["vento", "wind"]
+    )
+
+    if temp is not None:
+
+        erros = (
+            (df[temp] < -20)
+            |
+            (df[temp] > 60)
+        )
+
+        problemas.append({
+
+            "Variável": temp,
+            "Registros Suspeitos":
+            int(erros.sum())
+        })
+
+    if ur is not None:
+
+        erros = (
+            (df[ur] < 0)
+            |
+            (df[ur] > 100)
+        )
+
+        problemas.append({
+
+            "Variável": ur,
+            "Registros Suspeitos":
+            int(erros.sum())
+        })
+
+    if chuva is not None:
+
+        erros = (
+            df[chuva] < 0
+        )
+
+        problemas.append({
+
+            "Variável": chuva,
+            "Registros Suspeitos":
+            int(erros.sum())
+        })
+
+    if vento is not None:
+
+        erros = (
+            df[vento] < 0
+        )
+
+        problemas.append({
+
+            "Variável": vento,
+            "Registros Suspeitos":
+            int(erros.sum())
+        })
+
+    return pd.DataFrame(
+        problemas
+    )
+
+
+# =============================================================================
+# RELATÓRIO DE FALHAS
+# =============================================================================
+
+def gerar_relatorio_falhas(df):
+
+    relatorio = pd.DataFrame({
+
+        "Coluna":
+            df.columns,
+
+        "Valores Nulos":
+            df.isna().sum(),
+
+        "Percentual (%)":
+            (
+                df.isna().sum()
+                /
+                len(df)
+                *
+                100
+            ).round(2)
+
+    })
+
+    return relatorio
+
+
+# =============================================================================
+# SCORE DE QUALIDADE
+# =============================================================================
+
+def calcular_score_qualidade(df):
+
+    total = (
+        len(df)
+        *
+        len(df.columns)
+    )
+
+    faltantes = (
+        df.isna()
+        .sum()
+        .sum()
+    )
+
+    score = (
+
+        (
+            total
+            -
+            faltantes
+        )
+
+        /
+
+        total
+
+    ) * 100
+
+    return round(
+        score,
+        2
+    )
+# =============================================================================
+# ABA 9 - QUALIDADE DOS DADOS
+# =============================================================================
+
+with tab9:
+
+    st.subheader(
+        "🔍 Controle de Qualidade Meteorológica"
+    )
+
+    if (
+        "df_consolidado"
+        not in st.session_state
+    ):
+
+        st.warning(
+            "Consolide os dados primeiro."
+        )
+
+    else:
+
+        df = st.session_state[
+            "df_consolidado"
+        ]
+
+        score = (
+            calcular_score_qualidade(
+                df
+            )
+        )
+
+        st.metric(
+            "Score de Qualidade (%)",
+            score
+        )
+
+        st.markdown("---")
+
+        st.subheader(
+            "Valores Ausentes"
+        )
+
+        falhas = (
+            gerar_relatorio_falhas(
+                df
+            )
+        )
+
+        st.dataframe(
+            falhas,
+            use_container_width=True
+        )
+
+        st.markdown("---")
+
+        st.subheader(
+            "Limites Físicos"
+        )
+
+        limites = (
+            verificar_limites_fisicos(
+                df
+            )
+        )
+
+        st.dataframe(
+            limites,
+            use_container_width=True
+        )
+
+        if score >= 95:
+
+            st.success(
+                "Base considerada excelente."
+            )
+
+        elif score >= 85:
+
+            st.info(
+                "Base considerada boa."
+            )
+
+        elif score >= 70:
+
+            st.warning(
+                "Base necessita revisão."
+            )
+
+        else:
+
+            st.error(
+                "Base apresenta baixa qualidade."
+            )
+# =============================================================================
+# RODAPÉ INSTITUCIONAL
+# =============================================================================
+
+st.markdown("---")
+
+st.markdown(
+    """
+    <div style='text-align:center;
+                font-size:13px;
+                color:gray;
+                padding-top:10px;
+                padding-bottom:20px;'>
+
+    <b>AgroClimate AI</b><br>
+
+    Sistema experimental desenvolvido para fins acadêmicos,
+    educacionais, científicos e de apoio à análise de dados
+    meteorológicos e agrometeorológicos.<br><br>
+
+    Este aplicativo não substitui análises técnicas oficiais,
+    laudos periciais, pareceres especializados ou sistemas
+    operacionais de instituições governamentais.<br><br>
+
+    Parte dos métodos, conceitos e indicadores utilizados baseia-se
+    em literatura científica, manuais técnicos e referências
+    amplamente adotadas na área de Meteorologia, Climatologia,
+    Agrometeorologia e Ciências Agrárias, incluindo publicações do
+    Instituto Nacional de Meteorologia (INMET), da Organização
+    Meteorológica Mundial (OMM/WMO), da FAO e de trabalhos
+    científicos especializados.<br><br>
+
+    Os resultados gerados devem ser interpretados por profissionais
+    qualificados e utilizados apenas como ferramenta complementar
+    de apoio à tomada de decisão.<br><br>
+
+    © 2026 AgroClimate AI — Versão Acadêmica Experimental
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)

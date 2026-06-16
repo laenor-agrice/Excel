@@ -10,9 +10,6 @@ st.write(sys.version)
 import pandas as pd
 import numpy as np
 
-import plotly.graph_objects as go
-import plotly.express as px
-
 import requests
 import zipfile
 
@@ -1815,156 +1812,65 @@ def grafico_tendencia(
 # ABA 5 - GRÁFICOS CIENTÍFICOS
 # =============================================================================
 
-with tab5:
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-    st.subheader(
-        "📊 Gráficos Científicos"
+def grafico_temporal(df, variavel, data_col):
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(df[data_col], df[variavel], color="green")
+    ax.set_title(f"Série Temporal - {variavel}")
+    ax.set_xlabel("Data")
+    ax.set_ylabel(variavel)
+    plt.xticks(rotation=45)
+    return fig
+
+
+def grafico_histograma(df, variavel):
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.histplot(df[variavel].dropna(), bins=30, kde=True, ax=ax)
+    ax.set_title(f"Histograma - {variavel}")
+    return fig
+
+
+def grafico_boxplot(df, variavel):
+    fig, ax = plt.subplots(figsize=(6, 5))
+    sns.boxplot(y=df[variavel], ax=ax)
+    ax.set_title(f"Boxplot - {variavel}")
+    return fig
+
+
+def grafico_violin(df, variavel):
+    fig, ax = plt.subplots(figsize=(6, 5))
+    sns.violinplot(y=df[variavel], ax=ax)
+    ax.set_title(f"Violino - {variavel}")
+    return fig
+
+
+def grafico_dispersao(df, x_var, y_var):
+    fig, ax = plt.subplots(figsize=(7, 5))
+    sns.scatterplot(x=df[x_var], y=df[y_var], ax=ax)
+    ax.set_title(f"{x_var} x {y_var}")
+    return fig
+
+
+def heatmap_correlacao(df):
+    fig, ax = plt.subplots(figsize=(10, 8))
+    corr = df.select_dtypes(include=np.number).corr()
+    sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax)
+    ax.set_title("Matriz de Correlação")
+    return fig
+
+
+def grafico_tendencia(df, variavel, data_col):
+    fig, ax = plt.subplots(figsize=(10, 5))
+    sns.regplot(
+        x=df[data_col],
+        y=df[variavel],
+        scatter_kws={"alpha": 0.5},
+        ax=ax
     )
-
-    if (
-        "df_consolidado"
-        not in st.session_state
-    ):
-
-        st.warning(
-            "Primeiro consolide os dados."
-        )
-
-    else:
-
-        df_base = st.session_state[
-            "df_consolidado"
-        ]
-
-        numericas = obter_numericas(
-            df_base
-        )
-
-        if len(numericas) == 0:
-
-            st.error(
-                "Nenhuma variável numérica encontrada."
-            )
-
-        else:
-
-            tipo = st.selectbox(
-                "Tipo de gráfico",
-                [
-                    "Série Temporal",
-                    "Histograma",
-                    "Boxplot",
-                    "Violino",
-                    "Dispersão",
-                    "Heatmap",
-                    "Tendência"
-                ]
-            )
-
-            if tipo == "Heatmap":
-
-                fig = heatmap_correlacao(
-                    df_base
-                )
-
-                if fig is not None:
-
-                    st.plotly_chart(
-                        fig,
-                        use_container_width=True
-                    )
-
-            elif tipo == "Dispersão":
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-
-                    x_var = st.selectbox(
-                        "Variável X",
-                        numericas
-                    )
-
-                with col2:
-
-                    y_var = st.selectbox(
-                        "Variável Y",
-                        numericas,
-                        index=min(
-                            1,
-                            len(numericas) - 1
-                        )
-                    )
-
-                fig = grafico_dispersao(
-                    df_base,
-                    x_var,
-                    y_var
-                )
-
-                st.plotly_chart(
-                    fig,
-                    use_container_width=True
-                )
-
-            else:
-
-                variavel = st.selectbox(
-                    "Variável",
-                    numericas
-                )
-
-                if tipo == "Série Temporal":
-
-                    fig = grafico_temporal(
-                        df_base,
-                        variavel
-                    )
-
-                elif tipo == "Histograma":
-
-                    fig = grafico_histograma(
-                        df_base,
-                        variavel
-                    )
-
-                elif tipo == "Boxplot":
-
-                    fig = grafico_boxplot(
-                        df_base,
-                        variavel
-                    )
-
-                elif tipo == "Violino":
-
-                    fig = grafico_violin(
-                        df_base,
-                        variavel
-                    )
-
-                elif tipo == "Tendência":
-
-                    fig = grafico_tendencia(
-                        df_base,
-                        variavel
-                    )
-
-                else:
-
-                    fig = None
-
-                if fig is None:
-
-                    st.warning(
-                        "Nenhuma coluna de data foi encontrada."
-                    )
-
-                else:
-
-                    st.plotly_chart(
-                        fig,
-                        use_container_width=True
-                    )
+    ax.set_title(f"Tendência - {variavel}")
+    return fig
 import requests
 import json
 import os

@@ -8,6 +8,10 @@ import json
 import os
 from io import BytesIO
 import csv
+import plotly.graph_objects as go
+import plotly.express as px
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 st.write(sys.version)
 
@@ -35,7 +39,7 @@ st.set_page_config(
 )
 
 # =============================================================================
-# CSS GLOBAL - DESIGN INSPIRADO NA IMAGEM
+# CSS GLOBAL - DESIGN PROFISSIONAL
 # =============================================================================
 
 st.markdown(
@@ -44,7 +48,7 @@ st.markdown(
     /* Estilo geral */
     .main {
         padding-top: 0.5rem;
-        background-color: #f0f2f6;
+        background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
     }
     
     .block-container {
@@ -55,75 +59,102 @@ st.markdown(
     
     /* Cards personalizados */
     .custom-card {
-        background-color: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        background: linear-gradient(145deg, #ffffff, #f8f9fa);
+        border-radius: 16px;
+        padding: 1.8rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
         margin-bottom: 1.5rem;
-        border: 1px solid #e8ecf1;
+        border: 1px solid rgba(255,255,255,0.8);
+        backdrop-filter: blur(10px);
     }
     
     /* Título principal */
     .main-header {
-        background: linear-gradient(135deg, #1a5276 0%, #2e86c1 100%);
-        padding: 1.8rem 2.5rem;
-        border-radius: 12px;
+        background: linear-gradient(135deg, #0d2b45 0%, #1a5276 50%, #2e86c1 100%);
+        padding: 2rem 2.5rem;
+        border-radius: 16px;
         margin-bottom: 1.5rem;
         color: white;
-        box-shadow: 0 4px 15px rgba(26, 82, 118, 0.3);
+        box-shadow: 0 8px 30px rgba(26, 82, 118, 0.35);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .main-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+        border-radius: 50%;
     }
     
     .main-header h1 {
         margin: 0;
-        font-size: 2rem;
+        font-size: 2.2rem;
         font-weight: 700;
+        position: relative;
+        z-index: 1;
     }
     
     .main-header p {
         margin: 0.5rem 0 0 0;
         opacity: 0.9;
-        font-size: 1rem;
+        font-size: 1.05rem;
+        position: relative;
+        z-index: 1;
     }
     
     /* Botões */
     .stButton > button {
-        background-color: #1a5276;
+        background: linear-gradient(135deg, #1a5276, #2e86c1);
         color: white;
-        border-radius: 8px;
+        border-radius: 10px;
         border: none;
         font-weight: 600;
-        padding: 0.6rem 2rem;
-        transition: all 0.3s;
+        padding: 0.7rem 2rem;
+        transition: all 0.3s ease;
         width: 100%;
+        box-shadow: 0 4px 15px rgba(26, 82, 118, 0.2);
     }
     
     .stButton > button:hover {
-        background-color: #2e86c1;
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(26, 82, 118, 0.3);
+        box-shadow: 0 6px 25px rgba(26, 82, 118, 0.35);
+        background: linear-gradient(135deg, #1a5276, #3498db);
     }
     
     /* Área de upload */
     .stFileUploader > div {
         border: 2px dashed #2e86c1;
-        border-radius: 12px;
-        padding: 2.5rem;
-        background-color: #f8f9fa;
-        transition: all 0.3s;
+        border-radius: 16px;
+        padding: 3rem;
+        background: linear-gradient(135deg, #f8f9fa, #ffffff);
+        transition: all 0.3s ease;
     }
     
     .stFileUploader > div:hover {
         border-color: #1a5276;
-        background-color: #f0f4f8;
+        background: linear-gradient(135deg, #f0f4f8, #ffffff);
+        transform: scale(1.01);
+        box-shadow: 0 4px 20px rgba(46, 134, 193, 0.1);
     }
     
     /* Métricas */
     .stMetric {
-        background-color: white;
-        border-radius: 12px;
-        padding: 1rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        border: 1px solid #e8ecf1;
+        background: linear-gradient(145deg, #ffffff, #f8f9fa);
+        border-radius: 14px;
+        padding: 1.2rem;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        border: 1px solid rgba(255,255,255,0.8);
+        transition: all 0.3s ease;
+    }
+    
+    .stMetric:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
     }
     
     .stMetric > div {
@@ -132,78 +163,89 @@ st.markdown(
     
     /* Abas */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 4px;
-        background-color: white;
-        border-radius: 12px;
-        padding: 6px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        border: 1px solid #e8ecf1;
+        gap: 6px;
+        background: linear-gradient(145deg, #ffffff, #f8f9fa);
+        border-radius: 14px;
+        padding: 8px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        border: 1px solid rgba(255,255,255,0.8);
     }
     
     .stTabs [data-baseweb="tab"] {
-        border-radius: 8px;
-        padding: 0.6rem 1.2rem;
+        border-radius: 10px;
+        padding: 0.7rem 1.4rem;
         font-weight: 500;
         font-size: 0.9rem;
-        transition: all 0.3s;
+        transition: all 0.3s ease;
+        color: #4a5568;
     }
     
     .stTabs [data-baseweb="tab"]:hover {
-        background-color: #e8f0f8;
+        background-color: rgba(46, 134, 193, 0.08);
+        color: #1a5276;
     }
     
     .stTabs [aria-selected="true"] {
-        background-color: #1a5276;
+        background: linear-gradient(135deg, #1a5276, #2e86c1);
         color: white;
         font-weight: 600;
+        box-shadow: 0 4px 15px rgba(26, 82, 118, 0.25);
     }
     
     /* Caixas de informação */
     .info-box {
-        background-color: #eaf4f9;
-        border-left: 4px solid #2e86c1;
-        padding: 1rem 1.2rem;
-        border-radius: 8px;
+        background: linear-gradient(135deg, #eaf4f9, #d4e8f5);
+        border-left: 5px solid #2e86c1;
+        padding: 1.2rem 1.5rem;
+        border-radius: 10px;
         margin: 1rem 0;
         color: #1a3a4a;
+        box-shadow: 0 2px 8px rgba(46, 134, 193, 0.1);
     }
     
     .config-box {
-        background-color: #f8f9fa;
+        background: linear-gradient(145deg, #f8f9fa, #ffffff);
         border: 1px solid #e8ecf1;
-        border-radius: 12px;
-        padding: 1.2rem;
+        border-radius: 14px;
+        padding: 1.5rem;
         margin: 1rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
     
     .config-title {
         font-weight: 600;
         color: #1a3a4a;
         margin-bottom: 0.5rem;
+        font-size: 1.05rem;
     }
     
     /* Seções */
     .section-title {
-        font-size: 1.1rem;
+        font-size: 1.2rem;
         font-weight: 600;
-        color: #1a3a4a;
-        margin-bottom: 1rem;
+        color: #0d2b45;
+        margin-bottom: 1.2rem;
         padding-bottom: 0.5rem;
-        border-bottom: 2px solid #e8ecf1;
+        border-bottom: 3px solid #2e86c1;
+        display: inline-block;
     }
     
     /* Inputs */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
-    .stSelectbox > div > div {
-        border-radius: 8px;
+    .stSelectbox > div > div,
+    .stNumberInput > div > div > input {
+        border-radius: 10px;
         border: 1px solid #dce1e8;
+        transition: all 0.3s ease;
     }
     
     .stTextInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus {
+    .stTextArea > div > div > textarea:focus,
+    .stSelectbox > div > div:focus,
+    .stNumberInput > div > div > input:focus {
         border-color: #2e86c1;
-        box-shadow: 0 0 0 2px rgba(46, 134, 193, 0.2);
+        box-shadow: 0 0 0 3px rgba(46, 134, 193, 0.15);
     }
     
     /* Checkbox */
@@ -214,13 +256,14 @@ st.markdown(
     
     /* Dataframes */
     .stDataFrame {
-        border-radius: 8px;
+        border-radius: 12px;
         border: 1px solid #e8ecf1;
         overflow: hidden;
+        background: white;
     }
     
     .stDataFrame > div {
-        border-radius: 8px;
+        border-radius: 12px;
     }
     
     /* Footer */
@@ -232,15 +275,46 @@ st.markdown(
     .footer {
         text-align: center;
         font-size: 12px;
-        color: #95a5a6;
-        padding-top: 1.5rem;
-        padding-bottom: 1.5rem;
+        color: #718096;
+        padding-top: 2rem;
+        padding-bottom: 2rem;
         border-top: 1px solid #e8ecf1;
         margin-top: 2rem;
+        background: linear-gradient(145deg, #f8f9fa, #ffffff);
+        border-radius: 16px;
     }
     
     .footer b {
         color: #1a5276;
+    }
+    
+    /* Gráficos */
+    .chart-container {
+        background: white;
+        border-radius: 14px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        border: 1px solid rgba(255,255,255,0.8);
+        margin: 1rem 0;
+    }
+    
+    /* Badge */
+    .badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #2e86c1, #3498db);
+        color: white;
+        padding: 0.2rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    
+    /* Títulos de gráficos */
+    .chart-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #0d2b45;
+        margin-bottom: 0.5rem;
     }
     </style>
     """,
@@ -442,7 +516,6 @@ def ler_planilha_universal(arquivo):
         try:
             df = pd.read_excel(arquivo, engine="openpyxl")
         except:
-            # Fallback para arquivos Excel sem openpyxl
             df = pd.read_csv(arquivo, encoding='utf-8', on_bad_lines='skip')
     else:
         delimitador = detectar_delimitador(arquivo)
@@ -909,6 +982,52 @@ with tab4:
         with col3:
             st.metric("Registros", len(df_base))
         
+        # Gráficos de distribuição com Plotly
+        if len(df_base.select_dtypes(include=np.number).columns) > 0:
+            st.markdown("---")
+            st.markdown('<div class="section-title">📊 Distribuição das Variáveis</div>', unsafe_allow_html=True)
+            
+            numericas = df_base.select_dtypes(include=np.number).columns.tolist()
+            var_selecionada = st.selectbox("Selecione uma variável para análise gráfica", numericas)
+            
+            if var_selecionada:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Histograma com Plotly
+                    fig_hist = px.histogram(
+                        df_base, 
+                        x=var_selecionada,
+                        title=f"Histograma - {var_selecionada}",
+                        color_discrete_sequence=['#2e86c1'],
+                        nbins=30
+                    )
+                    fig_hist.update_layout(
+                        showlegend=False,
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        title_font_size=14,
+                        title_font_color='#0d2b45'
+                    )
+                    st.plotly_chart(fig_hist, use_container_width=True)
+                
+                with col2:
+                    # Boxplot com Plotly
+                    fig_box = px.box(
+                        df_base,
+                        y=var_selecionada,
+                        title=f"Boxplot - {var_selecionada}",
+                        color_discrete_sequence=['#2e86c1']
+                    )
+                    fig_box.update_layout(
+                        showlegend=False,
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        title_font_size=14,
+                        title_font_color='#0d2b45'
+                    )
+                    st.plotly_chart(fig_box, use_container_width=True)
+        
         st.session_state["estatisticas"] = estatisticas
         csv_estatisticas = estatisticas.to_csv(index=False).encode("utf-8")
         st.download_button(
@@ -921,12 +1040,12 @@ with tab4:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# ABA 5 - GRÁFICOS
+# ABA 5 - GRÁFICOS AVANÇADOS
 # =============================================================================
 
 with tab5:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📊 Visualização de Dados</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📊 Visualização Avançada de Dados</div>', unsafe_allow_html=True)
     
     if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Primeiro consolide os dados.")
@@ -937,32 +1056,159 @@ with tab5:
         if not numericas:
             st.warning("Sem colunas numéricas para visualizar.")
         else:
-            st.markdown("### 📈 Gráfico de Linhas")
-            coluna_linha = st.selectbox("Selecione uma coluna", numericas, key="linha")
-            if coluna_linha:
-                st.line_chart(df[coluna_linha], use_container_width=True)
+            # Tipo de gráfico
+            tipo_grafico = st.selectbox(
+                "Selecione o tipo de gráfico",
+                ["Linhas", "Barras", "Dispersão", "Histograma", "Boxplot", "Correlação", "Área"]
+            )
             
-            st.markdown("---")
-            st.markdown("### 📊 Gráfico de Barras")
-            coluna_barra = st.selectbox("Selecione uma coluna", numericas, key="barra")
-            if coluna_barra:
-                st.bar_chart(df[coluna_barra], use_container_width=True)
+            if tipo_grafico == "Linhas":
+                col_linha = st.selectbox("Selecione a variável", numericas, key="linha_graf")
+                if col_linha:
+                    fig = px.line(
+                        df,
+                        y=col_linha,
+                        title=f"Série Temporal - {col_linha}",
+                        color_discrete_sequence=['#2e86c1'],
+                        markers=True
+                    )
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        title_font_size=16,
+                        title_font_color='#0d2b45',
+                        xaxis_title="Índice",
+                        yaxis_title=col_linha,
+                        hovermode='x unified'
+                    )
+                    fig.update_traces(line=dict(width=2.5))
+                    st.plotly_chart(fig, use_container_width=True)
             
-            st.markdown("---")
-            st.markdown("### 📉 Área do Gráfico")
-            coluna_area = st.selectbox("Selecione uma coluna", numericas, key="area")
-            if coluna_area:
-                st.area_chart(df[coluna_area], use_container_width=True)
+            elif tipo_grafico == "Barras":
+                col_barra = st.selectbox("Selecione a variável", numericas, key="barra_graf")
+                if col_barra:
+                    fig = px.bar(
+                        df,
+                        y=col_barra,
+                        title=f"Gráfico de Barras - {col_barra}",
+                        color_discrete_sequence=['#2e86c1']
+                    )
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        title_font_size=16,
+                        title_font_color='#0d2b45',
+                        xaxis_title="Índice",
+                        yaxis_title=col_barra,
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
             
-            st.markdown("---")
-            st.markdown("### 📋 Estatísticas Rápidas")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Mínimo", round(df[numericas[0]].min(), 2))
-            with col2:
-                st.metric("Máximo", round(df[numericas[0]].max(), 2))
-            with col3:
-                st.metric("Média", round(df[numericas[0]].mean(), 2))
+            elif tipo_grafico == "Dispersão":
+                if len(numericas) >= 2:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        x_var = st.selectbox("Eixo X", numericas, key="x_disp")
+                    with col2:
+                        y_var = st.selectbox("Eixo Y", [v for v in numericas if v != x_var], key="y_disp")
+                    
+                    fig = px.scatter(
+                        df,
+                        x=x_var,
+                        y=y_var,
+                        title=f"{x_var} × {y_var}",
+                        color_discrete_sequence=['#2e86c1'],
+                        trendline="ols",
+                        trendline_color_override="#e74c3c"
+                    )
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        title_font_size=16,
+                        title_font_color='#0d2b45'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Precisa de pelo menos 2 variáveis numéricas para dispersão.")
+            
+            elif tipo_grafico == "Histograma":
+                col_hist = st.selectbox("Selecione a variável", numericas, key="hist_graf")
+                if col_hist:
+                    fig = px.histogram(
+                        df,
+                        x=col_hist,
+                        title=f"Histograma - {col_hist}",
+                        color_discrete_sequence=['#2e86c1'],
+                        nbins=30,
+                        marginal="box"
+                    )
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        title_font_size=16,
+                        title_font_color='#0d2b45',
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            elif tipo_grafico == "Boxplot":
+                col_box = st.selectbox("Selecione a variável", numericas, key="box_graf")
+                if col_box:
+                    fig = px.box(
+                        df,
+                        y=col_box,
+                        title=f"Boxplot - {col_box}",
+                        color_discrete_sequence=['#2e86c1'],
+                        points="outliers"
+                    )
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        title_font_size=16,
+                        title_font_color='#0d2b45',
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            elif tipo_grafico == "Correlação":
+                if len(numericas) >= 2:
+                    corr = df[numericas].corr()
+                    fig = px.imshow(
+                        corr,
+                        text_auto='.2f',
+                        aspect="auto",
+                        color_continuous_scale="RdBu_r",
+                        title="Matriz de Correlação"
+                    )
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        title_font_size=16,
+                        title_font_color='#0d2b45'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Precisa de pelo menos 2 variáveis numéricas para correlação.")
+            
+            elif tipo_grafico == "Área":
+                col_area = st.selectbox("Selecione a variável", numericas, key="area_graf")
+                if col_area:
+                    fig = px.area(
+                        df,
+                        y=col_area,
+                        title=f"Gráfico de Área - {col_area}",
+                        color_discrete_sequence=['#2e86c1']
+                    )
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        title_font_size=16,
+                        title_font_color='#0d2b45',
+                        xaxis_title="Índice",
+                        yaxis_title=col_area,
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1107,11 +1353,10 @@ with tab6:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# FUNÇÕES DE EXPORTAÇÃO (APENAS CSV E ZIP)
+# FUNÇÕES DE EXPORTAÇÃO
 # =============================================================================
 
 def gerar_csv_unico():
-    """Gera um único arquivo CSV com os dados consolidados"""
     buffer = BytesIO()
     if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
         csv_data = st.session_state["df_consolidado"].to_csv(index=False)
@@ -1120,7 +1365,6 @@ def gerar_csv_unico():
     return buffer
 
 def gerar_zip_completo():
-    """Gera um pacote ZIP com todos os arquivos"""
     memoria = BytesIO()
     with zipfile.ZipFile(memoria, "w", zipfile.ZIP_DEFLATED) as zipf:
         if "df_tratado" in st.session_state and st.session_state["df_tratado"] is not None:
@@ -1137,7 +1381,6 @@ def gerar_zip_completo():
     return memoria
 
 def gerar_csv_estatisticas():
-    """Gera CSV com as estatísticas"""
     buffer = BytesIO()
     if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
         csv_data = st.session_state["estatisticas"].to_csv(index=False)
@@ -1146,7 +1389,6 @@ def gerar_csv_estatisticas():
     return buffer
 
 def gerar_csv_indicadores():
-    """Gera CSV com os indicadores"""
     buffer = BytesIO()
     if "df_indicadores" in st.session_state and st.session_state["df_indicadores"] is not None:
         csv_data = st.session_state["df_indicadores"].to_csv(index=False)
@@ -1168,7 +1410,6 @@ with tab7:
     </div>
     """, unsafe_allow_html=True)
     
-    # Verificar se há dados para exportar
     tem_dados = (
         "df_consolidado" in st.session_state and 
         st.session_state["df_consolidado"] is not None
@@ -1182,7 +1423,6 @@ with tab7:
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            # Exportar CSV consolidado
             csv_file = gerar_csv_unico()
             st.download_button(
                 "📄 Dados Consolidados (CSV)",
@@ -1193,7 +1433,6 @@ with tab7:
             )
         
         with col2:
-            # Exportar CSV de estatísticas
             if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
                 csv_estat = gerar_csv_estatisticas()
                 st.download_button(
@@ -1205,7 +1444,6 @@ with tab7:
                 )
         
         with col3:
-            # Exportar CSV de indicadores
             if "df_indicadores" in st.session_state and st.session_state["df_indicadores"] is not None:
                 csv_ind = gerar_csv_indicadores()
                 st.download_button(
@@ -1219,7 +1457,6 @@ with tab7:
         st.markdown("---")
         st.markdown("### 📦 Exportar Pacote Completo")
         
-        # Exportar ZIP completo
         zip_file = gerar_zip_completo()
         st.download_button(
             "📦 Baixar Pacote Completo (ZIP)",
@@ -1284,7 +1521,7 @@ with tab8:
             <div class="config-title">📍 Parâmetros Regionais</div>
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <span style="font-weight: 500;">Latitude da Estação (°):</span>
-                <span style="color: #2e86c1; font-weight: 600;">-16,0</span>
+                <span style="color: #2e86c1; font-weight: 600; font-size: 1.1rem;">-16,0</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1295,33 +1532,61 @@ with tab8:
         tmin = localizar_coluna(df, ["tmin"])
         tmax = localizar_coluna(df, ["tmax"])
         
-        if temperatura is not None:
-            temperatura_base = st.number_input("Temperatura Base (°C)", value=10.0)
-            gdd = calcular_gdd(df, temperatura, temperatura_base)
-            soma_termica = calcular_soma_termica(gdd)
-            st.metric("Graus-dia Acumulados", round(soma_termica.iloc[-1], 2))
-            df["GDD"] = gdd
-            df["Soma_Termica"] = soma_termica
+        col1, col2 = st.columns(2)
         
-        if precipitacao is not None:
-            chuva_acumulada = calcular_precipitacao_acumulada(df, precipitacao)
-            df["Chuva_Acumulada"] = chuva_acumulada
-            st.metric("Precipitação Acumulada (mm)", round(chuva_acumulada.iloc[-1], 2))
+        with col1:
+            if temperatura is not None:
+                temperatura_base = st.number_input("Temperatura Base (°C)", value=10.0, step=0.5)
+                gdd = calcular_gdd(df, temperatura, temperatura_base)
+                soma_termica = calcular_soma_termica(gdd)
+                st.metric("Graus-dia Acumulados", round(soma_termica.iloc[-1], 2))
+                df["GDD"] = gdd
+                df["Soma_Termica"] = soma_termica
+            
+            if precipitacao is not None:
+                chuva_acumulada = calcular_precipitacao_acumulada(df, precipitacao)
+                df["Chuva_Acumulada"] = chuva_acumulada
+                st.metric("Precipitação Acumulada (mm)", round(chuva_acumulada.iloc[-1], 2))
         
-        if tmin is not None and tmax is not None and temperatura is not None:
-            eto = calcular_eto_hargreaves(df[tmin], df[tmax], df[temperatura])
-            df["ETo"] = eto
-            st.metric("ETo Média", round(eto.mean(), 2))
-        
-        if temperatura is not None and umidade is not None:
-            conforto = indice_conforto_termico(df[temperatura], df[umidade])
-            df["Indice_Conforto"] = conforto
-            st.metric("Conforto Médio", round(conforto.mean(), 2))
+        with col2:
+            if tmin is not None and tmax is not None and temperatura is not None:
+                eto = calcular_eto_hargreaves(df[tmin], df[tmax], df[temperatura])
+                df["ETo"] = eto
+                st.metric("ETo Média", round(eto.mean(), 2))
+            
+            if temperatura is not None and umidade is not None:
+                conforto = indice_conforto_termico(df[temperatura], df[umidade])
+                df["Indice_Conforto"] = conforto
+                st.metric("Conforto Médio", round(conforto.mean(), 2))
         
         st.markdown("---")
         st.markdown('<div class="section-title">📋 Indicadores Gerados</div>', unsafe_allow_html=True)
         st.dataframe(df.head(100), use_container_width=True)
         st.session_state["df_indicadores"] = df
+        
+        # Gráfico dos indicadores
+        if len(df.select_dtypes(include=np.number).columns) > 0:
+            st.markdown("---")
+            st.markdown('<div class="section-title">📊 Visualização dos Indicadores</div>', unsafe_allow_html=True)
+            
+            indicadores_disponiveis = [col for col in df.columns if col in ['GDD', 'Soma_Termica', 'Chuva_Acumulada', 'ETo', 'Indice_Conforto']]
+            if indicadores_disponiveis:
+                fig = px.line(
+                    df,
+                    y=indicadores_disponiveis,
+                    title="Evolução dos Indicadores Agrometeorológicos",
+                    color_discrete_sequence=px.colors.qualitative.Set2
+                )
+                fig.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    title_font_size=16,
+                    title_font_color='#0d2b45',
+                    legend_title_text='Indicadores',
+                    xaxis_title="Índice",
+                    yaxis_title="Valor"
+                )
+                st.plotly_chart(fig, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1330,7 +1595,7 @@ with tab8:
 
 st.markdown("""
 <div class="footer">
-    <b>AgroClimate AI</b><br>
+    <b>🌱 AgroClimate AI</b><br>
     Sistema experimental desenvolvido para fins acadêmicos, educacionais, científicos e de apoio à análise de dados
     meteorológicos e agrometeorológicos.<br><br>
     Este aplicativo não substitui análises técnicas oficiais, laudos periciais, pareceres especializados ou sistemas

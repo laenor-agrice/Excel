@@ -229,7 +229,7 @@ st.set_page_config(
 )
 
 # =============================================================================
-# CSS GLOBAL - LAYOUT UNIFORME
+# CSS GLOBAL - EXATAMENTE COMO NA IMAGEM
 # =============================================================================
 
 st.markdown(
@@ -238,7 +238,7 @@ st.markdown(
     /* Reset e estilo geral - tela cheia */
     .main {
         padding: 0rem !important;
-        background: linear-gradient(135deg, #0d2b45 0%, #1a5276 30%, #2e86c1 70%, #3498db 100%);
+        background: linear-gradient(135deg, #0d2b45 0%, #1a5276 40%, #2e86c1 80%, #3498db 100%);
         min-height: 100vh;
         width: 100%;
         max-width: 100%;
@@ -246,16 +246,44 @@ st.markdown(
     }
     
     .block-container {
-        padding: 0.5rem 1.5rem !important;
+        padding: 0.5rem 2rem !important;
         max-width: 100% !important;
         width: 100% !important;
     }
     
-    /* Todos os cards com o mesmo estilo - verde piscina */
-    .custom-card, .main-header {
+    /* ============ CABEÇALHO - DESTAQUE AZUL ============ */
+    .main-header {
+        background: linear-gradient(135deg, #0d2b45 0%, #1a5276 50%, #2e86c1 100%);
+        padding: 2.5rem 3rem;
+        border-radius: 16px;
+        margin-bottom: 1.8rem;
+        color: white;
+        box-shadow: 0 4px 25px rgba(0,0,0,0.25);
+        text-align: center;
+        width: 100%;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .main-header h1 {
+        margin: 0;
+        font-size: 2.5rem;
+        font-weight: 700;
+        letter-spacing: -1px;
+        color: white;
+    }
+    
+    .main-header p {
+        margin: 0.5rem 0 0 0;
+        opacity: 0.9;
+        font-size: 1.2rem;
+        color: rgba(255,255,255,0.9);
+    }
+    
+    /* ============ CARDS - VERDE PISCINA ============ */
+    .custom-card {
         background: linear-gradient(145deg, rgba(180, 230, 210, 0.92), rgba(140, 210, 190, 0.88));
         border-radius: 16px;
-        padding: 1.8rem;
+        padding: 2rem;
         box-shadow: 0 4px 20px rgba(0,50,30,0.12);
         margin-bottom: 1.5rem;
         backdrop-filter: blur(10px);
@@ -264,29 +292,14 @@ st.markdown(
         color: #1a4a3a;
     }
     
-    .main-header h1 {
-        margin: 0;
-        font-size: 2.2rem;
-        font-weight: 700;
-        letter-spacing: -1px;
-        color: #1a4a3a;
-    }
-    
-    .main-header p {
-        margin: 0.4rem 0 0 0;
-        opacity: 0.85;
-        font-size: 1.1rem;
-        color: #1a4a3a;
-    }
-    
-    /* Botões em verde piscina - uniforme */
+    /* ============ BOTÕES ============ */
     .stButton > button {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
         border-radius: 12px;
         border: none;
         font-weight: 600;
-        padding: 0.6rem 1.5rem;
+        padding: 0.7rem 1.5rem;
         font-size: 1rem;
         transition: all 0.3s ease;
         width: 100%;
@@ -299,14 +312,14 @@ st.markdown(
         background: linear-gradient(135deg, #3da88a, #2d8a6e);
     }
     
-    /* Upload em verde piscina */
+    /* ============ UPLOAD ============ */
     .stFileUploader > div {
         border: 2px dashed #3da88a;
         border-radius: 12px;
-        padding: 2rem;
-        background: rgba(200, 240, 225, 0.35);
+        padding: 2.5rem 2rem;
+        background: rgba(200, 240, 225, 0.3);
         transition: all 0.3s ease;
-        min-height: 100px;
+        min-height: 120px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -314,14 +327,14 @@ st.markdown(
     
     .stFileUploader > div:hover {
         border-color: #2d8a6e;
-        background: rgba(180, 230, 215, 0.45);
+        background: rgba(180, 230, 215, 0.4);
         transform: scale(1.01);
         box-shadow: 0 4px 20px rgba(45, 138, 110, 0.1);
     }
     
-    /* Métricas em verde piscina - uniforme */
+    /* ============ MÉTRICAS ============ */
     .stMetric {
-        background: rgba(200, 240, 225, 0.75);
+        background: rgba(200, 240, 225, 0.7);
         border-radius: 12px;
         padding: 1rem;
         box-shadow: 0 2px 15px rgba(0,0,0,0.05);
@@ -333,7 +346,7 @@ st.markdown(
     .stMetric:hover {
         transform: translateY(-3px);
         box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        background: rgba(200, 240, 225, 0.9);
+        background: rgba(200, 240, 225, 0.85);
     }
     
     .stMetric > div {
@@ -352,7 +365,7 @@ st.markdown(
         color: #1a6e5a !important;
     }
     
-    /* Abas centralizadas e com tamanho uniforme */
+    /* ============ ABAS ============ */
     .stTabs {
         display: flex;
         justify-content: center;
@@ -361,7 +374,7 @@ st.markdown(
     
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
-        background: rgba(200, 240, 225, 0.75);
+        background: rgba(200, 240, 225, 0.7);
         border-radius: 12px;
         padding: 8px 12px;
         box-shadow: 0 2px 15px rgba(0,0,0,0.06);
@@ -375,20 +388,20 @@ st.markdown(
     
     .stTabs [data-baseweb="tab"] {
         border-radius: 10px;
-        padding: 0.6rem 1.5rem;
+        padding: 0.6rem 1.8rem;
         font-weight: 600;
-        font-size: 0.95rem;
+        font-size: 1rem;
         transition: all 0.3s ease;
         color: #1a4a3a;
         white-space: nowrap;
-        min-width: 90px;
+        min-width: 100px;
         text-align: center;
         justify-content: center;
         background: transparent;
     }
     
     .stTabs [data-baseweb="tab"]:hover {
-        background-color: rgba(45, 138, 110, 0.1);
+        background-color: rgba(45, 138, 110, 0.12);
         color: #1a6e5a;
         transform: translateY(-1px);
     }
@@ -401,9 +414,9 @@ st.markdown(
         transform: translateY(-1px);
     }
     
-    /* Caixas de informação em verde piscina */
+    /* ============ CAIXAS DE INFORMAÇÃO ============ */
     .info-box {
-        background: rgba(200, 240, 225, 0.5);
+        background: rgba(200, 240, 225, 0.45);
         border-left: 4px solid #3da88a;
         padding: 1rem 1.5rem;
         border-radius: 10px;
@@ -414,7 +427,7 @@ st.markdown(
     }
     
     .config-box {
-        background: rgba(200, 240, 225, 0.4);
+        background: rgba(200, 240, 225, 0.35);
         border: 1px solid rgba(100, 200, 170, 0.2);
         border-radius: 12px;
         padding: 1.5rem;
@@ -439,7 +452,7 @@ st.markdown(
         display: inline-block;
     }
     
-    /* Inputs em verde piscina - uniforme */
+    /* ============ INPUTS ============ */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
@@ -460,7 +473,6 @@ st.markdown(
         color: #1a4a3a !important;
     }
     
-    /* Selectbox em verde piscina - uniforme */
     .stSelectbox {
         margin-bottom: 1rem;
         min-height: 50px;
@@ -513,7 +525,7 @@ st.markdown(
         font-size: 0.95rem;
     }
     
-    /* Dataframes - ocupam toda a largura */
+    /* ============ DATAFRAMES ============ */
     .stDataFrame {
         border-radius: 12px;
         border: 1px solid rgba(100, 200, 170, 0.2);
@@ -536,6 +548,7 @@ st.markdown(
         visibility: hidden;
     }
     
+    /* ============ RODAPÉ ============ */
     .footer {
         text-align: center;
         font-size: 12px;
@@ -551,7 +564,7 @@ st.markdown(
         color: rgba(255,255,255,0.8);
     }
     
-    /* Arquivo info em verde piscina */
+    /* ============ FILE INFO ============ */
     .file-info {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
@@ -575,7 +588,6 @@ st.markdown(
         font-size: 0.9rem;
     }
     
-    /* Título da seção de média mensal */
     .media-mensal-title {
         font-size: 1.3rem;
         font-weight: 700;
@@ -583,7 +595,6 @@ st.markdown(
         margin-bottom: 0.8rem;
     }
     
-    /* Ajustes de largura para elementos */
     .row-widget {
         width: 100% !important;
     }
@@ -592,7 +603,7 @@ st.markdown(
         width: 100% !important;
     }
     
-    /* Scrollbar personalizada */
+    /* ============ SCROLLBAR ============ */
     ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
@@ -651,7 +662,7 @@ if "gemini_api_key" not in st.session_state:
     st.session_state["gemini_api_key"] = ""
 
 # =============================================================================
-# TÍTULO PRINCIPAL - AGORA COM O MESMO ESTILO DOS CARDS
+# TÍTULO PRINCIPAL - AZUL DESTAQUE
 # =============================================================================
 
 st.markdown("""
@@ -1252,10 +1263,8 @@ with tab4:
                 st.markdown('<p class="media-mensal-title">📊 Média Mensal (Todos os anos combinados)</p>', unsafe_allow_html=True)
                 st.markdown("Média de cada variável para cada mês do ano (ex: média de todos os janeiros, todos os fevereiros, etc.)")
                 
-                # Criar coluna de mês no DataFrame
                 df[col_data] = pd.to_datetime(df[col_data], errors='coerce')
                 
-                # Seletor de variável
                 var_mensal = st.selectbox(
                     "Selecione a variável para análise mensal",
                     numericas,
@@ -1269,11 +1278,9 @@ with tab4:
                         st.markdown(f"**📈 Média Mensal - {var_mensal}**")
                         st.dataframe(media_mensal, use_container_width=True)
                         
-                        # Gráfico da média mensal
                         st.markdown(f"**📊 Gráfico da Média Mensal - {var_mensal}**")
                         st.bar_chart(media_mensal.set_index('Mes_Nome')['Media'], use_container_width=True)
                         
-                        # Estatísticas descritivas
                         st.markdown("**📋 Estatísticas da Média Mensal**")
                         stats = media_mensal['Media'].describe()
                         col1, col2, col3, col4 = st.columns(4)

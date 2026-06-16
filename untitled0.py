@@ -612,8 +612,8 @@ def criar_grafico_temperatura(df, tipo='linha'):
             name='Temperatura',
             line=dict(color='#e74c3c', width=2),
             fill='tozeroy',
-            fillcolor='rgba(231, 76, 60, 0.1)
-        )
+            fillcolor='rgba(231, 76, 60, 0.1)'
+        ))
         
         fig.update_layout(
             title='🌡️ Temperatura ao Longo do Tempo',
@@ -902,8 +902,12 @@ def gerar_relatorio_html(df_original, df_mensal, qualidade, eventos, substituico
             <div class="section">
                 <h2>📈 Qualidade dos Dados</h2>
                 <table>
-                    <tr><th>Variável</th><th>Completude</th><th>Classificação</th><th>Faltantes</th></tr>
-                    {tabela_qualidade if tabela_qualidade else "<tr><td colspan='4'>Nenhum dado disponível</td></tr>"}
+                    <thead>
+                        <tr><th>Variável</th><th>Completude</th><th>Classificação</th><th>Faltantes</th></tr>
+                    </thead>
+                    <tbody>
+                        {tabela_qualidade if tabela_qualidade else "<tr><td colspan='4'>Nenhum dado disponível</td></tr>"}
+                    </tbody>
                 </table>
             </div>
             

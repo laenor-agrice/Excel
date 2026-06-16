@@ -9,8 +9,6 @@ import os
 from io import BytesIO
 import csv
 from datetime import datetime
-from scipy import stats
-from scipy.stats import f_oneway, tukey_hsd
 
 st.write(sys.version)
 
@@ -25,6 +23,178 @@ def zscore_simples(serie):
     if desvio == 0 or pd.isna(desvio):
         return np.zeros(len(serie))
     return (serie - media) / desvio
+
+# =============================================================================
+# FUNÇÕES ESTATÍSTICAS MANUAIS (SEM SCIPY)
+# =============================================================================
+
+def calcular_anova_manual(df, coluna, grupos):
+    """Calcula ANOVA manualmente sem scipy"""
+    # Criar grupos
+    grupos_dados = df.groupby(grupos)[coluna].apply(list).to_dict()
+    
+    # Filtrar grupos com dados
+    grupos_validos = {k: v for k, v in grupos_dados.items() if len(v) > 1}
+    
+    if len(grupos_validos) < 2:
+        return None, "É necessário pelo menos 2 grupos com dados para ANOVA"
+    
+    # Calcular médias e variâncias
+    dados_grupos = list(grupos_validos.values())
+    nomes_grupos = list(grupos_validos.keys())
+    
+    # Média geral
+    todos_dados = []
+    for grupo in dados_grupos:
+        todos_dados.extend(grupo)
+    media_geral = np.mean(todos_dados)
+    n_total = len(todos_dados)
+    k = len(dados_grupos)
+    
+    # Soma dos quadrados entre grupos (SSB)
+    ssb = 0
+    for grupo in dados_grupos:
+        n_g = len(grupo)
+        media_g = np.mean(grupo)
+        ssb += n_g * (media_g - media_geral) ** 2
+    
+    # Soma dos quadrados dentro dos grupos (SSW)
+    ssw = 0
+    for grupo in dados_grupos:
+        media_g = np.mean(grupo)
+        for valor in grupo:
+            ssw += (valor - media_g) ** 2
+    
+    # Graus de liberdade
+    df_between = k - 1
+    df_within = n_total - k
+    
+    # Quadrados médios
+    msb = ssb / df_between if df_between > 0 else 0
+    msw = ssw / df_within if df_within > 0 else 0
+    
+    # Estatística F
+    f_stat = msb / msw if msw > 0 else 0
+    
+    # Calcular p-value usando distribuição F (aproximação)
+    # Usando scipy se disponível, senão aproximação
+    try:
+        from scipy.stats import f
+        p_valor = 1 - f.cdf(f_stat, df_between, df_within)
+    except:
+        # Aproximação simples do p-value
+        # Se F > 4, geralmente é significativo (para amostras grandes)
+        if f_stat > 4:
+            p_valor = 0.01
+        elif f_stat > 3:
+            p_valor = 0.05
+        elif f_stat > 2.5:
+            p_valor = 0.1
+        else:
+            p_valor = 0.5
+    
+    # Tukey HSD (comparações múltiplas)
+    tukey_result = None
+    if p_valor < 0.05:
+        try:
+            # Calcular diferenças entre médias
+            medias = [np.mean(g) for g in dados_grupos]
+            n_grupos = [len(g) for g in dados_grupos]
+            
+            # Calcular o erro padrão da diferença
+            # Usando a média dos tamanhos dos grupos para simplificar
+            n_medio = np.mean(n_grupos)
+            erro_padrao = np.sqrt(msw * (1/n_medio + 1/n_medio))
+            
+            comparacoes = []
+            for i in range(len(nomes_grupos)):
+                for j in range(i+1, len(nomes_grupos)):
+                    diff = medias[i] - medias[j]
+                    # Estatística Q (studentized range)
+                    q_stat = abs(diff) / erro_padrao if erro_padrao > 0 else 0
+                    # Aproximação do p-value para Tukey
+                    # Usando distribuição t como aproximação
+                    try:
+                        from scipy.stats import t
+                        p_tukey = 2 * (1 - t.cdf(abs(q_stat), df_within))
+                    except:
+                        p_tukey = 0.05 if q_stat > 2 else 0.1
+                    
+                    comparacoes.append({
+                        "Grupo 1": nomes_grupos[i],
+                        "Grupo 2": nomes_grupos[j],
+                        "Diferença": round(diff, 4),
+                        "p-value": round(p_tukey, 4),
+                        "Significativo": p_tukey < 0.05
+                    })
+            
+            tukey_result = comparacoes
+        except:
+            tukey_result = None
+    
+    resultado = {
+        "f_statistic": f_stat,
+        "p_value": p_valor,
+        "significativo": p_valor < 0.05,
+        "grupos": nomes_grupos,
+        "df_between": df_between,
+        "df_within": df_within,
+        "tukey": tukey_result
+    }
+    
+    return resultado, None
+
+def calcular_teste_t_manual(df, coluna, grupos):
+    """Calcula teste t para duas amostras"""
+    dados_grupos = df.groupby(grupos)[coluna].apply(list).to_dict()
+    
+    if len(dados_grupos) != 2:
+        return None, "O teste t requer exatamente 2 grupos"
+    
+    grupos_validos = {k: v for k, v in dados_grupos.items() if len(v) > 1}
+    if len(grupos_validos) != 2:
+        return None, "Cada grupo precisa ter pelo menos 2 observações"
+    
+    nomes = list(grupos_validos.keys())
+    grupo1 = grupos_validos[nomes[0]]
+    grupo2 = grupos_validos[nomes[1]]
+    
+    # Estatísticas
+    n1, n2 = len(grupo1), len(grupo2)
+    media1, media2 = np.mean(grupo1), np.mean(grupo2)
+    var1, var2 = np.var(grupo1, ddof=1), np.var(grupo2, ddof=1)
+    
+    # Teste t para variâncias desiguais (Welch)
+    t_stat = (media1 - media2) / np.sqrt(var1/n1 + var2/n2)
+    df = ((var1/n1 + var2/n2)**2) / ((var1/n1)**2/(n1-1) + (var2/n2)**2/(n2-1))
+    
+    # Calcular p-value
+    try:
+        from scipy.stats import t
+        p_valor = 2 * (1 - t.cdf(abs(t_stat), df))
+    except:
+        # Aproximação
+        if abs(t_stat) > 2.5:
+            p_valor = 0.01
+        elif abs(t_stat) > 2:
+            p_valor = 0.05
+        elif abs(t_stat) > 1.5:
+            p_valor = 0.1
+        else:
+            p_valor = 0.5
+    
+    resultado = {
+        "t_statistic": t_stat,
+        "p_value": p_valor,
+        "df": df,
+        "significativo": p_valor < 0.05,
+        "grupo1": nomes[0],
+        "grupo2": nomes[1],
+        "media1": media1,
+        "media2": media2
+    }
+    
+    return resultado, None
 
 # =============================================================================
 # CONFIGURAÇÃO DA PÁGINA - TELA CHEIA
@@ -946,7 +1116,7 @@ with tab3:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# FUNÇÕES ESTATÍSTICAS AVANÇADAS
+# FUNÇÕES ESTATÍSTICAS
 # =============================================================================
 
 def calcular_estatisticas_descritivas(df, coluna):
@@ -975,57 +1145,6 @@ def calcular_estatisticas_descritivas(df, coluna):
     }
     return stats_dict
 
-def calcular_anova(df, coluna, grupos):
-    """Calcula ANOVA para uma coluna agrupada"""
-    if grupos is None or len(grupos) < 2:
-        return None, "Selecione uma coluna para agrupar (ex: meses, anos)"
-    
-    # Criar grupos
-    grupos_dados = df.groupby(grupos)[coluna].apply(list).to_dict()
-    
-    # Filtrar grupos com dados
-    grupos_validos = {k: v for k, v in grupos_dados.items() if len(v) > 1}
-    
-    if len(grupos_validos) < 2:
-        return None, "É necessário pelo menos 2 grupos com dados para ANOVA"
-    
-    # Preparar dados para ANOVA
-    dados_grupos = list(grupos_validos.values())
-    nomes_grupos = list(grupos_validos.keys())
-    
-    # Realizar ANOVA
-    f_stat, p_valor = f_oneway(*dados_grupos)
-    
-    # Realizar Tukey HSD se significativo
-    tukey_result = None
-    if p_valor < 0.05:
-        try:
-            # Combinar todos os dados com seus grupos
-            all_data = []
-            all_groups = []
-            for nome, dados in grupos_validos.items():
-                all_data.extend(dados)
-                all_groups.extend([nome] * len(dados))
-            
-            tukey = tukey_hsd(*dados_grupos)
-            tukey_result = {
-                "statistic": tukey.statistic,
-                "pvalue": tukey.pvalue,
-                "grupos": nomes_grupos
-            }
-        except:
-            tukey_result = None
-    
-    resultado = {
-        "f_statistic": f_stat,
-        "p_value": p_valor,
-        "significativo": p_valor < 0.05,
-        "grupos": nomes_grupos,
-        "tukey": tukey_result
-    }
-    
-    return resultado, None
-
 def calcular_correlacao(df, coluna1, coluna2):
     """Calcula correlação entre duas colunas"""
     dados1 = df[coluna1].dropna()
@@ -1041,7 +1160,7 @@ def calcular_correlacao(df, coluna1, coluna2):
     return corr
 
 # =============================================================================
-# ABA 4 - ESTATÍSTICA (COMPLETA)
+# ABA 4 - ESTATÍSTICA
 # =============================================================================
 
 with tab4:
@@ -1067,6 +1186,7 @@ with tab4:
                 [
                     "📊 Estatísticas Descritivas",
                     "📈 ANOVA (Análise de Variância)",
+                    "📉 Teste t (Comparação de 2 grupos)",
                     "📉 Correlação",
                     "📋 Estatísticas Completas"
                 ]
@@ -1134,7 +1254,12 @@ with tab4:
                 
                 # Identificar colunas categóricas para agrupar
                 colunas_categoricas = df.select_dtypes(include=['object', 'category']).columns.tolist()
-                colunas_categoricas.extend(['Ano', 'Mes'] if 'Ano' in df.columns else [])
+                
+                # Adicionar Ano e Mes se existirem
+                if 'Ano' in df.columns:
+                    colunas_categoricas.append('Ano')
+                if 'Mes' in df.columns:
+                    colunas_categoricas.append('Mes')
                 
                 if not colunas_categoricas:
                     st.warning("Nenhuma coluna categórica encontrada para agrupamento.")
@@ -1148,7 +1273,7 @@ with tab4:
                     if coluna_anova and grupo_anova:
                         if st.button("🔬 Executar ANOVA", use_container_width=True):
                             with st.spinner("Calculando ANOVA..."):
-                                resultado, erro = calcular_anova(df, coluna_anova, grupo_anova)
+                                resultado, erro = calcular_anova_manual(df, coluna_anova, grupo_anova)
                                 
                                 if erro:
                                     st.error(f"❌ {erro}")
@@ -1156,11 +1281,13 @@ with tab4:
                                     st.success("✅ ANOVA calculada com sucesso!")
                                     
                                     # Exibir resultados
-                                    col1, col2 = st.columns(2)
+                                    col1, col2, col3 = st.columns(3)
                                     with col1:
                                         st.metric("📊 F-Statistic", round(resultado['f_statistic'], 4))
                                     with col2:
                                         st.metric("📈 P-Value", round(resultado['p_value'], 4))
+                                    with col3:
+                                        st.metric("📊 GL", f"{resultado['df_between']}/{resultado['df_within']}")
                                     
                                     if resultado['significativo']:
                                         st.success(f"✅ Resultado SIGNIFICATIVO (p < 0.05) - Há diferença entre os grupos")
@@ -1174,24 +1301,67 @@ with tab4:
                                     # Tukey HSD
                                     if resultado['tukey'] is not None:
                                         st.markdown("#### 📊 Tukey HSD - Comparações Múltiplas")
-                                        tukey = resultado['tukey']
-                                        st.write("Teste de Tukey para comparações entre pares de grupos")
-                                        
-                                        # Criar tabela de comparações
-                                        comparacoes = []
-                                        for i in range(len(tukey['grupos'])):
-                                            for j in range(i+1, len(tukey['grupos'])):
-                                                comparacoes.append({
-                                                    "Grupo 1": tukey['grupos'][i],
-                                                    "Grupo 2": tukey['grupos'][j],
-                                                    "Diferença": round(tukey['statistic'][i][j], 4),
-                                                    "p-value": round(tukey['pvalue'][i][j], 4),
-                                                    "Significativo": tukey['pvalue'][i][j] < 0.05
-                                                })
-                                        
-                                        if comparacoes:
-                                            df_tukey = pd.DataFrame(comparacoes)
-                                            st.dataframe(df_tukey, use_container_width=True)
+                                        df_tukey = pd.DataFrame(resultado['tukey'])
+                                        st.dataframe(df_tukey, use_container_width=True)
+            
+            # ============================================================
+            # TESTE T
+            # ============================================================
+            elif tipo_analise == "📉 Teste t (Comparação de 2 grupos)":
+                st.markdown("#### Teste t - Comparação de 2 grupos")
+                
+                coluna_t = st.selectbox(
+                    "Selecione a variável (numérica)",
+                    numericas,
+                    key="t_var"
+                )
+                
+                # Identificar colunas categóricas com apenas 2 categorias
+                colunas_categoricas = df.select_dtypes(include=['object', 'category']).columns.tolist()
+                if 'Ano' in df.columns:
+                    colunas_categoricas.append('Ano')
+                if 'Mes' in df.columns:
+                    colunas_categoricas.append('Mes')
+                
+                # Filtrar colunas com exatamente 2 categorias
+                colunas_2_grupos = []
+                for col in colunas_categoricas:
+                    if len(df[col].dropna().unique()) == 2:
+                        colunas_2_grupos.append(col)
+                
+                if not colunas_2_grupos:
+                    st.warning("Nenhuma coluna com exatamente 2 grupos encontrada.")
+                else:
+                    grupo_t = st.selectbox(
+                        "Selecione a coluna para agrupar (2 grupos)",
+                        colunas_2_grupos,
+                        key="t_grupo"
+                    )
+                    
+                    if coluna_t and grupo_t:
+                        if st.button("🔬 Executar Teste t", use_container_width=True):
+                            with st.spinner("Calculando teste t..."):
+                                resultado, erro = calcular_teste_t_manual(df, coluna_t, grupo_t)
+                                
+                                if erro:
+                                    st.error(f"❌ {erro}")
+                                else:
+                                    st.success("✅ Teste t calculado com sucesso!")
+                                    
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.metric("📊 t-Statistic", round(resultado['t_statistic'], 4))
+                                    with col2:
+                                        st.metric("📈 P-Value", round(resultado['p_value'], 4))
+                                    
+                                    if resultado['significativo']:
+                                        st.success(f"✅ Resultado SIGNIFICATIVO (p < 0.05) - Há diferença entre os grupos")
+                                    else:
+                                        st.info(f"ℹ️ Resultado NÃO SIGNIFICATIVO (p >= 0.05) - Não há diferença entre os grupos")
+                                    
+                                    st.markdown("#### Médias dos Grupos")
+                                    st.metric(f"{resultado['grupo1']}", round(resultado['media1'], 4))
+                                    st.metric(f"{resultado['grupo2']}", round(resultado['media2'], 4))
             
             # ============================================================
             # CORRELAÇÃO

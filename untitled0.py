@@ -7,6 +7,7 @@ import zipfile
 import json
 import os
 from io import BytesIO
+import csv
 
 st.write(sys.version)
 
@@ -40,9 +41,10 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    /* Estilo geral */
     .main {
         padding-top: 0.5rem;
-        background-color: #f5f7fa;
+        background-color: #f0f2f6;
     }
     
     .block-container {
@@ -51,6 +53,7 @@ st.markdown(
         max-width: 1200px;
     }
     
+    /* Cards personalizados */
     .custom-card {
         background-color: white;
         border-radius: 12px;
@@ -60,9 +63,10 @@ st.markdown(
         border: 1px solid #e8ecf1;
     }
     
+    /* Título principal */
     .main-header {
         background: linear-gradient(135deg, #1a5276 0%, #2e86c1 100%);
-        padding: 2rem 2.5rem;
+        padding: 1.8rem 2.5rem;
         border-radius: 12px;
         margin-bottom: 1.5rem;
         color: white;
@@ -71,16 +75,17 @@ st.markdown(
     
     .main-header h1 {
         margin: 0;
-        font-size: 2.2rem;
+        font-size: 2rem;
         font-weight: 700;
     }
     
     .main-header p {
         margin: 0.5rem 0 0 0;
         opacity: 0.9;
-        font-size: 1.05rem;
+        font-size: 1rem;
     }
     
+    /* Botões */
     .stButton > button {
         background-color: #1a5276;
         color: white;
@@ -98,6 +103,21 @@ st.markdown(
         box-shadow: 0 4px 12px rgba(26, 82, 118, 0.3);
     }
     
+    /* Área de upload */
+    .upload-area {
+        border: 2px dashed #2e86c1;
+        border-radius: 12px;
+        padding: 2.5rem;
+        background-color: #f8f9fa;
+        text-align: center;
+        transition: all 0.3s;
+    }
+    
+    .upload-area:hover {
+        border-color: #1a5276;
+        background-color: #f0f4f8;
+    }
+    
     .stFileUploader > div {
         border: 2px dashed #2e86c1;
         border-radius: 12px;
@@ -111,6 +131,7 @@ st.markdown(
         background-color: #f0f4f8;
     }
     
+    /* Métricas */
     .stMetric {
         background-color: white;
         border-radius: 12px;
@@ -119,6 +140,11 @@ st.markdown(
         border: 1px solid #e8ecf1;
     }
     
+    .stMetric > div {
+        background-color: transparent !important;
+    }
+    
+    /* Abas */
     .stTabs [data-baseweb="tab-list"] {
         gap: 4px;
         background-color: white;
@@ -146,6 +172,7 @@ st.markdown(
         font-weight: 600;
     }
     
+    /* Caixas de informação */
     .info-box {
         background-color: #eaf4f9;
         border-left: 4px solid #2e86c1;
@@ -155,6 +182,21 @@ st.markdown(
         color: #1a3a4a;
     }
     
+    .config-box {
+        background-color: #f8f9fa;
+        border: 1px solid #e8ecf1;
+        border-radius: 12px;
+        padding: 1.2rem;
+        margin: 1rem 0;
+    }
+    
+    .config-title {
+        font-weight: 600;
+        color: #1a3a4a;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Seções */
     .section-title {
         font-size: 1.1rem;
         font-weight: 600;
@@ -164,6 +206,43 @@ st.markdown(
         border-bottom: 2px solid #e8ecf1;
     }
     
+    /* Inputs */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div {
+        border-radius: 8px;
+        border: 1px solid #dce1e8;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: #2e86c1;
+        box-shadow: 0 0 0 2px rgba(46, 134, 193, 0.2);
+    }
+    
+    /* Checkbox */
+    .stCheckbox > label {
+        font-weight: 500;
+        color: #1a3a4a;
+    }
+    
+    /* Dataframes */
+    .stDataFrame {
+        border-radius: 8px;
+        border: 1px solid #e8ecf1;
+        overflow: hidden;
+    }
+    
+    .stDataFrame > div {
+        border-radius: 8px;
+    }
+    
+    /* Footer */
+    footer {
+        visibility: hidden;
+    }
+    
+    /* Rodapé */
     .footer {
         text-align: center;
         font-size: 12px;
@@ -176,6 +255,15 @@ st.markdown(
     
     .footer b {
         color: #1a5276;
+    }
+    
+    /* Toggle switch para IA */
+    .ia-toggle {
+        background-color: #f0f7ff;
+        border: 1px solid #2e86c1;
+        border-radius: 12px;
+        padding: 1.2rem;
+        margin: 1rem 0;
     }
     </style>
     """,
@@ -209,6 +297,12 @@ if "relatorio_ia" not in st.session_state:
 
 if "df_indicadores" not in st.session_state:
     st.session_state["df_indicadores"] = None
+
+if "latitude" not in st.session_state:
+    st.session_state["latitude"] = -16.0
+
+if "ia_ativada" not in st.session_state:
+    st.session_state["ia_ativada"] = False
 
 # =============================================================================
 # TÍTULO PRINCIPAL
@@ -368,7 +462,10 @@ def identificar_tipo_planilha(df):
 def ler_planilha_universal(arquivo):
     nome = arquivo.name.lower()
     if nome.endswith((".xlsx", ".xls")):
-        df = pd.read_excel(arquivo)
+        try:
+            df = pd.read_excel(arquivo)
+        except:
+            df = pd.read_excel(arquivo, engine="openpyxl")
     else:
         delimitador = detectar_delimitador(arquivo)
         encoding = detectar_encoding(arquivo)
@@ -389,16 +486,19 @@ with tab1:
     st.markdown('<div class="section-title">📂 Importação Inteligente</div>', unsafe_allow_html=True)
     
     st.markdown("""
-    <div class="info-box">
-        <strong>📁 Formatos Compatíveis:</strong> CSV • TXT • DAT • XLS • XLSX<br>
-        <span style="font-size: 0.9rem; color: #555;">Tamanho máximo: 200MB por arquivo</span>
+    <div class="config-box">
+        <div class="config-title">📁 Upload do Arquivo INMET</div>
+        <div style="color: #666; font-size: 0.9rem;">
+            <strong>200MB per file</strong> - CSV, TXT, DAT, XLS, XLSX
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
     uploaded_file = st.file_uploader(
-        "Selecione a planilha",
-        type=["csv", "txt", "dat", "xls", "xlsx"]
-    )
+    "Selecione a planilha",
+    type=["csv", "txt", "dat", "xls", "xlsx"],
+    label_visibility="collapsed"
+)
     
     if uploaded_file is not None:
         try:
@@ -563,15 +663,25 @@ with tab2:
     else:
         df_base = st.session_state["df_original"].copy()
         
-        st.markdown('<div class="section-title">Métodos de Preenchimento</div>', unsafe_allow_html=True)
-        st.markdown("**Técnica para preenchimento de falhas:**")
+        st.markdown("""
+        <div class="config-box">
+            <div class="config-title">📊 Métodos de Preenchimento</div>
+            <p style="margin: 0; color: #555;">Técnica para preenchimento de falhas:</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         metodo_falhas = st.selectbox(
             "Selecione o método",
             ["Nenhum", "Média", "Mediana", "Moda", "Interpolação Linear", "Interpolação Polinomial"],
             label_visibility="collapsed"
         )
         
-        st.markdown('<div class="section-title" style="margin-top: 1.5rem;">Detecção de Outliers</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="config-box" style="margin-top: 1rem;">
+            <div class="config-title">🎯 Detecção de Outliers</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
         col1, col2 = st.columns(2)
         with col1:
             metodo_outlier = st.selectbox(
@@ -583,6 +693,12 @@ with tab2:
                 "Ação para os outliers",
                 ["remover", "media", "mediana"]
             )
+        
+        st.markdown("""
+        <div class="config-box" style="margin-top: 1rem;">
+            <div class="config-title">⚙️ Opções Adicionais</div>
+        </div>
+        """, unsafe_allow_html=True)
         
         col3, col4 = st.columns(2)
         with col3:
@@ -827,7 +943,7 @@ with tab4:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# ABA 5 - GRÁFICOS (APENAS STREAMLIT NATIVO)
+# ABA 5 - GRÁFICOS
 # =============================================================================
 
 with tab5:
@@ -843,25 +959,25 @@ with tab5:
         if not numericas:
             st.warning("Sem colunas numéricas para visualizar.")
         else:
-            st.markdown("### Gráfico de Linhas")
-            coluna_linha = st.selectbox("Selecione uma coluna numérica para o gráfico de linhas", numericas, key="linha")
+            st.markdown("### 📈 Gráfico de Linhas")
+            coluna_linha = st.selectbox("Selecione uma coluna", numericas, key="linha")
             if coluna_linha:
-                st.line_chart(df[coluna_linha])
+                st.line_chart(df[coluna_linha], use_container_width=True)
             
             st.markdown("---")
-            st.markdown("### Gráfico de Barras")
-            coluna_barra = st.selectbox("Selecione uma coluna numérica para o gráfico de barras", numericas, key="barra")
+            st.markdown("### 📊 Gráfico de Barras")
+            coluna_barra = st.selectbox("Selecione uma coluna", numericas, key="barra")
             if coluna_barra:
-                st.bar_chart(df[coluna_barra])
+                st.bar_chart(df[coluna_barra], use_container_width=True)
             
             st.markdown("---")
-            st.markdown("### Área do Gráfico")
-            coluna_area = st.selectbox("Selecione uma coluna numérica para a área do gráfico", numericas, key="area")
+            st.markdown("### 📉 Área do Gráfico")
+            coluna_area = st.selectbox("Selecione uma coluna", numericas, key="area")
             if coluna_area:
-                st.area_chart(df[coluna_area])
+                st.area_chart(df[coluna_area], use_container_width=True)
             
             st.markdown("---")
-            st.markdown("### Estatísticas Rápidas")
+            st.markdown("### 📋 Estatísticas Rápidas")
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Mínimo", round(df[numericas[0]].min(), 2))
@@ -963,61 +1079,60 @@ with tab6:
     st.markdown('<div class="section-title">🤖 Inteligência Artificial</div>', unsafe_allow_html=True)
     
     st.markdown("""
-    <div class="info-box">
-        <strong>🤖 IA Gemini</strong><br>
-        A IA analisará padrões climáticos e fenômenos como El Niño/La Niña
+    <div class="config-box">
+        <div class="config-title">🧠 IA Gemini</div>
+        <div style="display: flex; align-items: center; gap: 1rem; margin: 0.5rem 0;">
+            <span style="font-weight: 500;">Ativar análise com IA Gemini</span>
+        </div>
+        <div style="color: #555; font-size: 0.9rem; margin-top: 0.5rem;">
+            A IA analisará padrões climáticos e fenômenos como El Niño/La Niña
+        </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    ia_ativada = st.checkbox("Ativar IA Gemini", value=st.session_state["ia_ativada"])
+    st.session_state["ia_ativada"] = ia_ativada
     
     if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Consolide os dados primeiro.")
     else:
-        df_base = st.session_state["df_consolidado"]
-        
-        st.markdown("### Relatórios Inteligentes")
-        tipo_relatorio = st.selectbox("Tipo de Relatório", list(PROMPTS.keys()))
-        pergunta = st.text_area(
-            "Pergunta adicional",
-            placeholder="Exemplo: Existe tendência de aumento da temperatura?"
-        )
-        
-        if st.button("🚀 Gerar Relatório", use_container_width=True):
-            with st.spinner("Analisando dados..."):
-                contexto = gerar_contexto_automatico(df_base)
-                prompt = PROMPTS[tipo_relatorio] + "\n\n" + pergunta
-                resposta = consultar_ia(prompt, contexto)
-                st.session_state["relatorio_ia"] = resposta
-        
-        if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
-            st.markdown("---")
-            st.markdown("### Relatório Gerado")
-            st.markdown(st.session_state["relatorio_ia"])
-            st.download_button(
-                "📥 Baixar Relatório TXT",
-                st.session_state["relatorio_ia"],
-                file_name="relatorio_ia.txt",
-                mime="text/plain",
-                use_container_width=True
+        if ia_ativada:
+            df_base = st.session_state["df_consolidado"]
+            
+            st.markdown("### Relatórios Inteligentes")
+            tipo_relatorio = st.selectbox("Tipo de Relatório", list(PROMPTS.keys()))
+            pergunta = st.text_area(
+                "Pergunta adicional",
+                placeholder="Exemplo: Existe tendência de aumento da temperatura?"
             )
+            
+            if st.button("🚀 Gerar Relatório", use_container_width=True):
+                with st.spinner("Analisando dados..."):
+                    contexto = gerar_contexto_automatico(df_base)
+                    prompt = PROMPTS[tipo_relatorio] + "\n\n" + pergunta
+                    resposta = consultar_ia(prompt, contexto)
+                    st.session_state["relatorio_ia"] = resposta
+            
+            if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
+                st.markdown("---")
+                st.markdown("### Relatório Gerado")
+                st.markdown(st.session_state["relatorio_ia"])
+                st.download_button(
+                    "📥 Baixar Relatório TXT",
+                    st.session_state["relatorio_ia"],
+                    file_name="relatorio_ia.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+        else:
+            st.info("ℹ️ Ative a IA Gemini para gerar relatórios inteligentes.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
 # EXPORTAÇÃO
 # =============================================================================
 
-def gerar_excel_completo():
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        if "df_tratado" in st.session_state and st.session_state["df_tratado"] is not None:
-            st.session_state["df_tratado"].to_excel(writer, sheet_name="Tratado", index=False)
-        if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
-            st.session_state["df_consolidado"].to_excel(writer, sheet_name="Consolidado", index=False)
-        if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
-            st.session_state["estatisticas"].to_excel(writer, sheet_name="Estatisticas", index=False)
-    buffer.seek(0)
-    return buffer
-
-def gerar_zip():
+def gerar_csv_zip():
     memoria = BytesIO()
     with zipfile.ZipFile(memoria, "w", zipfile.ZIP_DEFLATED) as zipf:
         if "df_tratado" in st.session_state and st.session_state["df_tratado"] is not None:
@@ -1031,6 +1146,14 @@ def gerar_zip():
     memoria.seek(0)
     return memoria
 
+def gerar_csv_unico():
+    buffer = BytesIO()
+    if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
+        csv_data = st.session_state["df_consolidado"].to_csv(index=False)
+        buffer.write(csv_data.encode('utf-8'))
+    buffer.seek(0)
+    return buffer
+
 # =============================================================================
 # ABA 7 - EXPORTAÇÃO PROFISSIONAL
 # =============================================================================
@@ -1041,24 +1164,24 @@ with tab7:
     
     st.markdown("""
     <div class="info-box">
-        Exporte seus resultados em Excel ou ZIP.
+        Exporte seus resultados em CSV ou ZIP compactado.
     </div>
     """, unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     with col1:
-        excel = gerar_excel_completo()
+        csv_file = gerar_csv_unico()
         st.download_button(
-            "📊 Excel Completo",
-            data=excel,
-            file_name="analise_completa.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "📄 CSV Completo",
+            data=csv_file,
+            file_name="dados_completos.csv",
+            mime="text/csv",
             use_container_width=True
         )
     with col2:
-        zip_file = gerar_zip()
+        zip_file = gerar_csv_zip()
         st.download_button(
-            "📦 Pacote Completo",
+            "📦 Pacote ZIP",
             data=zip_file,
             file_name="projeto_completo.zip",
             mime="application/zip",
@@ -1066,7 +1189,7 @@ with tab7:
         )
     
     st.markdown("---")
-    st.success("Exportação pronta para Excel e ZIP.")
+    st.success("Exportação pronta para CSV e ZIP.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1113,6 +1236,16 @@ with tab8:
     else:
         df = st.session_state["df_consolidado"]
         st.markdown("Cálculo automático de indicadores agrícolas e meteorológicos.")
+        
+        st.markdown("""
+        <div class="config-box">
+            <div class="config-title">📍 Parâmetros Regionais</div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span style="font-weight: 500;">Latitude da Estação (°):</span>
+                <span style="color: #2e86c1; font-weight: 600;">-16,0</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
         temperatura = localizar_coluna(df, ["temp", "temperatura", "tmed"])
         precipitacao = localizar_coluna(df, ["chuva", "precip", "precipitacao"])

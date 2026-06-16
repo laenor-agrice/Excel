@@ -1,11 +1,11 @@
 import streamlit as st
+import sys
 import pandas as pd
 import numpy as np
 import requests
 import zipfile
 import json
 import os
-import sys
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
@@ -44,98 +44,247 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    /* Estilo geral */
     .main {
         padding-top: 0.5rem;
-        background-color: #f0f2f6;
+        background-color: #f5f7fa;
     }
+    
     .block-container {
         padding-top: 0.5rem;
         padding-bottom: 0.5rem;
+        max-width: 1200px;
     }
-    .stButton > button {
-        background-color: #0066cc;
-        color: white;
-        border-radius: 20px;
-        border: none;
-        font-weight: bold;
-        padding: 0.5rem 2rem;
-        transition: all 0.3s;
-    }
-    .stButton > button:hover {
-        background-color: #004d99;
-        transform: scale(1.02);
-    }
-    .stSelectbox > div > div {
-        border-radius: 10px;
-    }
-    .stFileUploader > div {
-        border: 2px dashed #0066cc;
-        border-radius: 15px;
-        padding: 2rem;
-        background-color: white;
-    }
-    .stTextInput > div > div > input {
-        border-radius: 10px;
-    }
-    .stTextArea > div > div > textarea {
-        border-radius: 10px;
-    }
-    .stMetric {
-        background-color: white;
-        border-radius: 15px;
-        padding: 15px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 2px;
-        background-color: white;
-        border-radius: 15px;
-        padding: 5px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 12px;
-        padding: 8px 16px;
-        font-weight: 500;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #0066cc;
-        color: white;
-    }
+    
+    /* Cards personalizados */
     .custom-card {
         background-color: white;
-        border-radius: 15px;
+        border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-        margin-bottom: 1rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        margin-bottom: 1.5rem;
+        border: 1px solid #e8ecf1;
     }
-    .section-title {
-        font-size: 1.2rem;
+    
+    /* Título principal com gradiente */
+    .main-header {
+        background: linear-gradient(135deg, #1a5276 0%, #2e86c1 100%);
+        padding: 2rem 2.5rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        color: white;
+        box-shadow: 0 4px 15px rgba(26, 82, 118, 0.3);
+    }
+    
+    .main-header h1 {
+        margin: 0;
+        font-size: 2.2rem;
+        font-weight: 700;
+    }
+    
+    .main-header p {
+        margin: 0.5rem 0 0 0;
+        opacity: 0.9;
+        font-size: 1.05rem;
+    }
+    
+    /* Botões */
+    .stButton > button {
+        background-color: #1a5276;
+        color: white;
+        border-radius: 8px;
+        border: none;
         font-weight: 600;
-        color: #1a1a1a;
-        margin-bottom: 1rem;
+        padding: 0.6rem 2rem;
+        transition: all 0.3s;
+        width: 100%;
     }
-    .info-box {
-        background-color: #e8f4fd;
-        border-left: 4px solid #0066cc;
+    
+    .stButton > button:hover {
+        background-color: #2e86c1;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(26, 82, 118, 0.3);
+    }
+    
+    /* Área de upload */
+    .stFileUploader > div {
+        border: 2px dashed #2e86c1;
+        border-radius: 12px;
+        padding: 2.5rem;
+        background-color: #f8f9fa;
+        transition: all 0.3s;
+    }
+    
+    .stFileUploader > div:hover {
+        border-color: #1a5276;
+        background-color: #f0f4f8;
+    }
+    
+    /* Métricas */
+    .stMetric {
+        background-color: white;
+        border-radius: 12px;
         padding: 1rem;
-        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border: 1px solid #e8ecf1;
+    }
+    
+    .stMetric > div {
+        background-color: transparent !important;
+    }
+    
+    /* Abas */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 4px;
+        background-color: white;
+        border-radius: 12px;
+        padding: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border: 1px solid #e8ecf1;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: all 0.3s;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #e8f0f8;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #1a5276;
+        color: white;
+        font-weight: 600;
+    }
+    
+    /* Caixas de informação */
+    .info-box {
+        background-color: #eaf4f9;
+        border-left: 4px solid #2e86c1;
+        padding: 1rem 1.2rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        color: #1a3a4a;
+    }
+    
+    .success-box {
+        background-color: #e8f5e9;
+        border-left: 4px solid #27ae60;
+        padding: 1rem 1.2rem;
+        border-radius: 8px;
         margin: 1rem 0;
     }
+    
+    .warning-box {
+        background-color: #fff3e0;
+        border-left: 4px solid #f39c12;
+        padding: 1rem 1.2rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+    
+    /* Seções */
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1a3a4a;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e8ecf1;
+    }
+    
+    /* Inputs e selects */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div {
+        border-radius: 8px;
+        border: 1px solid #dce1e8;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: #2e86c1;
+        box-shadow: 0 0 0 2px rgba(46, 134, 193, 0.2);
+    }
+    
+    /* Checkbox */
+    .stCheckbox > label {
+        font-weight: 500;
+        color: #1a3a4a;
+    }
+    
+    /* Dataframes */
+    .stDataFrame {
+        border-radius: 8px;
+        border: 1px solid #e8ecf1;
+        overflow: hidden;
+    }
+    
+    .stDataFrame > div {
+        border-radius: 8px;
+    }
+    
+    /* Footer */
     footer {
         visibility: hidden;
     }
-    .upload-area {
-        border: 2px dashed #0066cc;
-        border-radius: 15px;
-        padding: 3rem;
+    
+    /* Métricas personalizadas */
+    .metric-container {
+        background: white;
+        border-radius: 12px;
+        padding: 1.2rem;
         text-align: center;
-        background-color: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border: 1px solid #e8ecf1;
+        transition: all 0.3s;
     }
-    .file-info {
-        background-color: #f8f9fa;
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 0.5rem 0;
+    
+    .metric-container:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1a5276;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        color: #7f8c8d;
+        margin-top: 0.3rem;
+    }
+    
+    /* Badge de tipo */
+    .type-badge {
+        display: inline-block;
+        background-color: #2e86c1;
+        color: white;
+        padding: 0.2rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    /* Rodapé */
+    .footer {
+        text-align: center;
+        font-size: 12px;
+        color: #95a5a6;
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
+        border-top: 1px solid #e8ecf1;
+        margin-top: 2rem;
+    }
+    
+    .footer b {
+        color: #1a5276;
     }
     </style>
     """,
@@ -152,20 +301,32 @@ if "usuario" not in st.session_state:
 if "dados_salvos" not in st.session_state:
     st.session_state["dados_salvos"] = False
 
+if "df_original" not in st.session_state:
+    st.session_state["df_original"] = None
+
+if "df_tratado" not in st.session_state:
+    st.session_state["df_tratado"] = None
+
+if "df_consolidado" not in st.session_state:
+    st.session_state["df_consolidado"] = None
+
+if "estatisticas" not in st.session_state:
+    st.session_state["estatisticas"] = None
+
+if "relatorio_ia" not in st.session_state:
+    st.session_state["relatorio_ia"] = None
+
+if "df_indicadores" not in st.session_state:
+    st.session_state["df_indicadores"] = None
+
 # =============================================================================
 # TÍTULO PRINCIPAL
 # =============================================================================
 
 st.markdown("""
-<div style="background: linear-gradient(135deg, #0066cc 0%, #004d99 100%); 
-            padding: 2rem; 
-            border-radius: 15px; 
-            margin-bottom: 1.5rem;
-            color: white;">
-    <h1 style="margin: 0; font-size: 2.5rem;">🌱 AgroClimate AI</h1>
-    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 1.1rem;">
-        Sistema Inteligente para Processamento, Análise e Interpretação de Dados Climáticos e Agrícolas
-    </p>
+<div class="main-header">
+    <h1>🌱 AgroClimate AI</h1>
+    <p>Sistema Inteligente para Processamento, Análise e Interpretação de Dados Climáticos e Agrícolas</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -191,14 +352,16 @@ tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
 
 with tab0:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("🏠 Cadastro do Projeto")
+    st.markdown('<div class="section-title">🏠 Cadastro do Projeto</div>', unsafe_allow_html=True)
     st.markdown("Preencha os dados abaixo para identificação do projeto, pesquisador e instituição.")
     
     col1, col2 = st.columns(2)
+    
     with col1:
         nome_projeto = st.text_input("Nome do Projeto")
         pesquisador = st.text_input("Pesquisador Responsável")
         instituicao = st.text_input("Instituição")
+    
     with col2:
         email = st.text_input("E-mail")
         cidade = st.text_input("Cidade")
@@ -217,22 +380,24 @@ with tab0:
             "Observações": observacoes
         }
         st.session_state["dados_salvos"] = True
-        st.success("Cadastro salvo com sucesso.")
+        st.success("✅ Cadastro salvo com sucesso.")
     
     st.markdown("---")
     
     if st.session_state["dados_salvos"]:
-        st.subheader("📋 Informações Salvas")
+        st.markdown('<div class="section-title">📋 Informações Salvas</div>', unsafe_allow_html=True)
         st.json(st.session_state["usuario"])
     
     st.markdown("---")
     
-    st.info("""
-    Fluxo recomendado:
-    1️⃣ Importar dados → 2️⃣ Tratar dados → 3️⃣ Consolidar dados → 
-    4️⃣ Gerar estatísticas → 5️⃣ Criar gráficos → 6️⃣ Gerar relatório com IA → 
-    7️⃣ Exportar resultados → 8️⃣ Avaliar indicadores agrometeorológicos
-    """)
+    st.markdown("""
+    <div class="info-box">
+        <strong>📋 Fluxo recomendado:</strong><br>
+        1️⃣ Importar dados → 2️⃣ Tratar dados → 3️⃣ Consolidar dados → 
+        4️⃣ Gerar estatísticas → 5️⃣ Criar gráficos → 6️⃣ Gerar relatório com IA → 
+        7️⃣ Exportar resultados → 8️⃣ Avaliar indicadores agrometeorológicos
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -240,6 +405,9 @@ with tab0:
 # =============================================================================
 
 def detectar_delimitador(arquivo):
+    """
+    Detecta automaticamente o delimitador do arquivo.
+    """
     try:
         arquivo.seek(0)
         amostra = arquivo.read(5000)
@@ -267,7 +435,8 @@ def detectar_encoding(arquivo):
     return "latin1"
 
 def remover_colunas_duplicadas(df):
-    return df.loc[:, ~df.columns.duplicated()]
+    df = df.loc[:, ~df.columns.duplicated()]
+    return df
 
 def converter_colunas_numericas(df):
     df2 = df.copy()
@@ -300,7 +469,10 @@ def converter_datas(df):
 
 def identificar_tipo_planilha(df):
     nomes = " ".join(df.columns.astype(str)).lower()
-    termos_climaticos = ["temp", "temperatura", "umidade", "vento", "rad", "radiação", "radiacao", "chuva", "precip", "eto", "evap"]
+    termos_climaticos = [
+        "temp", "temperatura", "umidade", "vento", "rad",
+        "radiação", "radiacao", "chuva", "precip", "eto", "evap"
+    ]
     score = sum(termo in nomes for termo in termos_climaticos)
     if score >= 2:
         return "Climática"
@@ -308,13 +480,16 @@ def identificar_tipo_planilha(df):
 
 def ler_planilha_universal(arquivo):
     nome = arquivo.name.lower()
+    # Excel
     if nome.endswith((".xlsx", ".xls")):
         df = pd.read_excel(arquivo)
+    # Texto
     else:
         delimitador = detectar_delimitador(arquivo)
         encoding = detectar_encoding(arquivo)
         arquivo.seek(0)
         df = pd.read_csv(arquivo, sep=delimitador, encoding=encoding, on_bad_lines="skip")
+    
     df = remover_colunas_duplicadas(df)
     df = converter_colunas_numericas(df)
     df = converter_datas(df)
@@ -326,7 +501,7 @@ def ler_planilha_universal(arquivo):
 
 with tab1:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("📂 Importação Inteligente")
+    st.markdown('<div class="section-title">📂 Importação Inteligente</div>', unsafe_allow_html=True)
     
     st.markdown("""
     <div class="info-box">
@@ -347,6 +522,7 @@ with tab1:
             tipo_planilha = identificar_tipo_planilha(df)
             
             st.markdown("---")
+            
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Linhas", f"{len(df):,}")
@@ -358,16 +534,19 @@ with tab1:
                 st.metric("Tipo", tipo_planilha)
             
             st.markdown("---")
-            st.subheader("👁 Pré-visualização")
+            st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
             st.dataframe(df.head(100), use_container_width=True)
             
             st.markdown("---")
-            st.subheader("📋 Estrutura das Colunas")
-            tipos = pd.DataFrame({"Coluna": df.columns, "Tipo": df.dtypes.astype(str)})
+            st.markdown('<div class="section-title">📋 Estrutura das Colunas</div>', unsafe_allow_html=True)
+            tipos = pd.DataFrame({
+                "Coluna": df.columns,
+                "Tipo": df.dtypes.astype(str)
+            })
             st.dataframe(tipos, use_container_width=True)
             
             st.markdown("---")
-            st.subheader("⚠ Valores Ausentes")
+            st.markdown('<div class="section-title">⚠ Valores Ausentes</div>', unsafe_allow_html=True)
             faltantes = pd.DataFrame({
                 "Coluna": df.columns,
                 "Faltantes": df.isna().sum(),
@@ -492,9 +671,9 @@ def aplicar_acao_outlier(df, mascaras, acao="remover"):
 
 with tab2:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("🧹 Tratamento Inteligente dos Dados")
+    st.markdown('<div class="section-title">🧹 Tratamento Inteligente dos Dados</div>', unsafe_allow_html=True)
     
-    if "df_original" not in st.session_state:
+    if "df_original" not in st.session_state or st.session_state["df_original"] is None:
         st.warning("⚠️ Importe uma planilha primeiro.")
     else:
         df_base = st.session_state["df_original"].copy()
@@ -539,7 +718,7 @@ with tab2:
                 df_tratado = remover_duplicados(df_tratado)
                 depois = len(df_tratado)
                 removidos = antes - depois
-                st.success(f"{removidos} linhas duplicadas removidas.")
+                st.success(f"✅ {removidos} linhas duplicadas removidas.")
             
             if metodo_falhas == "Média":
                 df_tratado = preencher_media(df_tratado)
@@ -562,10 +741,10 @@ with tab2:
             st.session_state["df_tratado"] = df_tratado
             st.success("✅ Tratamento concluído com sucesso.")
         
-        if "df_tratado" in st.session_state:
+        if "df_tratado" in st.session_state and st.session_state["df_tratado"] is not None:
             df_resultado = st.session_state["df_tratado"]
             st.markdown("---")
-            st.subheader("📊 Resultado do Tratamento")
+            st.markdown('<div class="section-title">📊 Resultado do Tratamento</div>', unsafe_allow_html=True)
             st.dataframe(df_resultado.head(100), use_container_width=True)
             
             col1, col2, col3 = st.columns(3)
@@ -682,24 +861,30 @@ def detectar_extremos(df):
 
 with tab3:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("📅 Consolidação dos Dados")
+    st.markdown('<div class="section-title">📅 Consolidação dos Dados</div>', unsafe_allow_html=True)
     
-    if "df_tratado" not in st.session_state:
+    if "df_tratado" not in st.session_state or st.session_state["df_tratado"] is None:
         st.warning("⚠️ Primeiro execute o tratamento dos dados.")
     else:
         df_base = st.session_state["df_tratado"].copy()
-        st.info("Esta etapa organiza a base final, ordena datas e prepara os dados para análises estatísticas.")
+        
+        st.markdown("""
+        <div class="info-box">
+            Esta etapa organiza a base final, ordena datas e prepara os dados para análises estatísticas.
+        </div>
+        """, unsafe_allow_html=True)
         
         if st.button("🚀 Consolidar Dados", use_container_width=True):
             df_consolidado = consolidar_dataframe(df_base)
             st.session_state["df_consolidado"] = df_consolidado
             st.success("✅ Dados consolidados com sucesso.")
         
-        if "df_consolidado" in st.session_state:
+        if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
             df_consolidado = st.session_state["df_consolidado"]
             resumo = gerar_resumo_consolidacao(df_consolidado)
             st.markdown("---")
-            st.subheader("📊 Resumo da Consolidação")
+            st.markdown('<div class="section-title">📊 Resumo da Consolidação</div>', unsafe_allow_html=True)
+            
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Linhas", resumo["Linhas"])
@@ -711,7 +896,7 @@ with tab3:
                 st.metric("Numéricas", resumo["Colunas Numéricas"])
             
             st.markdown("---")
-            st.subheader("👁 Pré-visualização")
+            st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
             st.dataframe(df_consolidado.head(200), use_container_width=True)
             st.success("✅ Base pronta para Estatística, Gráficos e IA.")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -722,9 +907,9 @@ with tab3:
 
 with tab4:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("📈 Estatística Descritiva")
+    st.markdown('<div class="section-title">📈 Estatística Descritiva</div>', unsafe_allow_html=True)
     
-    if "df_consolidado" not in st.session_state:
+    if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Primeiro consolide os dados.")
     else:
         df_base = st.session_state["df_consolidado"]
@@ -772,45 +957,50 @@ def obter_data(df):
 
 def grafico_temporal(df, variavel, data_col):
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df[data_col], df[variavel], color="green", linewidth=2)
+    ax.plot(df[data_col], df[variavel], color="#2e86c1", linewidth=2, marker='o', markersize=4)
     ax.set_title(f"Série Temporal - {variavel}", fontsize=14, fontweight='bold')
     ax.set_xlabel("Data", fontsize=12)
     ax.set_ylabel(variavel, fontsize=12)
+    ax.grid(True, alpha=0.3)
     plt.xticks(rotation=45)
     plt.tight_layout()
     return fig
 
 def grafico_histograma(df, variavel):
     fig, ax = plt.subplots(figsize=(8, 5))
-    sns.histplot(df[variavel].dropna(), bins=30, kde=True, ax=ax, color='#0066cc')
+    sns.histplot(df[variavel].dropna(), bins=30, kde=True, ax=ax, color="#2e86c1")
     ax.set_title(f"Histograma - {variavel}", fontsize=14, fontweight='bold')
     ax.set_xlabel(variavel, fontsize=12)
     ax.set_ylabel("Frequência", fontsize=12)
+    ax.grid(True, alpha=0.3)
     plt.tight_layout()
     return fig
 
 def grafico_boxplot(df, variavel):
     fig, ax = plt.subplots(figsize=(6, 5))
-    sns.boxplot(y=df[variavel], ax=ax, color='#0066cc')
+    sns.boxplot(y=df[variavel], ax=ax, color="#2e86c1")
     ax.set_title(f"Boxplot - {variavel}", fontsize=14, fontweight='bold')
     ax.set_ylabel(variavel, fontsize=12)
+    ax.grid(True, alpha=0.3)
     plt.tight_layout()
     return fig
 
 def grafico_violin(df, variavel):
     fig, ax = plt.subplots(figsize=(6, 5))
-    sns.violinplot(y=df[variavel], ax=ax, color='#0066cc')
+    sns.violinplot(y=df[variavel], ax=ax, color="#2e86c1")
     ax.set_title(f"Violino - {variavel}", fontsize=14, fontweight='bold')
     ax.set_ylabel(variavel, fontsize=12)
+    ax.grid(True, alpha=0.3)
     plt.tight_layout()
     return fig
 
 def grafico_dispersao(df, x_var, y_var):
     fig, ax = plt.subplots(figsize=(7, 5))
-    sns.scatterplot(x=df[x_var], y=df[y_var], ax=ax, color='#0066cc', alpha=0.6)
+    sns.scatterplot(x=df[x_var], y=df[y_var], ax=ax, color="#2e86c1", alpha=0.6)
     ax.set_title(f"{x_var} x {y_var}", fontsize=14, fontweight='bold')
     ax.set_xlabel(x_var, fontsize=12)
     ax.set_ylabel(y_var, fontsize=12)
+    ax.grid(True, alpha=0.3)
     plt.tight_layout()
     return fig
 
@@ -824,10 +1014,11 @@ def heatmap_correlacao(df):
 
 def grafico_tendencia(df, variavel, data_col):
     fig, ax = plt.subplots(figsize=(10, 5))
-    sns.regplot(x=df[data_col], y=df[variavel], scatter_kws={"alpha": 0.5}, ax=ax, color='#0066cc')
+    sns.regplot(x=df[data_col], y=df[variavel], scatter_kws={"alpha": 0.5}, ax=ax, color="#2e86c1")
     ax.set_title(f"Tendência - {variavel}", fontsize=14, fontweight='bold')
     ax.set_xlabel("Data", fontsize=12)
     ax.set_ylabel(variavel, fontsize=12)
+    ax.grid(True, alpha=0.3)
     plt.xticks(rotation=45)
     plt.tight_layout()
     return fig
@@ -838,9 +1029,9 @@ def grafico_tendencia(df, variavel, data_col):
 
 with tab5:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("📊 Gráficos Científicos")
+    st.markdown('<div class="section-title">📊 Gráficos Científicos</div>', unsafe_allow_html=True)
     
-    if "df_consolidado" not in st.session_state:
+    if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Primeiro consolide os dados.")
     else:
         df = st.session_state["df_consolidado"]
@@ -986,7 +1177,7 @@ def consultar_ia(prompt_usuario, contexto):
 
 with tab6:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("🤖 Inteligência Artificial")
+    st.markdown('<div class="section-title">🤖 Inteligência Artificial</div>', unsafe_allow_html=True)
     
     st.markdown("""
     <div class="info-box">
@@ -995,7 +1186,7 @@ with tab6:
     </div>
     """, unsafe_allow_html=True)
     
-    if "df_consolidado" not in st.session_state:
+    if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Consolide os dados primeiro.")
     else:
         df_base = st.session_state["df_consolidado"]
@@ -1014,7 +1205,7 @@ with tab6:
                 resposta = consultar_ia(prompt, contexto)
                 st.session_state["relatorio_ia"] = resposta
         
-        if "relatorio_ia" in st.session_state:
+        if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
             st.markdown("---")
             st.markdown("### Relatório Gerado")
             st.markdown(st.session_state["relatorio_ia"])
@@ -1034,11 +1225,11 @@ with tab6:
 def gerar_excel_completo():
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        if "df_tratado" in st.session_state:
+        if "df_tratado" in st.session_state and st.session_state["df_tratado"] is not None:
             st.session_state["df_tratado"].to_excel(writer, sheet_name="Tratado", index=False)
-        if "df_consolidado" in st.session_state:
+        if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
             st.session_state["df_consolidado"].to_excel(writer, sheet_name="Consolidado", index=False)
-        if "estatisticas" in st.session_state:
+        if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
             st.session_state["estatisticas"].to_excel(writer, sheet_name="Estatisticas", index=False)
     buffer.seek(0)
     return buffer
@@ -1047,7 +1238,7 @@ def gerar_docx():
     doc = Document()
     doc.add_heading("Relatório Técnico", level=0)
     doc.add_paragraph("Documento gerado automaticamente pelo sistema.")
-    if "relatorio_ia" in st.session_state:
+    if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
         doc.add_heading("Análise da Inteligência Artificial", level=1)
         doc.add_paragraph(st.session_state["relatorio_ia"])
     arquivo = BytesIO()
@@ -1063,13 +1254,14 @@ def gerar_html():
         <title>Relatório Técnico</title>
         <style>
             body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: auto; }
-            h1 { color: #0066cc; }
+            h1 { color: #1a5276; }
+            h2 { color: #2e86c1; }
         </style>
     </head>
     <body>
         <h1>Relatório Técnico</h1>
     """
-    if "relatorio_ia" in st.session_state:
+    if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
         html += f"""
         <h2>Análise da IA</h2>
         <p>{st.session_state['relatorio_ia']}</p>
@@ -1083,13 +1275,13 @@ def gerar_html():
 def gerar_zip():
     memoria = BytesIO()
     with zipfile.ZipFile(memoria, "w", zipfile.ZIP_DEFLATED) as zipf:
-        if "df_tratado" in st.session_state:
+        if "df_tratado" in st.session_state and st.session_state["df_tratado"] is not None:
             zipf.writestr("dados_tratados.csv", st.session_state["df_tratado"].to_csv(index=False))
-        if "df_consolidado" in st.session_state:
+        if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
             zipf.writestr("dados_consolidados.csv", st.session_state["df_consolidado"].to_csv(index=False))
-        if "estatisticas" in st.session_state:
+        if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
             zipf.writestr("estatisticas.csv", st.session_state["estatisticas"].to_csv(index=False))
-        if "relatorio_ia" in st.session_state:
+        if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
             zipf.writestr("relatorio_ia.txt", st.session_state["relatorio_ia"])
     memoria.seek(0)
     return memoria
@@ -1100,8 +1292,13 @@ def gerar_zip():
 
 with tab7:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("📥 Exportação Profissional")
-    st.info("Exporte seus resultados em Excel, DOCX, HTML ou ZIP.")
+    st.markdown('<div class="section-title">📥 Exportação Profissional</div>', unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="info-box">
+        Exporte seus resultados em Excel, DOCX, HTML ou ZIP.
+    </div>
+    """, unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     with col1:
@@ -1183,9 +1380,9 @@ def indice_conforto_termico(temperatura, umidade):
 
 with tab8:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("🌱 Indicadores Agrometeorológicos")
+    st.markdown('<div class="section-title">🌱 Indicadores Agrometeorológicos</div>', unsafe_allow_html=True)
     
-    if "df_consolidado" not in st.session_state:
+    if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Consolide os dados primeiro.")
     else:
         df = st.session_state["df_consolidado"]
@@ -1221,7 +1418,7 @@ with tab8:
             st.metric("Conforto Médio", round(conforto.mean(), 2))
         
         st.markdown("---")
-        st.subheader("📋 Indicadores Gerados")
+        st.markdown('<div class="section-title">📋 Indicadores Gerados</div>', unsafe_allow_html=True)
         st.dataframe(df.head(100), use_container_width=True)
         st.session_state["df_indicadores"] = df
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1230,9 +1427,8 @@ with tab8:
 # RODAPÉ INSTITUCIONAL
 # =============================================================================
 
-st.markdown("---")
 st.markdown("""
-<div style="text-align:center; font-size:13px; color:gray; padding-top:10px; padding-bottom:20px;">
+<div class="footer">
     <b>AgroClimate AI</b><br>
     Sistema experimental desenvolvido para fins acadêmicos, educacionais, científicos e de apoio à análise de dados
     meteorológicos e agrometeorológicos.<br><br>

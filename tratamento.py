@@ -1765,29 +1765,45 @@ def main():
                 "📥 **Downloads**"
             ])
             
-            # Tab 1: Dados Consolidados
+                        # Tab 1: Dados Consolidados
             with tab1:
                 st.markdown("### 📊 Tabela de Dados Mensais Consolidados")
                 
                 # Formatar para exibição
                 df_exibicao = df_mensal.copy()
-                colunas_exibicao = ['Mes', 'Temp_Inst', 'Tmax', 'Tmin', 'Precipitacao', 'UR_Inst', 'U2']
-                colunas_existentes = [c for c in colunas_exibicao if c in df_exibicao.columns]
-                df_exibicao = df_exibicao[colunas_existentes]
                 
-                # Renomear para exibição
-                renomeios_exibicao = {
-                    'Mes': 'Mês',
-                    'Temp_Inst': 'Temp Média',
-                    'Tmax': 'T Max',
-                    'Tmin': 'T Min',
-                    'Precipitacao': 'Precipitação',
-                    'UR_Inst': 'UR Média',
-                    'U2': 'Vento'
-                }
-                df_exibicao = df_exibicao.rename(columns={k: v for k, v in renomeios_exibicao.items() if k in df_exibicao.columns})
+                # Verificar quais colunas existem
+                colunas_originais = df_exibicao.columns.tolist()
                 
-                st.dataframe(df_exibicao, use_container_width=True)
+                # Criar dicionário de renomeação sem duplicatas
+                renomear = {}
+                
+                # Mapear colunas existentes
+                if 'Mes' in colunas_originais:
+                    renomear['Mes'] = 'Mês'
+                if 'Temp_Inst' in colunas_originais:
+                    renomear['Temp_Inst'] = 'Temp Média'
+                if 'Tmax' in colunas_originais:
+                    renomear['Tmax'] = 'T Max'
+                if 'Tmin' in colunas_originais:
+                    renomear['Tmin'] = 'T Min'
+                if 'Precipitacao' in colunas_originais:
+                    renomear['Precipitacao'] = 'Precipitação'
+                if 'UR_Inst' in colunas_originais:
+                    renomear['UR_Inst'] = 'UR Média'
+                if 'U2' in colunas_originais:
+                    renomear['U2'] = 'Vento'
+                
+                # Aplicar renomeação
+                df_exibicao = df_exibicao.rename(columns=renomear)
+                
+                # Selecionar apenas colunas que existem e não são duplicadas
+                colunas_para_exibir = [v for k, v in renomear.items() if k in colunas_originais]
+                
+                if colunas_para_exibir:
+                    st.dataframe(df_exibicao[colunas_para_exibir], use_container_width=True)
+                else:
+                    st.dataframe(df_exibicao, use_container_width=True)
                 
                 # Estatísticas descritivas
                 st.markdown("### 📈 Estatísticas Descritivas do Período")

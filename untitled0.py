@@ -150,7 +150,7 @@ st.markdown("""
 # CONFIGURAÇÃO DA IA GEMINI
 # ============================================================================
 
-GEMINI_API_KEY = ""  # Insira sua chave API aqui
+GEMINI_API_KEY = "AQ.Ab8RN6J5uzUogvavjQyfFr3wGWEaJbdrW3oByqhWo2bm_mMxmQ"  # Insira sua chave API aqui
 
 def consultar_gemini(prompt, contexto=""):
     """Consulta a API Gemini para análises climáticas"""

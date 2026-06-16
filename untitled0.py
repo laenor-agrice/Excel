@@ -104,20 +104,6 @@ st.markdown(
     }
     
     /* Área de upload */
-    .upload-area {
-        border: 2px dashed #2e86c1;
-        border-radius: 12px;
-        padding: 2.5rem;
-        background-color: #f8f9fa;
-        text-align: center;
-        transition: all 0.3s;
-    }
-    
-    .upload-area:hover {
-        border-color: #1a5276;
-        background-color: #f0f4f8;
-    }
-    
     .stFileUploader > div {
         border: 2px dashed #2e86c1;
         border-radius: 12px;
@@ -255,15 +241,6 @@ st.markdown(
     
     .footer b {
         color: #1a5276;
-    }
-    
-    /* Toggle switch para IA */
-    .ia-toggle {
-        background-color: #f0f7ff;
-        border: 1px solid #2e86c1;
-        border-radius: 12px;
-        padding: 1.2rem;
-        margin: 1rem 0;
     }
     </style>
     """,
@@ -463,9 +440,10 @@ def ler_planilha_universal(arquivo):
     nome = arquivo.name.lower()
     if nome.endswith((".xlsx", ".xls")):
         try:
-            df = pd.read_excel(arquivo)
-        except:
             df = pd.read_excel(arquivo, engine="openpyxl")
+        except:
+            # Fallback para arquivos Excel sem openpyxl
+            df = pd.read_csv(arquivo, encoding='utf-8', on_bad_lines='skip')
     else:
         delimitador = detectar_delimitador(arquivo)
         encoding = detectar_encoding(arquivo)
@@ -495,10 +473,10 @@ with tab1:
     """, unsafe_allow_html=True)
     
     uploaded_file = st.file_uploader(
-    "Selecione a planilha",
-    type=["csv", "txt", "dat", "xls", "xlsx"],
-    label_visibility="collapsed"
-)
+        "Selecione a planilha",
+        type=["csv", "txt", "dat", "xls", "xlsx"],
+        label_visibility="collapsed"
+    )
     
     if uploaded_file is not None:
         try:
@@ -1129,10 +1107,20 @@ with tab6:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# EXPORTAÇÃO
+# FUNÇÕES DE EXPORTAÇÃO (APENAS CSV E ZIP)
 # =============================================================================
 
-def gerar_csv_zip():
+def gerar_csv_unico():
+    """Gera um único arquivo CSV com os dados consolidados"""
+    buffer = BytesIO()
+    if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
+        csv_data = st.session_state["df_consolidado"].to_csv(index=False)
+        buffer.write(csv_data.encode('utf-8'))
+    buffer.seek(0)
+    return buffer
+
+def gerar_zip_completo():
+    """Gera um pacote ZIP com todos os arquivos"""
     memoria = BytesIO()
     with zipfile.ZipFile(memoria, "w", zipfile.ZIP_DEFLATED) as zipf:
         if "df_tratado" in st.session_state and st.session_state["df_tratado"] is not None:
@@ -1141,15 +1129,27 @@ def gerar_csv_zip():
             zipf.writestr("dados_consolidados.csv", st.session_state["df_consolidado"].to_csv(index=False))
         if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
             zipf.writestr("estatisticas.csv", st.session_state["estatisticas"].to_csv(index=False))
+        if "df_indicadores" in st.session_state and st.session_state["df_indicadores"] is not None:
+            zipf.writestr("indicadores.csv", st.session_state["df_indicadores"].to_csv(index=False))
         if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
             zipf.writestr("relatorio_ia.txt", st.session_state["relatorio_ia"])
     memoria.seek(0)
     return memoria
 
-def gerar_csv_unico():
+def gerar_csv_estatisticas():
+    """Gera CSV com as estatísticas"""
     buffer = BytesIO()
-    if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
-        csv_data = st.session_state["df_consolidado"].to_csv(index=False)
+    if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
+        csv_data = st.session_state["estatisticas"].to_csv(index=False)
+        buffer.write(csv_data.encode('utf-8'))
+    buffer.seek(0)
+    return buffer
+
+def gerar_csv_indicadores():
+    """Gera CSV com os indicadores"""
+    buffer = BytesIO()
+    if "df_indicadores" in st.session_state and st.session_state["df_indicadores"] is not None:
+        csv_data = st.session_state["df_indicadores"].to_csv(index=False)
         buffer.write(csv_data.encode('utf-8'))
     buffer.seek(0)
     return buffer
@@ -1164,32 +1164,74 @@ with tab7:
     
     st.markdown("""
     <div class="info-box">
-        Exporte seus resultados em CSV ou ZIP compactado.
+        Exporte seus resultados em formato CSV ou pacote ZIP completo.
     </div>
     """, unsafe_allow_html=True)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        csv_file = gerar_csv_unico()
+    # Verificar se há dados para exportar
+    tem_dados = (
+        "df_consolidado" in st.session_state and 
+        st.session_state["df_consolidado"] is not None
+    )
+    
+    if not tem_dados:
+        st.warning("⚠️ Não há dados consolidados para exportar. Consolide os dados primeiro.")
+    else:
+        st.markdown("### 📄 Exportar Arquivos Individuais")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Exportar CSV consolidado
+            csv_file = gerar_csv_unico()
+            st.download_button(
+                "📄 Dados Consolidados (CSV)",
+                data=csv_file,
+                file_name="dados_consolidados.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        
+        with col2:
+            # Exportar CSV de estatísticas
+            if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
+                csv_estat = gerar_csv_estatisticas()
+                st.download_button(
+                    "📊 Estatísticas (CSV)",
+                    data=csv_estat,
+                    file_name="estatisticas.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+        
+        with col3:
+            # Exportar CSV de indicadores
+            if "df_indicadores" in st.session_state and st.session_state["df_indicadores"] is not None:
+                csv_ind = gerar_csv_indicadores()
+                st.download_button(
+                    "🌱 Indicadores (CSV)",
+                    data=csv_ind,
+                    file_name="indicadores.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+        
+        st.markdown("---")
+        st.markdown("### 📦 Exportar Pacote Completo")
+        
+        # Exportar ZIP completo
+        zip_file = gerar_zip_completo()
         st.download_button(
-            "📄 CSV Completo",
-            data=csv_file,
-            file_name="dados_completos.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    with col2:
-        zip_file = gerar_csv_zip()
-        st.download_button(
-            "📦 Pacote ZIP",
+            "📦 Baixar Pacote Completo (ZIP)",
             data=zip_file,
             file_name="projeto_completo.zip",
             mime="application/zip",
             use_container_width=True
         )
+        
+        st.markdown("---")
+        st.success("✅ Exportação disponível em CSV e ZIP.")
     
-    st.markdown("---")
-    st.success("Exportação pronta para CSV e ZIP.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================

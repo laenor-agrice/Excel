@@ -24,214 +24,223 @@ def zscore_simples(serie):
     return (serie - media) / desvio
 
 # =============================================================================
-# CONFIGURAÇÃO DA PÁGINA
+# CONFIGURAÇÃO DA PÁGINA - TELA CHEIA
 # =============================================================================
 
 st.set_page_config(
     page_title="AgroClimate AI",
-    page_icon="🌱",
+    page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # =============================================================================
-# CSS GLOBAL - DESIGN PROFISSIONAL
+# CSS GLOBAL - DESIGN COLORIDO E GRANDE
 # =============================================================================
 
 st.markdown(
     """
     <style>
-    /* Estilo geral */
+    /* Estilo geral - tela cheia */
     .main {
-        padding-top: 0.5rem;
-        background: linear-gradient(135deg, #f0f2f6 0%, #e8ecf1 100%);
+        padding: 0rem 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
     
     .block-container {
         padding-top: 0.5rem;
         padding-bottom: 0.5rem;
-        max-width: 1200px;
+        max-width: 100%;
     }
     
-    /* Cards personalizados */
+    /* Cards grandes e coloridos */
     .custom-card {
-        background: linear-gradient(145deg, #ffffff, #f8f9fa);
-        border-radius: 16px;
-        padding: 1.8rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
-        margin-bottom: 1.5rem;
-        border: 1px solid rgba(255,255,255,0.8);
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        margin-bottom: 2rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.2);
     }
     
     /* Título principal */
     .main-header {
-        background: linear-gradient(135deg, #0d2b45 0%, #1a5276 50%, #2e86c1 100%);
-        padding: 2rem 2.5rem;
-        border-radius: 16px;
-        margin-bottom: 1.5rem;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        padding: 3rem 3rem;
+        border-radius: 20px;
+        margin-bottom: 2rem;
         color: white;
-        box-shadow: 0 8px 30px rgba(26, 82, 118, 0.35);
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .main-header::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -10%;
-        width: 300px;
-        height: 300px;
-        background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
-        border-radius: 50%;
+        box-shadow: 0 8px 32px rgba(245, 87, 108, 0.3);
+        text-align: center;
     }
     
     .main-header h1 {
         margin: 0;
-        font-size: 2.2rem;
-        font-weight: 700;
-        position: relative;
-        z-index: 1;
+        font-size: 3rem;
+        font-weight: 800;
+        letter-spacing: -1px;
     }
     
     .main-header p {
-        margin: 0.5rem 0 0 0;
-        opacity: 0.9;
-        font-size: 1.05rem;
-        position: relative;
-        z-index: 1;
+        margin: 0.8rem 0 0 0;
+        opacity: 0.95;
+        font-size: 1.3rem;
     }
     
-    /* Botões */
+    /* Botões grandes */
     .stButton > button {
-        background: linear-gradient(135deg, #1a5276, #2e86c1);
+        background: linear-gradient(135deg, #667eea, #764ba2);
         color: white;
-        border-radius: 10px;
+        border-radius: 14px;
         border: none;
-        font-weight: 600;
-        padding: 0.7rem 2rem;
+        font-weight: 700;
+        padding: 0.9rem 2.5rem;
+        font-size: 1.1rem;
         transition: all 0.3s ease;
         width: 100%;
-        box-shadow: 0 4px 15px rgba(26, 82, 118, 0.2);
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
     }
     
     .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 25px rgba(26, 82, 118, 0.35);
-        background: linear-gradient(135deg, #1a5276, #3498db);
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 8px 30px rgba(102, 126, 234, 0.5);
+        background: linear-gradient(135deg, #764ba2, #667eea);
     }
     
-    /* Área de upload */
+    /* Área de upload - grande e destacada */
     .stFileUploader > div {
-        border: 2px dashed #2e86c1;
-        border-radius: 16px;
-        padding: 3rem;
-        background: linear-gradient(135deg, #f8f9fa, #ffffff);
+        border: 3px dashed #764ba2;
+        border-radius: 20px;
+        padding: 4rem 2rem;
+        background: linear-gradient(135deg, #f8f9ff, #eef1ff);
         transition: all 0.3s ease;
+        min-height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     
     .stFileUploader > div:hover {
-        border-color: #1a5276;
-        background: linear-gradient(135deg, #f0f4f8, #ffffff);
+        border-color: #f5576c;
+        background: linear-gradient(135deg, #f0f2ff, #e6eaff);
         transform: scale(1.01);
-        box-shadow: 0 4px 20px rgba(46, 134, 193, 0.1);
+        box-shadow: 0 8px 30px rgba(118, 75, 162, 0.15);
     }
     
-    /* Métricas */
+    /* Métricas grandes */
     .stMetric {
-        background: linear-gradient(145deg, #ffffff, #f8f9fa);
-        border-radius: 14px;
-        padding: 1.2rem;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        border: 1px solid rgba(255,255,255,0.8);
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        border: 1px solid rgba(255,255,255,0.3);
         transition: all 0.3s ease;
+        backdrop-filter: blur(5px);
     }
     
     .stMetric:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        transform: translateY(-5px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        background: rgba(255, 255, 255, 1);
     }
     
     .stMetric > div {
         background-color: transparent !important;
     }
     
-    /* Abas */
+    .stMetric label {
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        color: #4a4a6a !important;
+    }
+    
+    .stMetric div[data-testid="stMetricValue"] {
+        font-size: 2.2rem !important;
+        font-weight: 700 !important;
+        color: #764ba2 !important;
+    }
+    
+    /* Abas grandes */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 6px;
-        background: linear-gradient(145deg, #ffffff, #f8f9fa);
-        border-radius: 14px;
-        padding: 8px;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        border: 1px solid rgba(255,255,255,0.8);
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 16px;
+        padding: 10px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        backdrop-filter: blur(5px);
+        margin-bottom: 1.5rem;
     }
     
     .stTabs [data-baseweb="tab"] {
-        border-radius: 10px;
-        padding: 0.7rem 1.4rem;
-        font-weight: 500;
-        font-size: 0.9rem;
+        border-radius: 12px;
+        padding: 1rem 2rem;
+        font-weight: 600;
+        font-size: 1.05rem;
         transition: all 0.3s ease;
-        color: #4a5568;
+        color: #4a4a6a;
     }
     
     .stTabs [data-baseweb="tab"]:hover {
-        background-color: rgba(46, 134, 193, 0.08);
-        color: #1a5276;
+        background-color: rgba(102, 126, 234, 0.1);
+        color: #667eea;
     }
     
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #1a5276, #2e86c1);
+        background: linear-gradient(135deg, #667eea, #764ba2);
         color: white;
-        font-weight: 600;
-        box-shadow: 0 4px 15px rgba(26, 82, 118, 0.25);
+        font-weight: 700;
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
     }
     
     /* Caixas de informação */
     .info-box {
-        background: linear-gradient(135deg, #eaf4f9, #d4e8f5);
-        border-left: 5px solid #2e86c1;
-        padding: 1.2rem 1.5rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        color: #1a3a4a;
-        box-shadow: 0 2px 8px rgba(46, 134, 193, 0.1);
+        background: linear-gradient(135deg, #e8f0fe, #d4e4f7);
+        border-left: 6px solid #667eea;
+        padding: 1.5rem 2rem;
+        border-radius: 14px;
+        margin: 1.5rem 0;
+        color: #2d3748;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
     }
     
     .config-box {
-        background: linear-gradient(145deg, #f8f9fa, #ffffff);
-        border: 1px solid #e8ecf1;
-        border-radius: 14px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        background: rgba(255, 255, 255, 0.9);
+        border: 2px solid #e8ecf1;
+        border-radius: 16px;
+        padding: 2rem;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
     }
     
     .config-title {
-        font-weight: 600;
-        color: #1a3a4a;
-        margin-bottom: 0.5rem;
-        font-size: 1.05rem;
+        font-weight: 700;
+        color: #4a4a6a;
+        margin-bottom: 0.8rem;
+        font-size: 1.3rem;
     }
     
     /* Seções */
     .section-title {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #0d2b45;
-        margin-bottom: 1.2rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 3px solid #2e86c1;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #4a4a6a;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.8rem;
+        border-bottom: 4px solid #667eea;
         display: inline-block;
     }
     
-    /* Inputs */
+    /* Inputs grandes */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stSelectbox > div > div,
     .stNumberInput > div > div > input {
-        border-radius: 10px;
-        border: 1px solid #dce1e8;
+        border-radius: 12px;
+        border: 2px solid #e0e4ed;
+        padding: 0.8rem 1rem;
+        font-size: 1.05rem;
         transition: all 0.3s ease;
     }
     
@@ -239,26 +248,28 @@ st.markdown(
     .stTextArea > div > div > textarea:focus,
     .stSelectbox > div > div:focus,
     .stNumberInput > div > div > input:focus {
-        border-color: #2e86c1;
-        box-shadow: 0 0 0 3px rgba(46, 134, 193, 0.15);
+        border-color: #667eea;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
     }
     
-    /* Checkbox */
+    /* Checkbox grande */
     .stCheckbox > label {
-        font-weight: 500;
-        color: #1a3a4a;
+        font-weight: 600;
+        color: #4a4a6a;
+        font-size: 1.05rem;
     }
     
     /* Dataframes */
     .stDataFrame {
-        border-radius: 12px;
+        border-radius: 16px;
         border: 1px solid #e8ecf1;
         overflow: hidden;
         background: white;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
     }
     
     .stDataFrame > div {
-        border-radius: 12px;
+        border-radius: 16px;
     }
     
     /* Footer */
@@ -269,35 +280,38 @@ st.markdown(
     /* Rodapé */
     .footer {
         text-align: center;
-        font-size: 12px;
-        color: #718096;
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        border-top: 1px solid #e8ecf1;
+        font-size: 14px;
+        color: rgba(255,255,255,0.8);
+        padding-top: 2.5rem;
+        padding-bottom: 2.5rem;
+        border-top: 2px solid rgba(255,255,255,0.1);
         margin-top: 2rem;
-        background: linear-gradient(145deg, #f8f9fa, #ffffff);
-        border-radius: 16px;
     }
     
     .footer b {
-        color: #1a5276;
+        color: white;
     }
     
-    /* Gráficos */
-    .chart-container {
-        background: white;
+    /* Nome do arquivo carregado */
+    .file-info {
+        background: linear-gradient(135deg, #f093fb, #f5576c);
+        color: white;
+        padding: 1.5rem 2rem;
         border-radius: 14px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        border: 1px solid rgba(255,255,255,0.8);
         margin: 1rem 0;
+        font-weight: 600;
+        font-size: 1.2rem;
+        box-shadow: 0 4px 20px rgba(245, 87, 108, 0.3);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
     
-    .chart-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #0d2b45;
-        margin-bottom: 0.5rem;
+    .file-info span {
+        background: rgba(255,255,255,0.2);
+        padding: 0.3rem 1rem;
+        border-radius: 20px;
+        font-weight: 400;
     }
     </style>
     """,
@@ -338,13 +352,16 @@ if "latitude" not in st.session_state:
 if "ia_ativada" not in st.session_state:
     st.session_state["ia_ativada"] = False
 
+if "arquivo_nome" not in st.session_state:
+    st.session_state["arquivo_nome"] = None
+
 # =============================================================================
 # TÍTULO PRINCIPAL
 # =============================================================================
 
 st.markdown("""
 <div class="main-header">
-    <h1>🌱 AgroClimate AI</h1>
+    <h1>📊 AgroClimate AI</h1>
     <p>Sistema Inteligente para Processamento, Análise e Interpretação de Dados Climáticos e Agrícolas</p>
 </div>
 """, unsafe_allow_html=True)
@@ -362,7 +379,7 @@ tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "📊 Gráficos",
     "🤖 IA",
     "📥 Exportação",
-    "🌱 Indicadores"
+    "🌡️ Indicadores"
 ])
 
 # =============================================================================
@@ -371,22 +388,22 @@ tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
 
 with tab0:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🏠 Cadastro do Projeto</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📋 Cadastro do Projeto</div>', unsafe_allow_html=True)
     st.markdown("Preencha os dados abaixo para identificação do projeto, pesquisador e instituição.")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        nome_projeto = st.text_input("Nome do Projeto")
-        pesquisador = st.text_input("Pesquisador Responsável")
-        instituicao = st.text_input("Instituição")
+        nome_projeto = st.text_input("📌 Nome do Projeto")
+        pesquisador = st.text_input("👨‍🔬 Pesquisador Responsável")
+        instituicao = st.text_input("🏛️ Instituição")
     
     with col2:
-        email = st.text_input("E-mail")
-        cidade = st.text_input("Cidade")
-        estado = st.text_input("Estado")
+        email = st.text_input("📧 E-mail")
+        cidade = st.text_input("📍 Cidade")
+        estado = st.text_input("🗺️ Estado")
     
-    observacoes = st.text_area("Observações")
+    observacoes = st.text_area("📝 Observações", height=100)
     
     if st.button("💾 Salvar Cadastro", use_container_width=True):
         st.session_state["usuario"] = {
@@ -399,7 +416,7 @@ with tab0:
             "Observações": observacoes
         }
         st.session_state["dados_salvos"] = True
-        st.success("✅ Cadastro salvo com sucesso.")
+        st.success("✅ Cadastro salvo com sucesso!")
     
     st.markdown("---")
     
@@ -420,7 +437,7 @@ with tab0:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# FUNÇÕES DE IMPORTAÇÃO E DIAGNÓSTICO
+# FUNÇÕES DE IMPORTAÇÃO
 # =============================================================================
 
 def detectar_delimitador(arquivo):
@@ -490,8 +507,8 @@ def identificar_tipo_planilha(df):
     ]
     score = sum(termo in nomes for termo in termos_climaticos)
     if score >= 2:
-        return "Climática"
-    return "Genérica"
+        return "📊 Climática"
+    return "📋 Genérica"
 
 def ler_planilha_universal(arquivo):
     nome = arquivo.name.lower()
@@ -512,7 +529,7 @@ def ler_planilha_universal(arquivo):
     return df
 
 # =============================================================================
-# ABA 1 - IMPORTAÇÃO E DIAGNÓSTICO
+# ABA 1 - IMPORTAÇÃO
 # =============================================================================
 
 with tab1:
@@ -522,14 +539,14 @@ with tab1:
     st.markdown("""
     <div class="config-box">
         <div class="config-title">📁 Upload do Arquivo INMET</div>
-        <div style="color: #666; font-size: 0.9rem;">
+        <div style="color: #666; font-size: 1.1rem;">
             <strong>200MB per file</strong> - CSV, TXT, DAT, XLS, XLSX
         </div>
     </div>
     """, unsafe_allow_html=True)
     
     uploaded_file = st.file_uploader(
-        "Selecione a planilha",
+        "Arraste e solte o arquivo aqui",
         type=["csv", "txt", "dat", "xls", "xlsx"],
         label_visibility="collapsed"
     )
@@ -538,19 +555,29 @@ with tab1:
         try:
             df = ler_planilha_universal(uploaded_file)
             st.session_state["df_original"] = df
+            
+            # Mostrar nome do arquivo
+            file_size = uploaded_file.size / (1024 * 1024)
+            st.markdown(f"""
+            <div class="file-info">
+                📄 {uploaded_file.name}
+                <span>{file_size:.1f} MB</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
             tipo_planilha = identificar_tipo_planilha(df)
             
             st.markdown("---")
             
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Linhas", f"{len(df):,}")
+                st.metric("📊 Linhas", f"{len(df):,}")
             with col2:
-                st.metric("Colunas", len(df.columns))
+                st.metric("📋 Colunas", len(df.columns))
             with col3:
-                st.metric("Valores Ausentes", int(df.isna().sum().sum()))
+                st.metric("⚠️ Valores Ausentes", int(df.isna().sum().sum()))
             with col4:
-                st.metric("Tipo", tipo_planilha)
+                st.metric("📌 Tipo", tipo_planilha)
             
             st.markdown("---")
             st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
@@ -565,7 +592,7 @@ with tab1:
             st.dataframe(tipos, use_container_width=True)
             
             st.markdown("---")
-            st.markdown('<div class="section-title">⚠ Valores Ausentes</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-title">⚠️ Valores Ausentes</div>', unsafe_allow_html=True)
             faltantes = pd.DataFrame({
                 "Coluna": df.columns,
                 "Faltantes": df.isna().sum(),
@@ -573,9 +600,18 @@ with tab1:
             })
             st.dataframe(faltantes, use_container_width=True)
             
-            st.success("✅ Arquivo carregado com sucesso.")
+            st.success("✅ Arquivo carregado com sucesso!")
         except Exception as erro:
-            st.error(f"Erro ao carregar arquivo: {erro}")
+            st.error(f"❌ Erro ao carregar arquivo: {erro}")
+    else:
+        st.markdown("""
+        <div style="text-align: center; padding: 2rem; color: #999;">
+            <span style="font-size: 3rem;">📁</span>
+            <p style="font-size: 1.2rem; margin-top: 0.5rem;">Nenhum arquivo selecionado</p>
+            <p style="font-size: 0.9rem;">Arraste ou clique para fazer upload</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -685,22 +721,22 @@ def aplicar_acao_outlier(df, mascaras, acao="remover"):
     return df2
 
 # =============================================================================
-# ABA 2 - TRATAMENTO DE DADOS
+# ABA 2 - TRATAMENTO
 # =============================================================================
 
 with tab2:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🧹 Tratamento Inteligente dos Dados</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🧹 Tratamento Inteligente</div>', unsafe_allow_html=True)
     
     if "df_original" not in st.session_state or st.session_state["df_original"] is None:
-        st.warning("⚠️ Importe uma planilha primeiro.")
+        st.warning("⚠️ Importe uma planilha primeiro na aba 'Importação'.")
     else:
         df_base = st.session_state["df_original"].copy()
         
         st.markdown("""
         <div class="config-box">
             <div class="config-title">📊 Métodos de Preenchimento</div>
-            <p style="margin: 0; color: #555;">Técnica para preenchimento de falhas:</p>
+            <p style="margin: 0; color: #555; font-size: 1.05rem;">Técnica para preenchimento de falhas:</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -774,7 +810,7 @@ with tab2:
                 df_tratado = aplicar_acao_outlier(df_tratado, mascaras, acao_outlier)
             
             st.session_state["df_tratado"] = df_tratado
-            st.success("✅ Tratamento concluído com sucesso.")
+            st.success("✅ Tratamento concluído com sucesso!")
         
         if "df_tratado" in st.session_state and st.session_state["df_tratado"] is not None:
             df_resultado = st.session_state["df_tratado"]
@@ -784,13 +820,13 @@ with tab2:
             
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Linhas", len(df_resultado))
+                st.metric("📊 Linhas", len(df_resultado))
             with col2:
-                st.metric("Colunas", len(df_resultado.columns))
+                st.metric("📋 Colunas", len(df_resultado.columns))
             with col3:
-                st.metric("Valores Nulos", int(df_resultado.isna().sum().sum()))
+                st.metric("⚠️ Valores Nulos", int(df_resultado.isna().sum().sum()))
             
-            st.success("✅ Base pronta para Consolidação.")
+            st.success("✅ Base pronta para Consolidação!")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -824,6 +860,52 @@ def gerar_resumo_consolidacao(df):
         "Colunas Numéricas": len(df.select_dtypes(include=np.number).columns)
     }
     return resumo
+
+# =============================================================================
+# ABA 3 - CONSOLIDAÇÃO
+# =============================================================================
+
+with tab3:
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📅 Consolidação dos Dados</div>', unsafe_allow_html=True)
+    
+    if "df_tratado" not in st.session_state or st.session_state["df_tratado"] is None:
+        st.warning("⚠️ Primeiro execute o tratamento dos dados.")
+    else:
+        df_base = st.session_state["df_tratado"].copy()
+        
+        st.markdown("""
+        <div class="info-box">
+            Esta etapa organiza a base final, ordena datas e prepara os dados para análises estatísticas.
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("🚀 Consolidar Dados", use_container_width=True):
+            df_consolidado = consolidar_dataframe(df_base)
+            st.session_state["df_consolidado"] = df_consolidado
+            st.success("✅ Dados consolidados com sucesso!")
+        
+        if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
+            df_consolidado = st.session_state["df_consolidado"]
+            resumo = gerar_resumo_consolidacao(df_consolidado)
+            st.markdown("---")
+            st.markdown('<div class="section-title">📊 Resumo da Consolidação</div>', unsafe_allow_html=True)
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("📊 Linhas", resumo["Linhas"])
+            with col2:
+                st.metric("📋 Colunas", resumo["Colunas"])
+            with col3:
+                st.metric("⚠️ Nulos", resumo["Valores Nulos"])
+            with col4:
+                st.metric("🔢 Numéricas", resumo["Colunas Numéricas"])
+            
+            st.markdown("---")
+            st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
+            st.dataframe(df_consolidado.head(200), use_container_width=True)
+            st.success("✅ Base pronta para Estatística, Gráficos e IA!")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
 # ESTATÍSTICA DESCRITIVA
@@ -891,53 +973,7 @@ def detectar_extremos(df):
     return pd.DataFrame(extremos)
 
 # =============================================================================
-# ABA 3 - CONSOLIDAÇÃO
-# =============================================================================
-
-with tab3:
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📅 Consolidação dos Dados</div>', unsafe_allow_html=True)
-    
-    if "df_tratado" not in st.session_state or st.session_state["df_tratado"] is None:
-        st.warning("⚠️ Primeiro execute o tratamento dos dados.")
-    else:
-        df_base = st.session_state["df_tratado"].copy()
-        
-        st.markdown("""
-        <div class="info-box">
-            Esta etapa organiza a base final, ordena datas e prepara os dados para análises estatísticas.
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("🚀 Consolidar Dados", use_container_width=True):
-            df_consolidado = consolidar_dataframe(df_base)
-            st.session_state["df_consolidado"] = df_consolidado
-            st.success("✅ Dados consolidados com sucesso.")
-        
-        if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
-            df_consolidado = st.session_state["df_consolidado"]
-            resumo = gerar_resumo_consolidacao(df_consolidado)
-            st.markdown("---")
-            st.markdown('<div class="section-title">📊 Resumo da Consolidação</div>', unsafe_allow_html=True)
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Linhas", resumo["Linhas"])
-            with col2:
-                st.metric("Colunas", resumo["Colunas"])
-            with col3:
-                st.metric("Nulos", resumo["Valores Nulos"])
-            with col4:
-                st.metric("Numéricas", resumo["Colunas Numéricas"])
-            
-            st.markdown("---")
-            st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
-            st.dataframe(df_consolidado.head(200), use_container_width=True)
-            st.success("✅ Base pronta para Estatística, Gráficos e IA.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# =============================================================================
-# ABA 4 - ESTATÍSTICA DESCRITIVA
+# ABA 4 - ESTATÍSTICA
 # =============================================================================
 
 with tab4:
@@ -951,19 +987,19 @@ with tab4:
         estatisticas = gerar_estatisticas(df_base)
         extremos = detectar_extremos(df_base)
         
-        st.markdown("### Estatística Completa")
+        st.markdown("### 📊 Estatística Completa")
         st.dataframe(estatisticas, use_container_width=True)
         
-        st.markdown("### Valores Extremos")
+        st.markdown("### 📌 Valores Extremos")
         st.dataframe(extremos, use_container_width=True)
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Variáveis", len(estatisticas))
+            st.metric("📊 Variáveis", len(estatisticas))
         with col2:
-            st.metric("Extremos", len(extremos))
+            st.metric("📌 Extremos", len(extremos))
         with col3:
-            st.metric("Registros", len(df_base))
+            st.metric("📋 Registros", len(df_base))
         
         # Gráficos com Streamlit nativo
         if len(df_base.select_dtypes(include=np.number).columns) > 0:
@@ -977,18 +1013,17 @@ with tab4:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.markdown(f"**Histograma - {var_selecionada}**")
-                    st.bar_chart(df_base[var_selecionada].value_counts().head(20))
+                    st.markdown(f"**📊 Histograma - {var_selecionada}**")
+                    st.bar_chart(df_base[var_selecionada].value_counts().head(30))
                 
                 with col2:
-                    st.markdown(f"**Boxplot - {var_selecionada}**")
-                    # Criando um boxplot simples com estatísticas
+                    st.markdown(f"**📦 Boxplot - {var_selecionada}**")
                     stats = df_base[var_selecionada].describe()
-                    st.metric("Mínimo", round(stats['min'], 2))
-                    st.metric("Q1", round(stats['25%'], 2))
-                    st.metric("Mediana", round(stats['50%'], 2))
-                    st.metric("Q3", round(stats['75%'], 2))
-                    st.metric("Máximo", round(stats['max'], 2))
+                    st.metric("📉 Mínimo", round(stats['min'], 2))
+                    st.metric("📊 Q1", round(stats['25%'], 2))
+                    st.metric("📈 Mediana", round(stats['50%'], 2))
+                    st.metric("📊 Q3", round(stats['75%'], 2))
+                    st.metric("📈 Máximo", round(stats['max'], 2))
         
         st.session_state["estatisticas"] = estatisticas
         csv_estatisticas = estatisticas.to_csv(index=False).encode("utf-8")
@@ -1018,46 +1053,44 @@ with tab5:
         if not numericas:
             st.warning("Sem colunas numéricas para visualizar.")
         else:
-            # Tipo de gráfico
             tipo_grafico = st.selectbox(
                 "Selecione o tipo de gráfico",
-                ["Linhas", "Barras", "Área", "Histograma"]
+                ["📈 Linhas", "📊 Barras", "📉 Área", "📊 Histograma"]
             )
             
-            if tipo_grafico == "Linhas":
+            if tipo_grafico == "📈 Linhas":
                 col_linha = st.selectbox("Selecione a variável", numericas, key="linha_graf")
                 if col_linha:
-                    st.markdown(f"**Série Temporal - {col_linha}**")
+                    st.markdown(f"**📈 Série Temporal - {col_linha}**")
                     st.line_chart(df[col_linha], use_container_width=True)
             
-            elif tipo_grafico == "Barras":
+            elif tipo_grafico == "📊 Barras":
                 col_barra = st.selectbox("Selecione a variável", numericas, key="barra_graf")
                 if col_barra:
-                    st.markdown(f"**Gráfico de Barras - {col_barra}**")
+                    st.markdown(f"**📊 Gráfico de Barras - {col_barra}**")
                     st.bar_chart(df[col_barra], use_container_width=True)
             
-            elif tipo_grafico == "Área":
+            elif tipo_grafico == "📉 Área":
                 col_area = st.selectbox("Selecione a variável", numericas, key="area_graf")
                 if col_area:
-                    st.markdown(f"**Gráfico de Área - {col_area}**")
+                    st.markdown(f"**📉 Gráfico de Área - {col_area}**")
                     st.area_chart(df[col_area], use_container_width=True)
             
-            elif tipo_grafico == "Histograma":
+            elif tipo_grafico == "📊 Histograma":
                 col_hist = st.selectbox("Selecione a variável", numericas, key="hist_graf")
                 if col_hist:
-                    st.markdown(f"**Histograma - {col_hist}**")
+                    st.markdown(f"**📊 Histograma - {col_hist}**")
                     st.bar_chart(df[col_hist].value_counts().head(30), use_container_width=True)
             
-            # Estatísticas rápidas
             st.markdown("---")
             st.markdown("### 📋 Estatísticas Rápidas")
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Mínimo", round(df[numericas[0]].min(), 2))
+                st.metric("📉 Mínimo", round(df[numericas[0]].min(), 2))
             with col2:
-                st.metric("Máximo", round(df[numericas[0]].max(), 2))
+                st.metric("📈 Máximo", round(df[numericas[0]].max(), 2))
             with col3:
-                st.metric("Média", round(df[numericas[0]].mean(), 2))
+                st.metric("📊 Média", round(df[numericas[0]].mean(), 2))
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1086,7 +1119,7 @@ Coeficiente de variação: {(numericas[col].std()/numericas[col].mean()*100):.2f
     return contexto
 
 PROMPTS = {
-    "Relatório Científico": """
+    "📊 Relatório Científico": """
 Produza um relatório científico completo.
 Inclua:
 - Introdução dos dados
@@ -1097,7 +1130,7 @@ Inclua:
 - Conclusões técnicas
 Utilize linguagem científica.
 """,
-    "Relatório Meteorológico": """
+    "🌡️ Relatório Meteorológico": """
 Produza uma análise meteorológica detalhada.
 Avalie:
 - Temperatura
@@ -1107,7 +1140,7 @@ Avalie:
 - Eventos extremos
 - Tendências climáticas
 """,
-    "Relatório Agrícola": """
+    "🌾 Relatório Agrícola": """
 Interprete os dados sob o ponto de vista agronômico.
 Avalie:
 - Disponibilidade hídrica
@@ -1116,7 +1149,7 @@ Avalie:
 - Conforto térmico
 - Impactos agrícolas
 """,
-    "Resumo Executivo": """
+    "📋 Resumo Executivo": """
 Produza um resumo executivo simples e objetivo.
 Explique os resultados em linguagem acessível.
 """
@@ -1144,7 +1177,7 @@ def consultar_ia(prompt_usuario, contexto):
         return f"Erro: {erro}"
 
 # =============================================================================
-# ABA 6 - INTELIGÊNCIA ARTIFICIAL
+# ABA 6 - IA
 # =============================================================================
 
 with tab6:
@@ -1155,9 +1188,9 @@ with tab6:
     <div class="config-box">
         <div class="config-title">🧠 IA Gemini</div>
         <div style="display: flex; align-items: center; gap: 1rem; margin: 0.5rem 0;">
-            <span style="font-weight: 500;">Ativar análise com IA Gemini</span>
+            <span style="font-weight: 500; font-size: 1.05rem;">Ativar análise com IA Gemini</span>
         </div>
-        <div style="color: #555; font-size: 0.9rem; margin-top: 0.5rem;">
+        <div style="color: #555; font-size: 1rem; margin-top: 0.5rem;">
             A IA analisará padrões climáticos e fenômenos como El Niño/La Niña
         </div>
     </div>
@@ -1172,11 +1205,12 @@ with tab6:
         if ia_ativada:
             df_base = st.session_state["df_consolidado"]
             
-            st.markdown("### Relatórios Inteligentes")
+            st.markdown("### 📊 Relatórios Inteligentes")
             tipo_relatorio = st.selectbox("Tipo de Relatório", list(PROMPTS.keys()))
             pergunta = st.text_area(
-                "Pergunta adicional",
-                placeholder="Exemplo: Existe tendência de aumento da temperatura?"
+                "❓ Pergunta adicional",
+                placeholder="Exemplo: Existe tendência de aumento da temperatura?",
+                height=100
             )
             
             if st.button("🚀 Gerar Relatório", use_container_width=True):
@@ -1188,7 +1222,7 @@ with tab6:
             
             if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
                 st.markdown("---")
-                st.markdown("### Relatório Gerado")
+                st.markdown("### 📄 Relatório Gerado")
                 st.markdown(st.session_state["relatorio_ia"])
                 st.download_button(
                     "📥 Baixar Relatório TXT",
@@ -1246,7 +1280,7 @@ def gerar_csv_indicadores():
     return buffer
 
 # =============================================================================
-# ABA 7 - EXPORTAÇÃO PROFISSIONAL
+# ABA 7 - EXPORTAÇÃO
 # =============================================================================
 
 with tab7:
@@ -1296,7 +1330,7 @@ with tab7:
             if "df_indicadores" in st.session_state and st.session_state["df_indicadores"] is not None:
                 csv_ind = gerar_csv_indicadores()
                 st.download_button(
-                    "🌱 Indicadores (CSV)",
+                    "🌡️ Indicadores (CSV)",
                     data=csv_ind,
                     file_name="indicadores.csv",
                     mime="text/csv",
@@ -1316,7 +1350,7 @@ with tab7:
         )
         
         st.markdown("---")
-        st.success("✅ Exportação disponível em CSV e ZIP.")
+        st.success("✅ Exportação disponível em CSV e ZIP!")
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1352,12 +1386,12 @@ def indice_conforto_termico(temperatura, umidade):
     return temperatura - (0.55 - 0.0055 * umidade) * (temperatura - 14.5)
 
 # =============================================================================
-# ABA 8 - INDICADORES AGROMETEOROLÓGICOS
+# ABA 8 - INDICADORES
 # =============================================================================
 
 with tab8:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🌱 Indicadores Agrometeorológicos</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🌡️ Indicadores Agrometeorológicos</div>', unsafe_allow_html=True)
     
     if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Consolide os dados primeiro.")
@@ -1369,8 +1403,8 @@ with tab8:
         <div class="config-box">
             <div class="config-title">📍 Parâmetros Regionais</div>
             <div style="display: flex; align-items: center; gap: 1rem;">
-                <span style="font-weight: 500;">Latitude da Estação (°):</span>
-                <span style="color: #2e86c1; font-weight: 600; font-size: 1.1rem;">-16,0</span>
+                <span style="font-weight: 500; font-size: 1.1rem;">Latitude da Estação (°):</span>
+                <span style="color: #764ba2; font-weight: 700; font-size: 1.3rem;">-16,0</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1385,35 +1419,34 @@ with tab8:
         
         with col1:
             if temperatura is not None:
-                temperatura_base = st.number_input("Temperatura Base (°C)", value=10.0, step=0.5)
+                temperatura_base = st.number_input("🌡️ Temperatura Base (°C)", value=10.0, step=0.5)
                 gdd = calcular_gdd(df, temperatura, temperatura_base)
                 soma_termica = calcular_soma_termica(gdd)
-                st.metric("Graus-dia Acumulados", round(soma_termica.iloc[-1], 2))
+                st.metric("📊 Graus-dia Acumulados", round(soma_termica.iloc[-1], 2))
                 df["GDD"] = gdd
                 df["Soma_Termica"] = soma_termica
             
             if precipitacao is not None:
                 chuva_acumulada = calcular_precipitacao_acumulada(df, precipitacao)
                 df["Chuva_Acumulada"] = chuva_acumulada
-                st.metric("Precipitação Acumulada (mm)", round(chuva_acumulada.iloc[-1], 2))
+                st.metric("🌧️ Precipitação Acumulada (mm)", round(chuva_acumulada.iloc[-1], 2))
         
         with col2:
             if tmin is not None and tmax is not None and temperatura is not None:
                 eto = calcular_eto_hargreaves(df[tmin], df[tmax], df[temperatura])
                 df["ETo"] = eto
-                st.metric("ETo Média", round(eto.mean(), 2))
+                st.metric("💧 ETo Média", round(eto.mean(), 2))
             
             if temperatura is not None and umidade is not None:
                 conforto = indice_conforto_termico(df[temperatura], df[umidade])
                 df["Indice_Conforto"] = conforto
-                st.metric("Conforto Médio", round(conforto.mean(), 2))
+                st.metric("🌡️ Conforto Médio", round(conforto.mean(), 2))
         
         st.markdown("---")
         st.markdown('<div class="section-title">📋 Indicadores Gerados</div>', unsafe_allow_html=True)
         st.dataframe(df.head(100), use_container_width=True)
         st.session_state["df_indicadores"] = df
         
-        # Gráfico dos indicadores com Streamlit nativo
         indicadores_disponiveis = [col for col in df.columns if col in ['GDD', 'Soma_Termica', 'Chuva_Acumulada', 'ETo', 'Indice_Conforto']]
         if indicadores_disponiveis:
             st.markdown("---")
@@ -1430,7 +1463,7 @@ with tab8:
 
 st.markdown("""
 <div class="footer">
-    <b>🌱 AgroClimate AI</b><br>
+    <b>📊 AgroClimate AI</b><br>
     Sistema experimental desenvolvido para fins acadêmicos, educacionais, científicos e de apoio à análise de dados
     meteorológicos e agrometeorológicos.<br><br>
     Este aplicativo não substitui análises técnicas oficiais, laudos periciais, pareceres especializados ou sistemas

@@ -5,8 +5,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+except Exception as e:
+    print("ERRO PLOTLY:", e)
+    raise
 import requests
 import zipfile
 from io import BytesIO

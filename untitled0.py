@@ -668,6 +668,82 @@ def validar_consistencia_fisica(df):
                 pass
     
     return df_validado, alertas
+
+
+def analise_completa_qualidade(df):
+    """Análise completa da qualidade dos dados"""
+    
+    qualidade = {}
+    
+    # Identificar colunas numéricas
+    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
+                         'Precipitacao', 'U2', 'Press_Inst']
+    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
+    
+    # Estatísticas de completude
+    for col in colunas_existentes:
+        try:
+            # Verificar se é uma Series
+            if isinstance(df[col], pd.Series):
+                total = len(df)
+                presentes = int(df[col].notna().sum()) if df[col].notna().sum() is not None else 0
+                percentual = (presentes / total) * 100 if total > 0 else 0
+                
+                qualidade[col] = {
+                    'total_registros': total,
+                    'dados_presentes': presentes,
+                    'dados_faltantes': total - presentes,
+                    'percentual_completo': round(percentual, 2),
+                    'classificacao': 'Boa' if percentual >= 95 else 'Regular' if percentual >= 80 else 'Crítica'
+                }
+        except Exception as e:
+            pass
+    
+    # Análise de outliers (usando IQR)
+    outliers_info = {}
+    for col in colunas_existentes:
+        try:
+            if isinstance(df[col], pd.Series):
+                dados_validos = df[col].dropna()
+                if len(dados_validos) > 0 and pd.api.types.is_numeric_dtype(dados_validos):
+                    Q1 = dados_validos.quantile(0.25)
+                    Q3 = dados_validos.quantile(0.75)
+                    IQR = Q3 - Q1
+                    
+                    if IQR > 0:  # Evitar divisão por zero
+                        limite_inferior = Q1 - 3 * IQR
+                        limite_superior = Q3 + 3 * IQR
+                        
+                        mask_outliers = (df[col] < limite_inferior) | (df[col] > limite_superior)
+                        num_outliers = int(mask_outliers.sum()) if mask_outliers.sum() is not None else 0
+                        
+                        outliers_info[col] = {
+                            'limite_inferior': round(limite_inferior, 2),
+                            'limite_superior': round(limite_superior, 2),
+                            'num_outliers': num_outliers,
+                            'percentual_outliers': round((num_outliers / len(dados_validos)) * 100, 2) if len(dados_validos) > 0 else 0
+                        }
+        except Exception as e:
+            pass
+    
+    # Análise de consistência temporal
+    if 'DateTime' in df.columns and isinstance(df['DateTime'], pd.Series):
+        try:
+            df_sorted = df.sort_values('DateTime')
+            if len(df_sorted) > 1:
+                intervalos = df_sorted['DateTime'].diff().dropna()
+                
+                qualidade['temporal'] = {
+                    'inicio': str(df_sorted['DateTime'].min()),
+                    'fim': str(df_sorted['DateTime'].max()),
+                    'dias_totais': (df_sorted['DateTime'].max() - df_sorted['DateTime'].min()).days,
+                    'intervalo_medio': str(intervalos.mean()) if not intervalos.empty else 'N/A',
+                    'intervalo_mediano': str(intervalos.median()) if not intervalos.empty else 'N/A'
+                }
+        except Exception as e:
+            pass
+    
+    return qualidade, outliers_info
 # ============================================================================
 # FUNÇÕES DE CONSOLIDAÇÃO E INDICADORES
 # ============================================================================

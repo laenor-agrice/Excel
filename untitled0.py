@@ -525,6 +525,11 @@ def validar_consistencia_fisica(df):
     for col in ['Tmax', 'Tmin', 'Temp_Inst']:
         if col in df_validado.columns:
             try:
+                # Verificar se a coluna é um DataFrame (erro) ou Series
+                if isinstance(df_validado[col], pd.DataFrame):
+                    # Se for DataFrame, pegar a primeira coluna
+                    df_validado[col] = df_validado[col].iloc[:, 0]
+                
                 # Garantir que a coluna é numérica
                 if not pd.api.types.is_numeric_dtype(df_validado[col]):
                     df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
@@ -552,6 +557,10 @@ def validar_consistencia_fisica(df):
     for col in ['UR_Inst', 'URmax', 'URmin']:
         if col in df_validado.columns:
             try:
+                # Verificar se a coluna é um DataFrame
+                if isinstance(df_validado[col], pd.DataFrame):
+                    df_validado[col] = df_validado[col].iloc[:, 0]
+                
                 if not pd.api.types.is_numeric_dtype(df_validado[col]):
                     df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
                 
@@ -576,6 +585,10 @@ def validar_consistencia_fisica(df):
     # Verificar precipitação
     if 'Precipitacao' in df_validado.columns:
         try:
+            # Verificar se a coluna é um DataFrame
+            if isinstance(df_validado['Precipitacao'], pd.DataFrame):
+                df_validado['Precipitacao'] = df_validado['Precipitacao'].iloc[:, 0]
+            
             if not pd.api.types.is_numeric_dtype(df_validado['Precipitacao']):
                 df_validado['Precipitacao'] = pd.to_numeric(df_validado['Precipitacao'], errors='coerce')
             
@@ -600,6 +613,10 @@ def validar_consistencia_fisica(df):
     # Verificar vento
     if 'U2' in df_validado.columns:
         try:
+            # Verificar se a coluna é um DataFrame
+            if isinstance(df_validado['U2'], pd.DataFrame):
+                df_validado['U2'] = df_validado['U2'].iloc[:, 0]
+            
             if not pd.api.types.is_numeric_dtype(df_validado['U2']):
                 df_validado['U2'] = pd.to_numeric(df_validado['U2'], errors='coerce')
             
@@ -625,6 +642,10 @@ def validar_consistencia_fisica(df):
     for col in ['Press_Inst', 'Pressmax', 'Pressmin']:
         if col in df_validado.columns:
             try:
+                # Verificar se a coluna é um DataFrame
+                if isinstance(df_validado[col], pd.DataFrame):
+                    df_validado[col] = df_validado[col].iloc[:, 0]
+                
                 if not pd.api.types.is_numeric_dtype(df_validado[col]):
                     df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
                 
@@ -647,251 +668,6 @@ def validar_consistencia_fisica(df):
                 pass
     
     return df_validado, alertas
-
-
-def analise_completa_qualidade(df):
-    """Análise completa da qualidade dos dados"""
-    
-    qualidade = {}
-    
-    # Identificar colunas numéricas
-    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
-                         'Precipitacao', 'U2', 'Press_Inst']
-    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
-    
-    # Estatísticas de completude
-    for col in colunas_existentes:
-        try:
-            total = len(df)
-            presentes = int(df[col].notna().sum()) if df[col].notna().sum() is not None else 0
-            percentual = (presentes / total) * 100 if total > 0 else 0
-            
-            qualidade[col] = {
-                'total_registros': total,
-                'dados_presentes': presentes,
-                'dados_faltantes': total - presentes,
-                'percentual_completo': round(percentual, 2),
-                'classificacao': 'Boa' if percentual >= 95 else 'Regular' if percentual >= 80 else 'Crítica'
-            }
-        except Exception as e:
-            pass
-    
-    # Análise de outliers (usando IQR)
-    outliers_info = {}
-    for col in colunas_existentes:
-        try:
-            dados_validos = df[col].dropna()
-            if len(dados_validos) > 0:
-                Q1 = dados_validos.quantile(0.25)
-                Q3 = dados_validos.quantile(0.75)
-                IQR = Q3 - Q1
-                limite_inferior = Q1 - 3 * IQR
-                limite_superior = Q3 + 3 * IQR
-                
-                mask_outliers = (df[col] < limite_inferior) | (df[col] > limite_superior)
-                num_outliers = int(mask_outliers.sum()) if mask_outliers.sum() is not None else 0
-                
-                outliers_info[col] = {
-                    'limite_inferior': round(limite_inferior, 2),
-                    'limite_superior': round(limite_superior, 2),
-                    'num_outliers': num_outliers,
-                    'percentual_outliers': round((num_outliers / len(dados_validos)) * 100, 2) if len(dados_validos) > 0 else 0
-                }
-        except Exception as e:
-            pass
-    
-    # Análise de consistência temporal
-    if 'DateTime' in df.columns:
-        try:
-            df_sorted = df.sort_values('DateTime')
-            if len(df_sorted) > 1:
-                intervalos = df_sorted['DateTime'].diff().dropna()
-                
-                qualidade['temporal'] = {
-                    'inicio': df_sorted['DateTime'].min(),
-                    'fim': df_sorted['DateTime'].max(),
-                    'dias_totais': (df_sorted['DateTime'].max() - df_sorted['DateTime'].min()).days,
-                    'intervalo_medio': str(intervalos.mean()) if not intervalos.empty else 'N/A',
-                    'intervalo_mediano': str(intervalos.median()) if not intervalos.empty else 'N/A'
-                }
-        except Exception as e:
-            pass
-    
-    return qualidade, outliers_info
-
-
-def preenchimento_inteligente_falhas(df, metodo='multivariado'):
-    """
-    Preenchimento avançado de falhas usando múltiplas técnicas.
-    
-    Métodos disponíveis:
-    - interpolacao_linear: Interpolação linear entre pontos válidos
-    - interpolacao_spline: Interpolação spline cúbica
-    - media_movel: Média móvel com janela de 24 horas
-    - multivariado: Combinação de métodos (recomendado)
-    """
-    
-    df_filled = df.copy()
-    
-    # Identificar colunas numéricas
-    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
-                         'Precipitacao', 'U2', 'Press_Inst']
-    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
-    
-    try:
-        if metodo == 'interpolacao_linear':
-            for col in colunas_existentes:
-                if col in df_filled.columns:
-                    df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=24)
-                    
-        elif metodo == 'interpolacao_spline':
-            for col in colunas_existentes:
-                if col in df_filled.columns:
-                    df_filled[col] = df_filled[col].interpolate(method='spline', order=3, limit_direction='both')
-                    
-        elif metodo == 'media_movel':
-            for col in colunas_existentes:
-                if col in df_filled.columns:
-                    media_movel = df_filled[col].rolling(window=24, min_periods=6, center=True).mean()
-                    df_filled[col] = df_filled[col].fillna(media_movel)
-                    
-        elif metodo == 'multivariado':
-            # Combinação de métodos
-            for col in colunas_existentes:
-                if col in df_filled.columns:
-                    # Primeiro, interpolação linear
-                    df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=12)
-                    
-                    # Depois, média móvel para os remanescentes
-                    if col in df_filled.columns:
-                        mascara = df_filled[col].isna()
-                        if mascara.any():
-                            media_movel = df_filled[col].rolling(window=48, min_periods=12, center=True).mean()
-                            df_filled.loc[mascara, col] = media_movel.loc[mascara]
-                    
-                    # Por último, preenchimento sazonal
-                    if 'Month' in df_filled.columns and col in df_filled.columns:
-                        mascara = df_filled[col].isna()
-                        if mascara.any():
-                            medias_mensais = df_filled.groupby('Month')[col].transform('mean')
-                            df_filled.loc[mascara, col] = medias_mensais.loc[mascara]
-        
-        # Verificar se ainda há NaN e preencher com mediana
-        for col in colunas_existentes:
-            if col in df_filled.columns and df_filled[col].isna().any():
-                df_filled[col].fillna(df_filled[col].median(), inplace=True)
-                
-    except Exception as e:
-        pass
-    
-    return df_filled
-
-
-def detectar_eventos_extremos(df):
-    """Detecção automática de eventos climáticos extremos"""
-    
-    eventos = []
-    
-    # Verificar se DateTime existe
-    if 'DateTime' not in df.columns:
-        return eventos
-    
-    # Temperaturas extremas
-    if 'Tmax' in df.columns:
-        try:
-            if not pd.api.types.is_numeric_dtype(df['Tmax']):
-                tmax_series = pd.to_numeric(df['Tmax'], errors='coerce')
-            else:
-                tmax_series = df['Tmax']
-            
-            tmax_99 = tmax_series.quantile(0.99)
-            if not pd.isna(tmax_99):
-                mask_calor = tmax_series > tmax_99
-                if mask_calor.any():
-                    dias_calor = df[mask_calor]
-                    eventos.append({
-                        'tipo': 'Calor Extremo',
-                        'descricao': f"{len(dias_calor)} dias com temperatura máxima acima de {tmax_99:.1f}°C",
-                        'datas': dias_calor['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in dias_calor.columns else [],
-                        'gravidade': 'Alta'
-                    })
-        except Exception as e:
-            pass
-    
-    if 'Tmin' in df.columns:
-        try:
-            if not pd.api.types.is_numeric_dtype(df['Tmin']):
-                tmin_series = pd.to_numeric(df['Tmin'], errors='coerce')
-            else:
-                tmin_series = df['Tmin']
-            
-            tmin_1 = tmin_series.quantile(0.01)
-            if not pd.isna(tmin_1):
-                mask_frio = tmin_series < tmin_1
-                if mask_frio.any():
-                    dias_frio = df[mask_frio]
-                    eventos.append({
-                        'tipo': 'Frio Extremo',
-                        'descricao': f"{len(dias_frio)} dias com temperatura mínima abaixo de {tmin_1:.1f}°C",
-                        'datas': dias_frio['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in dias_frio.columns else [],
-                        'gravidade': 'Alta'
-                    })
-        except Exception as e:
-            pass
-    
-    # Precipitação extrema
-    if 'Precipitacao' in df.columns:
-        try:
-            if not pd.api.types.is_numeric_dtype(df['Precipitacao']):
-                precip_series = pd.to_numeric(df['Precipitacao'], errors='coerce')
-            else:
-                precip_series = df['Precipitacao']
-            
-            # Dias com chuva intensa (> 50mm)
-            mask_intensa = precip_series > 50
-            if mask_intensa.any():
-                chuva_intensa = df[mask_intensa]
-                eventos.append({
-                    'tipo': 'Chuva Intensa',
-                    'descricao': f"{len(chuva_intensa)} dias com precipitação > 50mm",
-                    'datas': chuva_intensa['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in chuva_intensa.columns else [],
-                    'gravidade': 'Média'
-                })
-            
-            # Dias com chuva torrencial (> 100mm)
-            mask_torrencial = precip_series > 100
-            if mask_torrencial.any():
-                chuva_torrencial = df[mask_torrencial]
-                eventos.append({
-                    'tipo': 'Chuva Torrencial',
-                    'descricao': f"{len(chuva_torrencial)} dias com precipitação > 100mm",
-                    'datas': chuva_torrencial['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in chuva_torrencial.columns else [],
-                    'gravidade': 'Crítica'
-                })
-        except Exception as e:
-            pass
-    
-    # Ventos fortes
-    if 'U2' in df.columns:
-        try:
-            if not pd.api.types.is_numeric_dtype(df['U2']):
-                vento_series = pd.to_numeric(df['U2'], errors='coerce')
-            else:
-                vento_series = df['U2']
-            
-            mask_ventos = vento_series > 10
-            if mask_ventos.any():
-                ventos_fortes = df[mask_ventos]
-                eventos.append({
-                    'tipo': 'Ventos Fortes',
-                    'descricao': f"{len(ventos_fortes)} dias com vento > 10 m/s",
-                    'datas': ventos_fortes['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in ventos_fortes.columns else [],
-                    'gravidade': 'Média'
-                })
-        except Exception as e:
-            pass
-    
-    return eventos
 # ============================================================================
 # FUNÇÕES DE CONSOLIDAÇÃO E INDICADORES
 # ============================================================================
@@ -900,6 +676,14 @@ def consolidacao_avancada_por_mes(df):
     """Consolidação avançada com tratamento diferenciado por variável"""
     
     df_temp = df.copy()
+    
+    # Verificar se a coluna DateTime existe
+    if 'DateTime' not in df_temp.columns:
+        # Tentar criar a partir de Date e Time
+        if 'Date' in df_temp.columns:
+            df_temp['DateTime'] = pd.to_datetime(df_temp['Date'], errors='coerce')
+        else:
+            raise ValueError("Coluna DateTime não encontrada para consolidação")
     
     # Criar período mês-ano
     df_temp['Period'] = df_temp['DateTime'].dt.to_period('M')
@@ -918,8 +702,16 @@ def consolidacao_avancada_por_mes(df):
         'Rad_KJ': 'sum'                   # Radiação: soma total
     }
     
-    # Filtrar apenas colunas existentes
-    agregacoes_filtradas = {k: v for k, v in agregacoes.items() if k in df.columns}
+    # Filtrar apenas colunas existentes e que não são DataFrames
+    agregacoes_filtradas = {}
+    for k, v in agregacoes.items():
+        if k in df_temp.columns:
+            # Verificar se a coluna é uma Series e não um DataFrame
+            if isinstance(df_temp[k], pd.Series):
+                agregacoes_filtradas[k] = v
+    
+    if not agregacoes_filtradas:
+        raise ValueError("Nenhuma coluna válida para agregação encontrada")
     
     # Aplicar agregação
     df_consolidado = df_temp.groupby('Period').agg(agregacoes_filtradas).reset_index()
@@ -932,145 +724,15 @@ def consolidacao_avancada_por_mes(df):
     # Ordenar por data
     df_consolidado = df_consolidado.sort_values('Period').reset_index(drop=True)
     
-    # Adicionar médias móveis
-    if 'Temp_Inst' in df_consolidado.columns:
+    # Adicionar médias móveis (com verificação de segurança)
+    if 'Temp_Inst' in df_consolidado.columns and isinstance(df_consolidado['Temp_Inst'], pd.Series):
         df_consolidado['Temp_Media_Movel_3M'] = df_consolidado['Temp_Inst'].rolling(window=3, min_periods=1).mean()
         df_consolidado['Temp_Media_Movel_12M'] = df_consolidado['Temp_Inst'].rolling(window=12, min_periods=1).mean()
     
-    if 'Precipitacao' in df_consolidado.columns:
+    if 'Precipitacao' in df_consolidado.columns and isinstance(df_consolidado['Precipitacao'], pd.Series):
         df_consolidado['Precip_Acumulada_Ano'] = df_consolidado.groupby('Ano')['Precipitacao'].cumsum()
     
     return df_consolidado
-
-def calcular_indicadores_agricolas_avancados(df_diario, df_mensal, latitude=-16.0):
-    """
-    Cálculo avançado de indicadores agrícolas.
-    
-    Inclui:
-    - GDD (Graus-Dia de Desenvolvimento) com Tb=10°C
-    - Horas de Frio para limiares de 7°C, 10°C e 13°C
-    - ETo (Evapotranspiração Potencial) pelo método de Hargreaves com Ra calculado
-    - Índice de Aridez (P/ETo)
-    - Amplitude Térmica Média
-    """
-    
-    indicadores = df_mensal[['Mes', 'Ano', 'Numero_Mes']].copy()
-    
-    # ===== GDD (Graus-Dia de Desenvolvimento) =====
-    if 'Tmax' in df_diario.columns and 'Tmin' in df_diario.columns:
-        t_base = 10  # Temperatura base para culturas tropicais
-        t_otima = 30  # Temperatura ótima
-        
-        # Cálculo diário
-        t_media_diaria = (df_diario['Tmax'] + df_diario['Tmin']) / 2
-        gdd_diario = np.maximum(0, np.minimum(t_otima, t_media_diaria) - t_base)
-        df_diario['GDD'] = gdd_diario
-        
-        # Acumulado mensal e anual
-        gdd_mensal = df_diario.groupby(df_diario['DateTime'].dt.to_period('M'))['GDD'].sum().reset_index()
-        gdd_mensal.columns = ['Period', 'GDD_Acumulado']
-        gdd_mensal['Mes'] = gdd_mensal['Period'].astype(str)
-        
-        indicadores = indicadores.merge(gdd_mensal[['Mes', 'GDD_Acumulado']], on='Mes', how='left')
-        
-        # GDD acumulado no ano
-        df_diario['GDD_Acumulado_Ano'] = df_diario.groupby(df_diario['DateTime'].dt.year)['GDD'].cumsum()
-        gdd_anual = df_diario.groupby(df_diario['DateTime'].dt.to_period('M'))['GDD_Acumulado_Ano'].last().reset_index()
-        gdd_anual.columns = ['Period', 'GDD_Ano_Acumulado']
-        gdd_anual['Mes'] = gdd_anual['Period'].astype(str)
-        indicadores = indicadores.merge(gdd_anual[['Mes', 'GDD_Ano_Acumulado']], on='Mes', how='left')
-    
-    # ===== Horas de Frio =====
-    if 'Tmin' in df_diario.columns:
-        for limiar in [7, 10, 13]:
-            horas_frio = (df_diario['Tmin'] <= limiar).astype(int)
-            df_diario[f'Horas_Frio_{limiar}C'] = horas_frio
-            
-            horas_mensal = df_diario.groupby(df_diario['DateTime'].dt.to_period('M'))[f'Horas_Frio_{limiar}C'].sum().reset_index()
-            horas_mensal.columns = ['Period', f'Horas_Frio_{limiar}C']
-            horas_mensal['Mes'] = horas_mensal['Period'].astype(str)
-            indicadores = indicadores.merge(horas_mensal[['Mes', f'Horas_Frio_{limiar}C']], on='Mes', how='left')
-    
-    # ===== Evapotranspiração Potencial (ETo) - Método Hargreaves melhorado =====
-    if all(x in df_diario.columns for x in ['Tmax', 'Tmin']):
-        import math
-        
-        # Radiação extraterrestre (Ra) por latitude
-        def calc_ra(lat, dia_ano):
-            """
-            Calcula a radiação solar no topo da atmosfera (Ra) em MJ/m²/dia.
-            
-            Baseado na equação da FAO (Allen et al., 1998).
-            
-            Parâmetros:
-                lat: latitude em graus (negativo para Sul)
-                dia_ano: dia do ano (1-365/366)
-            
-            Retorna:
-                Ra em MJ/m²/dia
-            """
-            Gsc = 0.0820  # Constante solar (MJ/m²/min)
-            phi = math.radians(lat)
-            delta = 0.4093 * math.sin(2 * math.pi / 365 * dia_ano - 1.405)
-            ws = math.acos(-math.tan(phi) * math.tan(delta))
-            dr = 1 + 0.033 * math.cos(2 * math.pi / 365 * dia_ano)
-            ra = (24 * 60 / math.pi) * Gsc * dr * (ws * math.sin(phi) * math.sin(delta) + 
-                                                   math.cos(phi) * math.cos(delta) * math.sin(ws))
-            return ra
-        
-        df_diario['Dia_Ano'] = df_diario['DateTime'].dt.dayofyear
-        df_diario['Ra'] = df_diario['Dia_Ano'].apply(lambda d: calc_ra(latitude, d))
-        
-        t_media_diaria = (df_diario['Tmax'] + df_diario['Tmin']) / 2
-        amplitude = df_diario['Tmax'] - df_diario['Tmin']
-        
-        # ETo pelo método Hargreaves
-        eto_diario = 0.0023 * df_diario['Ra'] * np.sqrt(amplitude) * (t_media_diaria + 17.8)
-        df_diario['ETo'] = np.maximum(0, eto_diario)
-        
-        # ETo mensal
-        eto_mensal = df_diario.groupby(df_diario['DateTime'].dt.to_period('M'))['ETo'].sum().reset_index()
-        eto_mensal.columns = ['Period', 'ETo_Total_mm']
-        eto_mensal['Mes'] = eto_mensal['Period'].astype(str)
-        indicadores = indicadores.merge(eto_mensal[['Mes', 'ETo_Total_mm']], on='Mes', how='left')
-    
-    # ===== Índice de Aridez =====
-    if 'Precipitacao' in df_diario.columns and 'ETo' in df_diario.columns:
-        # Aridez mensal (P/ETP)
-        df_diario['P_ETo'] = df_diario['Precipitacao'] / df_diario['ETo'].replace(0, 0.1)
-        
-        aridez_mensal = df_diario.groupby(df_diario['DateTime'].dt.to_period('M'))['P_ETo'].mean().reset_index()
-        aridez_mensal.columns = ['Period', 'Indice_Aridade']
-        aridez_mensal['Mes'] = aridez_mensal['Period'].astype(str)
-        indicadores = indicadores.merge(aridez_mensal[['Mes', 'Indice_Aridade']], on='Mes', how='left')
-        
-        # Classificação do índice de aridez
-        def classificar_aridez(indice):
-            if pd.isna(indice):
-                return 'N/A'
-            elif indice < 0.2:
-                return 'Hiperárido'
-            elif indice < 0.5:
-                return 'Árido'
-            elif indice < 0.65:
-                return 'Semiárido'
-            elif indice < 1.0:
-                return 'Subúmido Seco'
-            else:
-                return 'Úmido'
-        
-        indicadores['Classificacao_Aridade'] = indicadores['Indice_Aridade'].apply(classificar_aridez)
-    
-    # ===== Oscilações Térmicas =====
-    if 'Tmax' in df_diario.columns and 'Tmin' in df_diario.columns:
-        df_diario['Amplitude_Termica'] = df_diario['Tmax'] - df_diario['Tmin']
-        
-        amplitude_mensal = df_diario.groupby(df_diario['DateTime'].dt.to_period('M'))['Amplitude_Termica'].mean().reset_index()
-        amplitude_mensal.columns = ['Period', 'Amplitude_Termica_Media']
-        amplitude_mensal['Mes'] = amplitude_mensal['Period'].astype(str)
-        indicadores = indicadores.merge(amplitude_mensal[['Mes', 'Amplitude_Termica_Media']], on='Mes', how='left')
-    
-    return indicadores, df_diario
 
 # ============================================================================
 # FUNÇÕES DE VISUALIZAÇÃO AVANÇADA

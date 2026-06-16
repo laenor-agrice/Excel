@@ -218,6 +218,77 @@ def calcular_media_por_mes(df, coluna_data, variavel):
     return media_mensal
 
 # =============================================================================
+# FUNÇÃO PARA EXIBIR DATAFRAME COM SCROLL
+# =============================================================================
+
+def render_table(df, max_height=400):
+    """Renderiza uma tabela com scroll usando HTML puro"""
+    if df is None or df.empty:
+        st.info("Tabela vazia")
+        return
+    
+    # Converter para HTML
+    html = df.to_html(index=False, escape=False, classes='table table-striped')
+    
+    # Estilizar com scroll
+    st.markdown(f"""
+    <style>
+    .scroll-table {{
+        max-height: {max_height}px;
+        overflow: auto;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        background: white;
+    }}
+    .scroll-table table {{
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }}
+    .scroll-table thead th {{
+        background: #e8f5e9;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 8px 10px;
+        text-align: left;
+        white-space: nowrap;
+        border-bottom: 2px solid #a5d6a7;
+        font-weight: 600;
+    }}
+    .scroll-table tbody td {{
+        padding: 6px 10px;
+        border-bottom: 1px solid #f0f0f0;
+        white-space: nowrap;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }}
+    .scroll-table tbody tr:hover {{
+        background: #f5f5f5;
+    }}
+    .scroll-table::-webkit-scrollbar {{
+        width: 8px;
+        height: 8px;
+    }}
+    .scroll-table::-webkit-scrollbar-track {{
+        background: #f0f0f0;
+        border-radius: 4px;
+    }}
+    .scroll-table::-webkit-scrollbar-thumb {{
+        background: #4caf50;
+        border-radius: 4px;
+    }}
+    .scroll-table::-webkit-scrollbar-thumb:hover {{
+        background: #388e3c;
+    }}
+    </style>
+    <div class="scroll-table">
+        {html}
+    </div>
+    """, unsafe_allow_html=True)
+
+# =============================================================================
 # CONFIGURAÇÃO DA PÁGINA - TELA CHEIA
 # =============================================================================
 
@@ -229,13 +300,12 @@ st.set_page_config(
 )
 
 # =============================================================================
-# CSS GLOBAL - CORRIGIDO COM SCROLLBAR
+# CSS GLOBAL
 # =============================================================================
 
 st.markdown(
     """
     <style>
-    /* Reset e estilo geral - tela cheia */
     .main {
         padding: 0rem !important;
         background: linear-gradient(135deg, #0d2b45 0%, #1a5276 40%, #2e86c1 80%, #3498db 100%);
@@ -253,7 +323,6 @@ st.markdown(
         overflow-x: hidden !important;
     }
     
-    /* ============ CABEÇALHO - DESTAQUE AZUL ============ */
     .main-header {
         background: linear-gradient(135deg, #0d2b45 0%, #1a5276 50%, #2e86c1 100%);
         padding: 1.8rem 2.5rem;
@@ -281,7 +350,6 @@ st.markdown(
         color: rgba(255,255,255,0.9);
     }
     
-    /* ============ CARDS - VERDE PISCINA ============ */
     .custom-card {
         background: linear-gradient(145deg, rgba(180, 230, 210, 0.92), rgba(140, 210, 190, 0.88));
         border-radius: 16px;
@@ -295,85 +363,6 @@ st.markdown(
         overflow: hidden;
     }
     
-    /* ============ CONTAINER PARA TABELAS COM SCROLL ============ */
-    .table-container {
-        width: 100%;
-        overflow: auto;
-        border-radius: 12px;
-        border: 1px solid rgba(100, 200, 170, 0.2);
-        background: rgba(255,255,255,0.85);
-        max-height: 500px;
-    }
-    
-    .table-container table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.9rem;
-    }
-    
-    .table-container thead th {
-        background: rgba(200, 240, 225, 0.9);
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        padding: 8px 12px;
-        text-align: left;
-        white-space: nowrap;
-        border-bottom: 2px solid rgba(100, 200, 170, 0.3);
-    }
-    
-    .table-container tbody td {
-        padding: 6px 12px;
-        border-bottom: 1px solid rgba(100, 200, 170, 0.1);
-        white-space: nowrap;
-        max-width: 150px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .table-container tbody tr:hover {
-        background: rgba(200, 240, 225, 0.3);
-    }
-    
-    /* Scrollbar personalizada */
-    .table-container::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    
-    .table-container::-webkit-scrollbar-track {
-        background: rgba(200, 240, 225, 0.3);
-        border-radius: 8px;
-    }
-    
-    .table-container::-webkit-scrollbar-thumb {
-        background: #3da88a;
-        border-radius: 8px;
-    }
-    
-    .table-container::-webkit-scrollbar-thumb:hover {
-        background: #2d8a6e;
-    }
-    
-    /* ============ DATAFRAMES DO STREAMLIT ============ */
-    .stDataFrame {
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow: auto !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(100, 200, 170, 0.2) !important;
-    }
-    
-    .stDataFrame > div {
-        max-width: 100% !important;
-        overflow: auto !important;
-    }
-    
-    .stDataFrame table {
-        width: 100% !important;
-    }
-    
-    /* ============ BOTÕES ============ */
     .stButton > button {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
@@ -393,7 +382,6 @@ st.markdown(
         background: linear-gradient(135deg, #3da88a, #2d8a6e);
     }
     
-    /* ============ UPLOAD ============ */
     .stFileUploader > div {
         border: 2px dashed #3da88a;
         border-radius: 12px;
@@ -413,7 +401,6 @@ st.markdown(
         box-shadow: 0 4px 20px rgba(45, 138, 110, 0.1);
     }
     
-    /* ============ MÉTRICAS ============ */
     .stMetric {
         background: rgba(200, 240, 225, 0.7);
         border-radius: 12px;
@@ -446,7 +433,6 @@ st.markdown(
         color: #1a6e5a !important;
     }
     
-    /* ============ ABAS ============ */
     .stTabs {
         display: flex;
         justify-content: center;
@@ -495,7 +481,6 @@ st.markdown(
         transform: translateY(-1px);
     }
     
-    /* ============ CAIXAS DE INFORMAÇÃO ============ */
     .info-box {
         background: rgba(200, 240, 225, 0.45);
         border-left: 4px solid #3da88a;
@@ -533,7 +518,6 @@ st.markdown(
         display: inline-block;
     }
     
-    /* ============ INPUTS ============ */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
@@ -543,14 +527,6 @@ st.markdown(
         font-size: 0.9rem;
         transition: all 0.3s ease;
         background: rgba(255,255,255,0.85);
-        color: #1a4a3a !important;
-    }
-    
-    .stTextInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus,
-    .stNumberInput > div > div > input:focus {
-        border-color: #3da88a;
-        box-shadow: 0 0 0 3px rgba(45, 138, 110, 0.1);
         color: #1a4a3a !important;
     }
     
@@ -579,27 +555,6 @@ st.markdown(
         font-size: 0.9rem !important;
     }
     
-    .stSelectbox > div > div:focus {
-        border-color: #3da88a;
-        box-shadow: 0 0 0 3px rgba(45, 138, 110, 0.1);
-    }
-    
-    .stSelectbox > div > div > div > div {
-        color: #1a4a3a !important;
-        font-size: 0.85rem !important;
-        padding: 4px 10px !important;
-    }
-    
-    .stSelectbox > div > div > div > div:hover {
-        background-color: rgba(200, 240, 225, 0.3) !important;
-    }
-    
-    .stSelectbox > div > div > div:first-child {
-        min-height: 28px;
-        display: flex;
-        align-items: center;
-    }
-    
     .stCheckbox > label {
         font-weight: 600;
         color: #1a4a3a;
@@ -610,7 +565,6 @@ st.markdown(
         visibility: hidden;
     }
     
-    /* ============ RODAPÉ ============ */
     .footer {
         text-align: center;
         font-size: 11px;
@@ -626,7 +580,6 @@ st.markdown(
         color: rgba(255,255,255,0.8);
     }
     
-    /* ============ FILE INFO ============ */
     .file-info {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
@@ -667,7 +620,16 @@ st.markdown(
         max-width: 100% !important;
     }
     
-    /* ============ SCROLLBAR GLOBAL ============ */
+    /* Forçar scroll no container */
+    .scroll-container {
+        width: 100%;
+        overflow: auto;
+        max-height: 500px;
+        border-radius: 12px;
+        border: 1px solid rgba(100, 200, 170, 0.2);
+        background: rgba(255,255,255,0.85);
+    }
+    
     ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
@@ -690,18 +652,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-# =============================================================================
-# FUNÇÃO PARA EXIBIR DATAFRAME COM SCROLL
-# =============================================================================
-
-def display_dataframe_with_scroll(df, height=400):
-    """Exibe um DataFrame com scroll horizontal e vertical"""
-    st.markdown(f"""
-    <div class="table-container" style="max-height: {height}px;">
-        {df.to_html(index=False, escape=False, classes='table')}
-    </div>
-    """, unsafe_allow_html=True)
 
 # =============================================================================
 # SESSION STATE
@@ -738,7 +688,7 @@ if "gemini_api_key" not in st.session_state:
     st.session_state["gemini_api_key"] = ""
 
 # =============================================================================
-# TÍTULO PRINCIPAL - AZUL DESTAQUE
+# TÍTULO PRINCIPAL
 # =============================================================================
 
 st.markdown("""
@@ -974,8 +924,7 @@ with tab1:
             
             st.markdown("---")
             st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
-            # Usando display com scroll - sem use_container_width
-            st.dataframe(df.head(50), use_container_width=False)
+            render_table(df.head(50), max_height=400)
             
             st.markdown("---")
             st.markdown('<div class="section-title">📋 Estrutura das Colunas</div>', unsafe_allow_html=True)
@@ -983,7 +932,7 @@ with tab1:
                 "Coluna": df.columns,
                 "Tipo": df.dtypes.astype(str)
             })
-            st.dataframe(tipos, use_container_width=False)
+            render_table(tipos, max_height=300)
             
             st.markdown("---")
             st.markdown('<div class="section-title">⚠️ Valores Ausentes</div>', unsafe_allow_html=True)
@@ -992,7 +941,7 @@ with tab1:
                 "Faltantes": df.isna().sum(),
                 "Percentual (%)": (df.isna().sum() / len(df) * 100).round(2)
             })
-            st.dataframe(faltantes, use_container_width=False)
+            render_table(faltantes, max_height=300)
             
             st.success("✅ Arquivo carregado com sucesso!")
         except Exception as erro:
@@ -1210,7 +1159,7 @@ with tab2:
             df_resultado = st.session_state["df_tratado"]
             st.markdown("---")
             st.markdown('<div class="section-title">📊 Resultado do Tratamento</div>', unsafe_allow_html=True)
-            st.dataframe(df_resultado.head(50), use_container_width=False)
+            render_table(df_resultado.head(50), max_height=400)
             
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -1289,7 +1238,7 @@ with tab3:
             
             st.markdown("---")
             st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
-            st.dataframe(df_consolidado.head(50), use_container_width=False)
+            render_table(df_consolidado.head(50), max_height=400)
             
             st.markdown("---")
             st.markdown("### 🔍 Diagnóstico dos Dados")
@@ -1329,7 +1278,8 @@ with tab4:
             st.markdown("**Colunas disponíveis:**")
             st.write(df.columns.tolist())
             st.markdown("**Tipos das colunas:**")
-            st.dataframe(pd.DataFrame({"Coluna": df.columns, "Tipo": df.dtypes.astype(str)}), use_container_width=False)
+            tipos = pd.DataFrame({"Coluna": df.columns, "Tipo": df.dtypes.astype(str)})
+            render_table(tipos, max_height=300)
         else:
             st.success(f"✅ Encontradas {len(numericas)} colunas numéricas para análise.")
             
@@ -1353,7 +1303,7 @@ with tab4:
                     
                     if media_mensal is not None and not media_mensal.empty:
                         st.markdown(f"**📈 Média Mensal - {var_mensal}**")
-                        st.dataframe(media_mensal, use_container_width=False)
+                        render_table(media_mensal, max_height=300)
                         
                         st.markdown(f"**📊 Gráfico da Média Mensal - {var_mensal}**")
                         st.bar_chart(media_mensal.set_index('Mes_Nome')['Media'], use_container_width=True)
@@ -1407,7 +1357,7 @@ with tab4:
                             "Métrica": list(stats_dict.keys()),
                             "Valor": [round(v, 4) if isinstance(v, (int, float)) else v for v in stats_dict.values()]
                         })
-                        st.dataframe(df_stats, use_container_width=False)
+                        render_table(df_stats, max_height=300)
                         
                         st.markdown("#### 📊 Distribuição da Variável")
                         col1, col2 = st.columns(2)
@@ -1490,7 +1440,7 @@ with tab4:
                                     if resultado['tukey'] is not None:
                                         st.markdown("#### 📊 Tukey HSD - Comparações Múltiplas")
                                         df_tukey = pd.DataFrame(resultado['tukey'])
-                                        st.dataframe(df_tukey, use_container_width=False)
+                                        render_table(df_tukey, max_height=300)
             
             # ============================================================
             # TESTE T
@@ -1588,7 +1538,7 @@ with tab4:
                                 
                                 st.markdown("#### 📊 Matriz de Correlação (todas as variáveis)")
                                 corr_matrix = df[numericas].corr()
-                                st.dataframe(corr_matrix, use_container_width=False)
+                                render_table(corr_matrix, max_height=400)
                 else:
                     st.warning("Precisa de pelo menos 2 variáveis numéricas para correlação.")
             
@@ -1610,7 +1560,7 @@ with tab4:
                     df_completo = pd.DataFrame(todas_estatisticas)
                     cols = ['Variável'] + [c for c in df_completo.columns if c != 'Variável']
                     df_completo = df_completo[cols]
-                    st.dataframe(df_completo, use_container_width=False)
+                    render_table(df_completo, max_height=400)
                     
                     csv_completo = df_completo.to_csv(index=False).encode('utf-8')
                     st.download_button(

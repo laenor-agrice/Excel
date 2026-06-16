@@ -42,7 +42,6 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Estilo geral - tela cheia */
     .main {
         padding: 0rem 1rem;
         background: linear-gradient(135deg, #b8e6d6 0%, #a8d8c8 50%, #98cabc 100%);
@@ -1022,32 +1021,49 @@ def detectar_extremos(df):
     return pd.DataFrame(extremos)
 
 def calcular_media_mensal(df):
-    """Calcula a média mensal de TODAS as colunas numéricas (exceto data/hora)"""
+    """Calcula a média mensal de TODAS as colunas numéricas ORIGINAIS (exceto data/hora e colunas acumuladas)"""
     df2 = df.copy()
     
+    # Identificar coluna de data
     col_data = identificar_coluna_data(df2)
     
     if col_data is None:
         return None, "Nenhuma coluna de data encontrada."
     
+    # Garantir que a coluna de data é datetime
     df2[col_data] = pd.to_datetime(df2[col_data], errors='coerce')
     
+    # Extrair mês e ano
     df2['Ano'] = df2[col_data].dt.year
     df2['Mes'] = df2[col_data].dt.month
     df2['Ano_Mes'] = df2[col_data].dt.strftime('%Y-%m')
     
+    # Pegar TODAS as colunas numéricas ORIGINAIS
     numericas = df2.select_dtypes(include=np.number).columns.tolist()
+    
+    # Remover colunas auxiliares que criamos
     numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
     
+    # REMOVER colunas que são claramente acumuladas (GDD, Soma, Acumulada, etc.)
+    # Estas são colunas que não devem ter média calculada, pois são somas acumuladas
+    palavras_remover = ['gdd', 'soma', 'acum', 'acumulada', 'GDD', 'Soma', 'Acum', 'Acumulada']
+    numericas = [c for c in numericas if not any(palavra in str(c) for palavra in palavras_remover)]
+    
+    # Remover colunas de data/hora
     palavras_excluir = ['hora', 'hora_', 'horario', 'data_juliana', 'timestamp']
     numericas = [c for c in numericas if not any(palavra in str(c).lower() for palavra in palavras_excluir)]
     
     if not numericas:
-        return None, "Nenhuma coluna numérica encontrada."
+        return None, "Nenhuma coluna numérica original encontrada para calcular médias mensais."
     
+    # Calcular média mensal para TODAS as colunas numéricas ORIGINAIS
     media_mensal = df2.groupby('Ano_Mes')[numericas].mean().reset_index()
+    
+    # Adicionar Ano e Mes para referência
     media_mensal['Ano'] = media_mensal['Ano_Mes'].str.split('-').str[0].astype(int)
     media_mensal['Mes'] = media_mensal['Ano_Mes'].str.split('-').str[1].astype(int)
+    
+    # Ordenar por data
     media_mensal = media_mensal.sort_values('Ano_Mes').reset_index(drop=True)
     
     return media_mensal, None
@@ -1212,9 +1228,9 @@ with tab6:
     
     st.markdown("""
     <div class="info-box">
-        <strong>📊 Média Mensal de TODAS as Colunas</strong><br>
-        Esta ferramenta calcula a média mensal de <strong>TODAS</strong> as colunas numéricas da sua planilha,
-        excluindo automaticamente colunas de data, hora e identificadores.
+        <strong>📊 Média Mensal de TODAS as Colunas Originais</strong><br>
+        Esta ferramenta calcula a média mensal de <strong>TODAS</strong> as colunas numéricas ORIGINAIS da sua planilha,
+        excluindo automaticamente colunas de data, hora e colunas acumuladas (GDD, Soma, Acumulada).
         <br><br>
         <strong>📌 Função Principal:</strong> Analisar a variação mensal de todas as variáveis climáticas 
         (Temperatura, Umidade, Pressão, Vento, Radiação, Chuva, etc.)
@@ -1235,7 +1251,7 @@ with tab6:
             with col1:
                 st.metric("📊 Total de Linhas", len(df_base))
             with col2:
-                st.metric("📋 Colunas Numéricas", len(df_base.select_dtypes(include=np.number).columns))
+                st.metric("📋 Colunas Numéricas Originais", len(df_base.select_dtypes(include=np.number).columns))
             with col3:
                 st.metric("📅 Coluna de Data", col_data)
             
@@ -1250,7 +1266,7 @@ with tab6:
                         st.session_state["df_mensal"] = media_mensal
                         num_colunas = len(media_mensal.columns) - 3
                         st.success(f"✅ Média mensal calculada com sucesso!")
-                        st.info(f"📊 Foram calculadas médias para **{num_colunas}** colunas numéricas (excluindo data/hora).")
+                        st.info(f"📊 Foram calculadas médias para **{num_colunas}** colunas numéricas originais (excluindo data/hora e colunas acumuladas).")
             
             st.markdown("---")
             
@@ -1318,8 +1334,7 @@ with tab6:
 # IA - PREPARAÇÃO DE CONTEXTO
 # =============================================================================
 
-# COLOQUE SUA CHAVE API AQUI
-GEMINI_API_KEY = "SUA_CHAVE_API_AQUI"  # Substitua pela sua chave real
+GEMINI_API_KEY = "SUA_CHAVE_API_AQUI"
 
 def gerar_contexto_automatico(df):
     numericas = df.select_dtypes(include=np.number)
@@ -1364,15 +1379,6 @@ Avalie:
 - Eventos extremos
 - Tendências climáticas
 """,
-    "🌾 Relatório Agrícola": """
-Interprete os dados sob o ponto de vista agronômico.
-Avalie:
-- Disponibilidade hídrica
-- Riscos climáticos
-- Potencial produtivo
-- Conforto térmico
-- Impactos agrícolas
-""",
     "📋 Resumo Executivo": """
 Produza um resumo executivo simples e objetivo.
 Explique os resultados em linguagem acessível.
@@ -1382,10 +1388,8 @@ Explique os resultados em linguagem acessível.
 def consultar_ia(prompt_usuario, contexto):
     try:
         api_key = GEMINI_API_KEY
-        
         if not api_key or api_key == "SUA_CHAVE_API_AQUI":
-            return "⚠️ Chave API do Gemini não configurada. Por favor, edite o código e adicione sua chave API na variável GEMINI_API_KEY."
-        
+            return "⚠️ Chave API do Gemini não configurada."
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         payload = {
             "contents": [
@@ -1400,7 +1404,7 @@ def consultar_ia(prompt_usuario, contexto):
         if resposta.status_code == 200:
             dados = resposta.json()
             return dados["candidates"][0]["content"]["parts"][0]["text"]
-        return f"❌ Erro na API Gemini: {resposta.status_code} - {resposta.text}"
+        return f"❌ Erro na API Gemini: {resposta.status_code}"
     except Exception as erro:
         return f"❌ Erro: {erro}"
 

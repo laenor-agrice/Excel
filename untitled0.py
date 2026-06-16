@@ -1,7 +1,3 @@
-# =============================================================================
-# IMPORTS (ORDEM CORRETA)
-# =============================================================================
-
 import streamlit as st
 import sys
 
@@ -15,7 +11,15 @@ import zipfile
 
 from io import BytesIO
 
-zdef zscore_simples(serie):
+from docx import Document
+from openpyxl import Workbook
+
+
+# =============================================================================
+# FUNÇÃO Z-SCORE SEM SCIPY
+# =============================================================================
+
+def zscore_simples(serie):
 
     serie = pd.to_numeric(serie, errors="coerce")
 
@@ -26,10 +30,6 @@ zdef zscore_simples(serie):
         return np.zeros(len(serie))
 
     return (serie - media) / desvio
-z = np.abs(zscore_simples(df[col]))
-
-from docx import Document
-from openpyxl import Workbook
 
 # =============================================================================
 # CONFIGURAÇÃO DA PÁGINA

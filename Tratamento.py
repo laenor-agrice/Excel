@@ -524,115 +524,130 @@ def validar_consistencia_fisica(df):
     # Verificar temperatura
     for col in ['Tmax', 'Tmin', 'Temp_Inst']:
         if col in df_validado.columns:
-            # Garantir que a coluna é numérica
-            if not pd.api.types.is_numeric_dtype(df_validado[col]):
-                df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
-            
-            # Verificar valores inválidos usando .any() e .sum()
-            mask_invalid = (df_validado[col] < -50) | (df_validado[col] > 60)
-            num_invalidos = mask_invalid.sum()
-            
-            if num_invalidos > 0:
-                # Obter exemplos de forma segura
-                exemplos = []
-                if 'DateTime' in df_validado.columns:
-                    datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
-                    if len(datas_invalidas) > 0:
-                        exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+            try:
+                # Garantir que a coluna é numérica
+                if not pd.api.types.is_numeric_dtype(df_validado[col]):
+                    df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
                 
-                alertas.append({
-                    'variavel': col,
-                    'quantidade': int(num_invalidos),
-                    'exemplos': exemplos
-                })
+                # Verificar valores inválidos
+                mask_invalid = (df_validado[col] < -50) | (df_validado[col] > 60)
+                num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
+                
+                if num_invalidos > 0:
+                    exemplos = []
+                    if 'DateTime' in df_validado.columns and len(df_validado) > 0:
+                        datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
+                        if len(datas_invalidas) > 0:
+                            exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+                    
+                    alertas.append({
+                        'variavel': col,
+                        'quantidade': num_invalidos,
+                        'exemplos': exemplos
+                    })
+            except Exception as e:
+                pass
     
     # Verificar umidade
     for col in ['UR_Inst', 'URmax', 'URmin']:
         if col in df_validado.columns:
-            if not pd.api.types.is_numeric_dtype(df_validado[col]):
-                df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
+            try:
+                if not pd.api.types.is_numeric_dtype(df_validado[col]):
+                    df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
+                
+                mask_invalid = (df_validado[col] < 0) | (df_validado[col] > 100)
+                num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
+                
+                if num_invalidos > 0:
+                    exemplos = []
+                    if 'DateTime' in df_validado.columns and len(df_validado) > 0:
+                        datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
+                        if len(datas_invalidas) > 0:
+                            exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+                    
+                    alertas.append({
+                        'variavel': col,
+                        'quantidade': num_invalidos,
+                        'exemplos': exemplos
+                    })
+            except Exception as e:
+                pass
+    
+    # Verificar precipitação
+    if 'Precipitacao' in df_validado.columns:
+        try:
+            if not pd.api.types.is_numeric_dtype(df_validado['Precipitacao']):
+                df_validado['Precipitacao'] = pd.to_numeric(df_validado['Precipitacao'], errors='coerce')
             
-            mask_invalid = (df_validado[col] < 0) | (df_validado[col] > 100)
-            num_invalidos = mask_invalid.sum()
+            mask_invalid = df_validado['Precipitacao'] < 0
+            num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
             
             if num_invalidos > 0:
                 exemplos = []
-                if 'DateTime' in df_validado.columns:
+                if 'DateTime' in df_validado.columns and len(df_validado) > 0:
                     datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
                     if len(datas_invalidas) > 0:
                         exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
                 
                 alertas.append({
-                    'variavel': col,
-                    'quantidade': int(num_invalidos),
+                    'variavel': 'Precipitacao',
+                    'quantidade': num_invalidos,
                     'exemplos': exemplos
                 })
-    
-    # Verificar precipitação
-    if 'Precipitacao' in df_validado.columns:
-        if not pd.api.types.is_numeric_dtype(df_validado['Precipitacao']):
-            df_validado['Precipitacao'] = pd.to_numeric(df_validado['Precipitacao'], errors='coerce')
-        
-        mask_invalid = df_validado['Precipitacao'] < 0
-        num_invalidos = mask_invalid.sum()
-        
-        if num_invalidos > 0:
-            exemplos = []
-            if 'DateTime' in df_validado.columns:
-                datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
-                if len(datas_invalidas) > 0:
-                    exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
-            
-            alertas.append({
-                'variavel': 'Precipitacao',
-                'quantidade': int(num_invalidos),
-                'exemplos': exemplos
-            })
+        except Exception as e:
+            pass
     
     # Verificar vento
     if 'U2' in df_validado.columns:
-        if not pd.api.types.is_numeric_dtype(df_validado['U2']):
-            df_validado['U2'] = pd.to_numeric(df_validado['U2'], errors='coerce')
-        
-        mask_invalid = df_validado['U2'] < 0
-        num_invalidos = mask_invalid.sum()
-        
-        if num_invalidos > 0:
-            exemplos = []
-            if 'DateTime' in df_validado.columns:
-                datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
-                if len(datas_invalidas) > 0:
-                    exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+        try:
+            if not pd.api.types.is_numeric_dtype(df_validado['U2']):
+                df_validado['U2'] = pd.to_numeric(df_validado['U2'], errors='coerce')
             
-            alertas.append({
-                'variavel': 'U2',
-                'quantidade': int(num_invalidos),
-                'exemplos': exemplos
-            })
+            mask_invalid = df_validado['U2'] < 0
+            num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
+            
+            if num_invalidos > 0:
+                exemplos = []
+                if 'DateTime' in df_validado.columns and len(df_validado) > 0:
+                    datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
+                    if len(datas_invalidas) > 0:
+                        exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+                
+                alertas.append({
+                    'variavel': 'U2',
+                    'quantidade': num_invalidos,
+                    'exemplos': exemplos
+                })
+        except Exception as e:
+            pass
     
     # Verificar pressão
     for col in ['Press_Inst', 'Pressmax', 'Pressmin']:
         if col in df_validado.columns:
-            if not pd.api.types.is_numeric_dtype(df_validado[col]):
-                df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
-            
-            mask_invalid = (df_validado[col] < 800) | (df_validado[col] > 1100)
-            num_invalidos = mask_invalid.sum()
-            
-            if num_invalidos > 0:
-                exemplos = []
-                if 'DateTime' in df_validado.columns:
-                    datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
-                    if len(datas_invalidas) > 0:
-                        exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+            try:
+                if not pd.api.types.is_numeric_dtype(df_validado[col]):
+                    df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
                 
-                alertas.append({
-                    'variavel': col,
-                    'quantidade': int(num_invalidos),
-                    'exemplos': exemplos
-                })
+                mask_invalid = (df_validado[col] < 800) | (df_validado[col] > 1100)
+                num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
+                
+                if num_invalidos > 0:
+                    exemplos = []
+                    if 'DateTime' in df_validado.columns and len(df_validado) > 0:
+                        datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
+                        if len(datas_invalidas) > 0:
+                            exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
+                    
+                    alertas.append({
+                        'variavel': col,
+                        'quantidade': num_invalidos,
+                        'exemplos': exemplos
+                    })
+            except Exception as e:
+                pass
     
     return df_validado, alertas
+
 
 def analise_completa_qualidade(df):
     """Análise completa da qualidade dos dados"""
@@ -646,52 +661,64 @@ def analise_completa_qualidade(df):
     
     # Estatísticas de completude
     for col in colunas_existentes:
-        total = len(df)
-        presentes = df[col].notna().sum()
-        percentual = (presentes / total) * 100
-        
-        qualidade[col] = {
-            'total_registros': total,
-            'dados_presentes': presentes,
-            'dados_faltantes': total - presentes,
-            'percentual_completo': round(percentual, 2),
-            'classificacao': 'Boa' if percentual >= 95 else 'Regular' if percentual >= 80 else 'Crítica'
-        }
+        try:
+            total = len(df)
+            presentes = int(df[col].notna().sum()) if df[col].notna().sum() is not None else 0
+            percentual = (presentes / total) * 100 if total > 0 else 0
+            
+            qualidade[col] = {
+                'total_registros': total,
+                'dados_presentes': presentes,
+                'dados_faltantes': total - presentes,
+                'percentual_completo': round(percentual, 2),
+                'classificacao': 'Boa' if percentual >= 95 else 'Regular' if percentual >= 80 else 'Crítica'
+            }
+        except Exception as e:
+            pass
     
     # Análise de outliers (usando IQR)
     outliers_info = {}
     for col in colunas_existentes:
-        dados_validos = df[col].dropna()
-        if len(dados_validos) > 0:
-            Q1 = dados_validos.quantile(0.25)
-            Q3 = dados_validos.quantile(0.75)
-            IQR = Q3 - Q1
-            limite_inferior = Q1 - 3 * IQR
-            limite_superior = Q3 + 3 * IQR
-            
-            outliers = df[(df[col] < limite_inferior) | (df[col] > limite_superior)]
-            
-            outliers_info[col] = {
-                'limite_inferior': round(limite_inferior, 2),
-                'limite_superior': round(limite_superior, 2),
-                'num_outliers': len(outliers),
-                'percentual_outliers': round((len(outliers) / len(dados_validos)) * 100, 2)
-            }
+        try:
+            dados_validos = df[col].dropna()
+            if len(dados_validos) > 0:
+                Q1 = dados_validos.quantile(0.25)
+                Q3 = dados_validos.quantile(0.75)
+                IQR = Q3 - Q1
+                limite_inferior = Q1 - 3 * IQR
+                limite_superior = Q3 + 3 * IQR
+                
+                mask_outliers = (df[col] < limite_inferior) | (df[col] > limite_superior)
+                num_outliers = int(mask_outliers.sum()) if mask_outliers.sum() is not None else 0
+                
+                outliers_info[col] = {
+                    'limite_inferior': round(limite_inferior, 2),
+                    'limite_superior': round(limite_superior, 2),
+                    'num_outliers': num_outliers,
+                    'percentual_outliers': round((num_outliers / len(dados_validos)) * 100, 2) if len(dados_validos) > 0 else 0
+                }
+        except Exception as e:
+            pass
     
     # Análise de consistência temporal
     if 'DateTime' in df.columns:
-        df_sorted = df.sort_values('DateTime')
-        intervalos = df_sorted['DateTime'].diff().dropna()
-        
-        qualidade['temporal'] = {
-            'inicio': df_sorted['DateTime'].min(),
-            'fim': df_sorted['DateTime'].max(),
-            'dias_totais': (df_sorted['DateTime'].max() - df_sorted['DateTime'].min()).days,
-            'intervalo_medio': str(intervalos.mean()) if not intervalos.empty else 'N/A',
-            'intervalo_mediano': str(intervalos.median()) if not intervalos.empty else 'N/A'
-        }
+        try:
+            df_sorted = df.sort_values('DateTime')
+            if len(df_sorted) > 1:
+                intervalos = df_sorted['DateTime'].diff().dropna()
+                
+                qualidade['temporal'] = {
+                    'inicio': df_sorted['DateTime'].min(),
+                    'fim': df_sorted['DateTime'].max(),
+                    'dias_totais': (df_sorted['DateTime'].max() - df_sorted['DateTime'].min()).days,
+                    'intervalo_medio': str(intervalos.mean()) if not intervalos.empty else 'N/A',
+                    'intervalo_mediano': str(intervalos.median()) if not intervalos.empty else 'N/A'
+                }
+        except Exception as e:
+            pass
     
     return qualidade, outliers_info
+
 
 def preenchimento_inteligente_falhas(df, metodo='multivariado'):
     """
@@ -711,44 +738,54 @@ def preenchimento_inteligente_falhas(df, metodo='multivariado'):
                          'Precipitacao', 'U2', 'Press_Inst']
     colunas_existentes = [c for c in colunas_numericas if c in df.columns]
     
-    if metodo == 'interpolacao_linear':
+    try:
+        if metodo == 'interpolacao_linear':
+            for col in colunas_existentes:
+                if col in df_filled.columns:
+                    df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=24)
+                    
+        elif metodo == 'interpolacao_spline':
+            for col in colunas_existentes:
+                if col in df_filled.columns:
+                    df_filled[col] = df_filled[col].interpolate(method='spline', order=3, limit_direction='both')
+                    
+        elif metodo == 'media_movel':
+            for col in colunas_existentes:
+                if col in df_filled.columns:
+                    media_movel = df_filled[col].rolling(window=24, min_periods=6, center=True).mean()
+                    df_filled[col] = df_filled[col].fillna(media_movel)
+                    
+        elif metodo == 'multivariado':
+            # Combinação de métodos
+            for col in colunas_existentes:
+                if col in df_filled.columns:
+                    # Primeiro, interpolação linear
+                    df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=12)
+                    
+                    # Depois, média móvel para os remanescentes
+                    if col in df_filled.columns:
+                        mascara = df_filled[col].isna()
+                        if mascara.any():
+                            media_movel = df_filled[col].rolling(window=48, min_periods=12, center=True).mean()
+                            df_filled.loc[mascara, col] = media_movel.loc[mascara]
+                    
+                    # Por último, preenchimento sazonal
+                    if 'Month' in df_filled.columns and col in df_filled.columns:
+                        mascara = df_filled[col].isna()
+                        if mascara.any():
+                            medias_mensais = df_filled.groupby('Month')[col].transform('mean')
+                            df_filled.loc[mascara, col] = medias_mensais.loc[mascara]
+        
+        # Verificar se ainda há NaN e preencher com mediana
         for col in colunas_existentes:
-            df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=24)
-            
-    elif metodo == 'interpolacao_spline':
-        for col in colunas_existentes:
-            df_filled[col] = df_filled[col].interpolate(method='spline', order=3, limit_direction='both')
-            
-    elif metodo == 'media_movel':
-        for col in colunas_existentes:
-            media_movel = df_filled[col].rolling(window=24, min_periods=6, center=True).mean()
-            df_filled[col] = df_filled[col].fillna(media_movel)
-            
-    elif metodo == 'multivariado':
-        # Combinação de métodos
-        for col in colunas_existentes:
-            # Primeiro, interpolação linear
-            df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=12)
-            
-            # Depois, média móvel para os remanescentes
-            mascara = df_filled[col].isna()
-            if mascara.any():
-                media_movel = df_filled[col].rolling(window=48, min_periods=12, center=True).mean()
-                df_filled.loc[mascara, col] = media_movel.loc[mascara]
-            
-            # Por último, preenchimento sazonal
-            if 'Month' in df.columns:
-                mascara = df_filled[col].isna()
-                if mascara.any():
-                    medias_mensais = df_filled.groupby('Month')[col].transform('mean')
-                    df_filled.loc[mascara, col] = medias_mensais.loc[mascara]
-    
-    # Verificar se ainda há NaN e preencher com mediana
-    for col in colunas_existentes:
-        if df_filled[col].isna().any():
-            df_filled[col].fillna(df_filled[col].median(), inplace=True)
+            if col in df_filled.columns and df_filled[col].isna().any():
+                df_filled[col].fillna(df_filled[col].median(), inplace=True)
+                
+    except Exception as e:
+        pass
     
     return df_filled
+
 
 def detectar_eventos_extremos(df):
     """Detecção automática de eventos climáticos extremos"""
@@ -762,7 +799,6 @@ def detectar_eventos_extremos(df):
     # Temperaturas extremas
     if 'Tmax' in df.columns:
         try:
-            # Garantir que a coluna é numérica
             if not pd.api.types.is_numeric_dtype(df['Tmax']):
                 tmax_series = pd.to_numeric(df['Tmax'], errors='coerce')
             else:

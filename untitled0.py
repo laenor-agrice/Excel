@@ -234,7 +234,7 @@ st.markdown(
         display: inline-block;
     }
     
-    /* Inputs grandes - CORRIGIDO: texto em verde escuro */
+    /* Inputs grandes */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
@@ -275,13 +275,21 @@ st.markdown(
         box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
     }
     
-    /* Selectbox options - CORRIGIDO: texto em verde escuro */
     .stSelectbox > div > div > div > div {
         color: #1a5c1a !important;
     }
     
     .stSelectbox > div > div > div > div:hover {
         background-color: #e8f5e9 !important;
+    }
+    
+    /* Ajuste para o selectbox não ficar cortado */
+    .stSelectbox {
+        margin-bottom: 1.5rem;
+    }
+    
+    .stSelectbox > div {
+        min-height: 60px;
     }
     
     /* Checkbox grande */
@@ -344,6 +352,15 @@ st.markdown(
         padding: 0.3rem 1rem;
         border-radius: 20px;
         font-weight: 400;
+    }
+    
+    /* Espaçamento para o gráfico */
+    .chart-container {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
     }
     </style>
     """,
@@ -1033,6 +1050,10 @@ def calcular_media_mensal(df):
     # Calcular média mensal
     media_mensal = df2.groupby('Ano_Mes')[numericas].mean().reset_index()
     
+    # Adicionar Ano e Mes para referência
+    media_mensal['Ano'] = media_mensal['Ano_Mes'].str.split('-').str[0].astype(int)
+    media_mensal['Mes'] = media_mensal['Ano_Mes'].str.split('-').str[1].astype(int)
+    
     return media_mensal, None
 
 # =============================================================================
@@ -1068,10 +1089,30 @@ with tab4:
                 df_mensal = st.session_state["df_mensal"]
                 st.dataframe(df_mensal, use_container_width=True)
                 
+                # Botão para baixar a média mensal
+                csv_mensal = df_mensal.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Baixar Médias Mensais (CSV)",
+                    data=csv_mensal,
+                    file_name="medias_mensais.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+                
+                st.markdown("---")
+                
                 # Gráfico da média mensal
                 colunas_num = df_mensal.select_dtypes(include=np.number).columns.tolist()
+                # Remover Ano e Mes da lista se existirem
+                colunas_num = [c for c in colunas_num if c not in ['Ano', 'Mes']]
+                
                 if colunas_num:
-                    var_mensal = st.selectbox("Selecione a variável para visualizar a média mensal", colunas_num)
+                    st.markdown("#### Selecione a variável para visualizar a média mensal")
+                    var_mensal = st.selectbox(
+                        "Selecione a variável",
+                        colunas_num,
+                        key="var_mensal_estat"
+                    )
                     if var_mensal:
                         st.markdown(f"**📈 Média Mensal - {var_mensal}**")
                         st.line_chart(df_mensal.set_index('Ano_Mes')[var_mensal], use_container_width=True)
@@ -1120,7 +1161,11 @@ with tab4:
         if numericas:
             st.markdown('<div class="section-title">📊 Distribuição das Variáveis</div>', unsafe_allow_html=True)
             
-            var_selecionada = st.selectbox("Selecione uma variável para análise gráfica", numericas)
+            var_selecionada = st.selectbox(
+                "Selecione uma variável para análise gráfica",
+                numericas,
+                key="var_dist_estat"
+            )
             
             if var_selecionada:
                 col1, col2 = st.columns(2)
@@ -1188,6 +1233,7 @@ with tab5:
         if tipo_dado == "📊 Dados Mensais" and tem_mensal:
             df_graf = st.session_state["df_mensal"]
             colunas_graf = df_graf.select_dtypes(include=np.number).columns.tolist()
+            colunas_graf = [c for c in colunas_graf if c not in ['Ano', 'Mes']]
             if 'Ano_Mes' in df_graf.columns:
                 index_col = 'Ano_Mes'
             else:
@@ -1202,10 +1248,15 @@ with tab5:
         else:
             tipo_grafico = st.selectbox(
                 "Selecione o tipo de gráfico",
-                ["📈 Linhas", "📊 Barras", "📉 Área", "📊 Histograma"]
+                ["📈 Linhas", "📊 Barras", "📉 Área", "📊 Histograma"],
+                key="tipo_graf_aba5"
             )
             
-            var_graf = st.selectbox("Selecione a variável", colunas_graf)
+            var_graf = st.selectbox(
+                "Selecione a variável",
+                colunas_graf,
+                key="var_graf_aba5"
+            )
             
             if var_graf:
                 if tipo_grafico == "📈 Linhas":

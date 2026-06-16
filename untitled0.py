@@ -218,17 +218,26 @@ def calcular_media_por_mes(df, coluna_data, variavel):
     return media_mensal
 
 # =============================================================================
-# FUNÇÃO PARA EXIBIR DATAFRAME COM SCROLL
+# FUNÇÃO PARA EXIBIR DATAFRAME COM SCROLL E DATAS FORMATADAS
 # =============================================================================
 
-def render_table(df, max_height=400):
+def render_table(df, max_height=400, format_dates=True):
     """Renderiza uma tabela com scroll usando HTML puro"""
     if df is None or df.empty:
         st.info("Tabela vazia")
         return
     
+    # Criar cópia para não alterar o original
+    df_display = df.copy()
+    
+    # Formatar colunas de data
+    if format_dates:
+        for col in df_display.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_display[col]):
+                df_display[col] = df_display[col].dt.strftime('%Y-%m-%d %H:%M')
+    
     # Converter para HTML
-    html = df.to_html(index=False, escape=False, classes='table table-striped')
+    html = df_display.to_html(index=False, escape=False, classes='table table-striped')
     
     # Estilizar com scroll
     st.markdown(f"""
@@ -620,16 +629,6 @@ st.markdown(
         max-width: 100% !important;
     }
     
-    /* Forçar scroll no container */
-    .scroll-container {
-        width: 100%;
-        overflow: auto;
-        max-height: 500px;
-        border-radius: 12px;
-        border: 1px solid rgba(100, 200, 170, 0.2);
-        background: rgba(255,255,255,0.85);
-    }
-    
     ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
@@ -803,6 +802,7 @@ def converter_colunas_numericas(df):
     df2 = df.copy()
     for col in df2.columns:
         try:
+            # Tentar converter removendo caracteres não numéricos
             df2[col] = df2[col].astype(str)
             df2[col] = df2[col].str.strip()
             df2[col] = df2[col].str.replace(',', '.', regex=False)
@@ -826,13 +826,24 @@ def detectar_colunas_data(df):
     return candidatas
 
 def converter_datas(df):
+    """Converte colunas de data com tratamento robusto"""
     df2 = df.copy()
-    datas = detectar_colunas_data(df2)
-    for col in datas:
+    
+    # Identificar colunas que podem ser data
+    colunas_data = detectar_colunas_data(df2)
+    
+    for col in colunas_data:
         try:
-            df2[col] = pd.to_datetime(df2[col], errors="coerce", dayfirst=True)
+            # Tentar converter com diferentes formatos
+            df2[col] = pd.to_datetime(df2[col], errors='coerce', dayfirst=True)
+            
+            # Verificar se a conversão foi bem sucedida
+            if df2[col].isna().all():
+                # Tentar outro formato
+                df2[col] = pd.to_datetime(df2[col], errors='coerce')
         except:
             pass
+    
     return df2
 
 def identificar_tipo_planilha(df):
@@ -859,9 +870,12 @@ def ler_planilha_universal(arquivo):
         arquivo.seek(0)
         df = pd.read_csv(arquivo, sep=delimitador, encoding=encoding, on_bad_lines="skip")
     
-    df = remover_colunas_duplicadas(df)
-    df = converter_colunas_numericas(df)
+    # Tentar converter colunas de data
     df = converter_datas(df)
+    
+    # Tentar converter colunas numéricas
+    df = converter_colunas_numericas(df)
+    
     return df
 
 def identificar_coluna_data(df):

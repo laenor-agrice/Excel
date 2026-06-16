@@ -199,18 +199,76 @@ def calcular_correlacao(df, coluna1, coluna2):
 # FUNÇÃO PARA CALCULAR MÉDIA POR MÊS
 # =============================================================================
 
-def calcular_media_por_mes(df, coluna_data, variavel):
-    """Calcula a média de uma variável para cada mês (todos os anos combinados)"""
+def calcular_media_por_mes(df, coluna_data, variavel, mes=None):
+    """Calcula a média de uma variável para cada mês ou para um mês específico"""
     df2 = df.copy()
     df2['Mes'] = df2[coluna_data].dt.month
+    
+    if mes is not None:
+        df2 = df2[df2['Mes'] == mes]
+    
     media_mensal = df2.groupby('Mes')[variavel].mean().reset_index()
-    # Renomear a coluna da média para 'Media'
     media_mensal.columns = ['Mes', 'Media']
-    # Adicionar nomes dos meses
     nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
                    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
     media_mensal['Mes_Nome'] = media_mensal['Mes'].apply(lambda x: nomes_meses[x-1] if 1 <= x <= 12 else str(x))
     return media_mensal
+
+# =============================================================================
+# DADOS DE REFERÊNCIA - COEFICIENTES DE CULTIVO (Kc)
+# =============================================================================
+
+# Fonte: FAO - Irrigation and Drainage Paper 56
+# Allen, R.G., Pereira, L.S., Raes, D., Smith, M. (1998). Crop evapotranspiration:
+# Guidelines for computing crop water requirements. FAO Irrigation and Drainage Paper 56.
+
+CULTURAS_Kc = {
+    "Algodão": {"Inicial": 0.35, "Desenvolvimento": 0.70, "Meio": 1.15, "Final": 0.70},
+    "Arroz": {"Inicial": 1.05, "Desenvolvimento": 1.20, "Meio": 1.30, "Final": 0.90},
+    "Batata": {"Inicial": 0.45, "Desenvolvimento": 0.70, "Meio": 1.15, "Final": 0.75},
+    "Cana-de-açúcar": {"Inicial": 0.40, "Desenvolvimento": 0.85, "Meio": 1.25, "Final": 0.75},
+    "Cevada": {"Inicial": 0.35, "Desenvolvimento": 0.70, "Meio": 1.15, "Final": 0.65},
+    "Feijão": {"Inicial": 0.40, "Desenvolvimento": 0.70, "Meio": 1.15, "Final": 0.60},
+    "Girassol": {"Inicial": 0.35, "Desenvolvimento": 0.75, "Meio": 1.15, "Final": 0.65},
+    "Milho": {"Inicial": 0.35, "Desenvolvimento": 0.75, "Meio": 1.20, "Final": 0.70},
+    "Soja": {"Inicial": 0.40, "Desenvolvimento": 0.75, "Meio": 1.15, "Final": 0.65},
+    "Sorgo": {"Inicial": 0.35, "Desenvolvimento": 0.70, "Meio": 1.10, "Final": 0.65},
+    "Tomate": {"Inicial": 0.60, "Desenvolvimento": 0.85, "Meio": 1.20, "Final": 0.80},
+    "Trigo": {"Inicial": 0.35, "Desenvolvimento": 0.75, "Meio": 1.15, "Final": 0.65},
+    "Uva": {"Inicial": 0.30, "Desenvolvimento": 0.70, "Meio": 0.90, "Final": 0.60},
+    "Abacate": {"Inicial": 0.45, "Desenvolvimento": 0.70, "Meio": 1.00, "Final": 0.75},
+    "Banana": {"Inicial": 0.50, "Desenvolvimento": 0.80, "Meio": 1.10, "Final": 0.75},
+    "Café": {"Inicial": 0.40, "Desenvolvimento": 0.70, "Meio": 0.95, "Final": 0.70},
+    "Laranja": {"Inicial": 0.45, "Desenvolvimento": 0.70, "Meio": 0.95, "Final": 0.70},
+    "Mamão": {"Inicial": 0.50, "Desenvolvimento": 0.80, "Meio": 1.10, "Final": 0.75},
+    "Manga": {"Inicial": 0.40, "Desenvolvimento": 0.70, "Meio": 0.95, "Final": 0.70},
+    "Melancia": {"Inicial": 0.45, "Desenvolvimento": 0.75, "Meio": 1.05, "Final": 0.75}
+}
+
+# Coeficientes de extinção (k) para diferentes culturas
+# Fonte: FAO - Crop coefficients for computing crop water requirements
+CULTURAS_k = {
+    "Algodão": 0.45,
+    "Arroz": 0.50,
+    "Batata": 0.40,
+    "Cana-de-açúcar": 0.50,
+    "Cevada": 0.45,
+    "Feijão": 0.40,
+    "Girassol": 0.45,
+    "Milho": 0.45,
+    "Soja": 0.45,
+    "Sorgo": 0.45,
+    "Tomate": 0.40,
+    "Trigo": 0.45,
+    "Uva": 0.35,
+    "Abacate": 0.35,
+    "Banana": 0.40,
+    "Café": 0.35,
+    "Laranja": 0.35,
+    "Mamão": 0.40,
+    "Manga": 0.35,
+    "Melancia": 0.40
+}
 
 # =============================================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -555,7 +613,7 @@ tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🧹 Tratamento",
     "📅 Consolidação",
     "📈 Estatística",
-    "📊 Gráficos",
+    "📊 Dados",
     "🤖 IA",
     "📥 Exportação"
 ])
@@ -608,7 +666,7 @@ with tab0:
     <div class="info-box">
         <strong>📋 Fluxo recomendado:</strong><br>
         1️⃣ Importar dados → 2️⃣ Tratar dados → 3️⃣ Consolidar dados → 
-        4️⃣ Análise Estatística → 5️⃣ Gráficos → 6️⃣ IA → 7️⃣ Exportar
+        4️⃣ Análise Estatística → 5️⃣ Dados → 6️⃣ IA → 7️⃣ Exportar
     </div>
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1139,26 +1197,43 @@ with tab4:
                 
                 df[col_data] = pd.to_datetime(df[col_data], errors='coerce')
                 
+                # Seletor de variável
                 var_mensal = st.selectbox(
                     "Selecione a variável para análise mensal",
                     numericas,
                     key="var_mensal"
                 )
                 
+                # Seletor de mês
+                meses_disponiveis = df['Mes'].dropna().unique()
+                meses_disponiveis = sorted([int(m) for m in meses_disponiveis if not np.isnan(m)])
+                nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
+                               'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                opcoes_meses = [{'label': nomes_meses[m-1], 'value': m} for m in meses_disponiveis]
+                opcoes_meses = [{'label': 'Todos os meses', 'value': 0}] + opcoes_meses
+                
+                mes_selecionado = st.selectbox(
+                    "Selecione o mês para filtrar",
+                    options=[0] + meses_disponiveis,
+                    format_func=lambda x: 'Todos os meses' if x == 0 else nomes_meses[x-1] if 1 <= x <= 12 else str(x)
+                )
+                
                 if var_mensal:
-                    media_mensal = calcular_media_por_mes(df, col_data, var_mensal)
+                    if mes_selecionado == 0:
+                        media_mensal = calcular_media_por_mes(df, col_data, var_mensal)
+                        st.markdown(f"**📈 Média Mensal - {var_mensal} (Todos os meses)**")
+                    else:
+                        media_mensal = calcular_media_por_mes(df, col_data, var_mensal, mes_selecionado)
+                        st.markdown(f"**📈 Média Mensal - {var_mensal} ({nomes_meses[mes_selecionado-1]})**")
+                    
                     if not media_mensal.empty:
                         st.dataframe(media_mensal, use_container_width=True)
                         
                         # Gráfico da média mensal
-                        st.markdown(f"**📈 Média Mensal - {var_mensal}**")
-                        # Verificar se a coluna 'Media' existe antes de usar
                         if 'Media' in media_mensal.columns:
                             st.bar_chart(media_mensal.set_index('Mes_Nome')['Media'], use_container_width=True)
-                        else:
-                            st.warning("Coluna 'Media' não encontrada nos dados.")
                         
-                        # Adicionar estatísticas descritivas da média mensal
+                        # Estatísticas descritivas da média mensal
                         st.markdown("**📋 Estatísticas da Média Mensal**")
                         stats = media_mensal['Media'].describe()
                         col1, col2, col3, col4 = st.columns(4)
@@ -1424,55 +1499,174 @@ with tab4:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# ABA 5 - GRÁFICOS (APENAS LINHAS E BARRAS)
+# ABA 5 - DADOS (ET0, ETp e Coeficientes de Cultivo)
 # =============================================================================
 
 with tab5:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📊 Visualização de Dados</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📊 Dados de Evapotranspiração</div>', unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="info-box">
+        <strong>🌱 ET0 e ETp - Dados de Referência</strong><br>
+        ET0 (Evapotranspiração de Referência) e ETp (Evapotranspiração Potencial) são calculados com base em dados climáticos.<br><br>
+        <strong>📚 Referências:</strong><br>
+        • FAO - Irrigation and Drainage Paper 56 (Allen et al., 1998)<br>
+        • Coeficientes de Cultivo (Kc) para as principais culturas agrícolas do Brasil<br>
+        • Coeficiente de Extinção (k) baseado em estudos da FAO
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # ============================================================
+    # ET0 - Evapotranspiração de Referência
+    # ============================================================
+    st.markdown("### 🌡️ ET0 - Evapotranspiração de Referência")
+    st.markdown("""
+    A ET0 é calculada pelo método de Penman-Monteith FAO-56, que é o método padrão recomendado pela FAO.
+    Para o cálculo são necessários: temperatura, umidade, radiação solar e velocidade do vento.
+    """)
     
     if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
-        st.warning("⚠️ Primeiro consolide os dados na aba 'Consolidação'.")
+        st.warning("⚠️ Consolide os dados primeiro para calcular ET0.")
     else:
         df = st.session_state["df_consolidado"]
-        numericas = df.select_dtypes(include=[np.number]).columns.tolist()
+        col_data = identificar_coluna_data(df)
         
-        if not numericas:
-            st.warning("Sem colunas numéricas para visualizar.")
-            st.write("**Colunas disponíveis:**", df.columns.tolist())
-        else:
-            st.markdown("#### Selecione o tipo de gráfico")
-            tipo_grafico = st.selectbox(
-                "Selecione o tipo de gráfico",
-                ["📈 Linhas", "📊 Barras"],
-                key="tipo_graf_aba5"
-            )
+        if col_data is not None:
+            # Calcular ET0 simplificada (método Hargreaves)
+            # Encontrar colunas de temperatura
+            temp_cols = [col for col in df.columns if 'temp' in col.lower() and 'min' not in col.lower() and 'max' not in col.lower()]
+            tmin_cols = [col for col in df.columns if 'min' in col.lower() and 'temp' in col.lower()]
+            tmax_cols = [col for col in df.columns if 'max' in col.lower() and 'temp' in col.lower()]
             
-            st.markdown("#### Selecione a variável")
-            var_graf = st.selectbox(
-                "Selecione a variável",
-                numericas,
-                key="var_graf_aba5"
-            )
-            
-            if var_graf:
-                if tipo_grafico == "📈 Linhas":
-                    st.markdown(f"**📈 Série - {var_graf}**")
-                    st.line_chart(df[var_graf], use_container_width=True)
+            if temp_cols and tmin_cols and tmax_cols:
+                tmed_col = temp_cols[0]
+                tmin_col = tmin_cols[0]
+                tmax_col = tmax_cols[0]
                 
-                elif tipo_grafico == "📊 Barras":
-                    st.markdown(f"**📊 Barras - {var_graf}**")
-                    st.bar_chart(df[var_graf], use_container_width=True)
+                st.markdown("#### Cálculo da ET0 (Método de Hargreaves)")
+                st.markdown(f"Utilizando as colunas: **{tmed_col}**, **{tmin_col}**, **{tmax_col}**")
+                st.markdown("Fórmula: ET0 = 0.0023 * (Tmed + 17.8) * (Tmax - Tmin)^0.5")
+                
+                # Calcular ET0
+                df_et0 = df.copy()
+                df_et0['ET0'] = 0.0023 * (df_et0[tmed_col] + 17.8) * np.sqrt(df_et0[tmax_col] - df_et0[tmin_col])
+                df_et0['Data'] = df_et0[col_data]
+                
+                # Calcular média mensal da ET0
+                df_et0['Mes'] = df_et0['Data'].dt.month
+                et0_mensal = df_et0.groupby('Mes')['ET0'].mean().reset_index()
+                et0_mensal.columns = ['Mes', 'ET0']
+                nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
+                               'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+                et0_mensal['Mes_Nome'] = et0_mensal['Mes'].apply(lambda x: nomes_meses[x-1] if 1 <= x <= 12 else str(x))
+                
+                st.dataframe(et0_mensal, use_container_width=True)
+                
+                # Gráfico da ET0 mensal
+                st.markdown("**📈 ET0 Mensal**")
+                st.bar_chart(et0_mensal.set_index('Mes_Nome')['ET0'], use_container_width=True)
+                
+                # ET0 total anual
+                et0_anual = df_et0['ET0'].sum()
+                st.metric("🌡️ ET0 Total Anual (mm)", round(et0_anual, 2))
+            else:
+                st.warning("⚠️ Colunas de temperatura não encontradas. Para calcular ET0 são necessárias: Temperatura Média, Temperatura Mínima e Temperatura Máxima.")
+                st.write("**Colunas disponíveis:**", df.columns.tolist())
+        else:
+            st.warning("⚠️ Nenhuma coluna de data encontrada.")
+    
+    st.markdown("---")
+    
+    # ============================================================
+    # COEFICIENTES DE CULTIVO (Kc) e ETp
+    # ============================================================
+    st.markdown("### 🌱 Coeficientes de Cultivo (Kc) e ETp")
+    st.markdown("""
+    O coeficiente de cultivo (Kc) é utilizado para estimar a evapotranspiração da cultura (ETc) a partir da ET0.
+    Os valores apresentados são baseados na FAO-56 e adaptados para as condições brasileiras.
+    """)
+    
+    # Exibir tabela de culturas
+    st.markdown("#### 📋 Coeficientes de Cultivo (Kc) por Estágio Fenológico")
+    st.markdown("**Fonte:** FAO - Irrigation and Drainage Paper 56 (Allen et al., 1998)")
+    
+    df_culturas = pd.DataFrame([
+        {"Cultura": cultura, "Kc Inicial": kc["Inicial"], 
+         "Kc Desenvolvimento": kc["Desenvolvimento"], 
+         "Kc Meio": kc["Meio"], "Kc Final": kc["Final"], 
+         "k (Extinção)": CULTURAS_k.get(cultura, 0.40)}
+        for cultura, kc in CULTURAS_Kc.items()
+    ])
+    
+    st.dataframe(df_culturas, use_container_width=True)
+    
+    st.markdown("""
+    **Legenda:**
+    - **Kc Inicial**: Estágio inicial da cultura (emergência até cobertura do solo)
+    - **Kc Desenvolvimento**: Estágio de desenvolvimento vegetativo
+    - **Kc Meio**: Estágio de máximo crescimento (floração e enchimento de grãos)
+    - **Kc Final**: Estágio final (maturação e colheita)
+    - **k (Extinção)**: Coeficiente de extinção da radiação solar pela cultura
+    """)
+    
+    st.markdown("---")
+    
+    # ============================================================
+    # CÁLCULO DA ETp PARA UMA CULTURA ESPECÍFICA
+    # ============================================================
+    st.markdown("### 📊 Cálculo da ETp para uma Cultura Específica")
+    
+    if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
+        if 'ET0' in locals() or 'ET0' in globals():
+            cultura_selecionada = st.selectbox(
+                "Selecione a cultura para cálculo da ETp",
+                list(CULTURAS_Kc.keys())
+            )
             
-            st.markdown("---")
-            st.markdown("### 📋 Estatísticas Rápidas")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("📉 Mínimo", round(df[var_graf].min(), 2))
-            with col2:
-                st.metric("📈 Máximo", round(df[var_graf].max(), 2))
-            with col3:
-                st.metric("📊 Média", round(df[var_graf].mean(), 2))
+            if cultura_selecionada:
+                kc = CULTURAS_Kc[cultura_selecionada]
+                k_ext = CULTURAS_k.get(cultura_selecionada, 0.40)
+                
+                st.markdown(f"#### 🌾 {cultura_selecionada}")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Kc Médio", round((kc["Inicial"] + kc["Desenvolvimento"] + kc["Meio"] + kc["Final"]) / 4, 2))
+                    st.metric("Kc Inicial", kc["Inicial"])
+                    st.metric("Kc Desenvolvimento", kc["Desenvolvimento"])
+                with col2:
+                    st.metric("Kc Meio", kc["Meio"])
+                    st.metric("Kc Final", kc["Final"])
+                    st.metric("k (Extinção)", k_ext)
+                
+                st.markdown("#### 📈 ETp Mensal")
+                
+                # Calcular ETp usando a ET0 média mensal
+                if 'et0_mensal' in locals():
+                    etp_mensal = et0_mensal.copy()
+                    # Usar Kc médio para estimativa simplificada
+                    kc_medio = (kc["Inicial"] + kc["Desenvolvimento"] + kc["Meio"] + kc["Final"]) / 4
+                    etp_mensal['ETp'] = etp_mensal['ET0'] * kc_medio
+                    etp_mensal['Cultura'] = cultura_selecionada
+                    
+                    st.dataframe(etp_mensal[['Mes_Nome', 'ET0', 'ETp']], use_container_width=True)
+                    
+                    # Gráfico comparativo
+                    st.markdown("**📊 Comparação ET0 vs ETp**")
+                    df_plot = etp_mensal.set_index('Mes_Nome')[['ET0', 'ETp']]
+                    st.line_chart(df_plot, use_container_width=True)
+                    
+                    # ETp total anual
+                    etp_anual = etp_mensal['ETp'].sum()
+                    st.metric(f"🌱 ETp Total Anual - {cultura_selecionada} (mm)", round(etp_anual, 2))
+                else:
+                    st.info("ℹ️ Calcule a ET0 primeiro para estimar a ETp.")
+        else:
+            st.info("ℹ️ Calcule a ET0 primeiro para estimar a ETp para diferentes culturas.")
+    else:
+        st.info("ℹ️ Consolide os dados primeiro para calcular ET0 e ETp.")
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================

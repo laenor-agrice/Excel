@@ -1066,8 +1066,11 @@ def calcular_media_mensal(df):
     # Remover colunas auxiliares se existirem
     numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
     
+    # Remover também colunas que claramente são acumuladas (contém 'acum' ou 'soma')
+    numericas = [c for c in numericas if 'acum' not in c.lower() and 'soma' not in c.lower()]
+    
     if not numericas:
-        return None, "Nenhuma coluna numérica encontrada."
+        return None, "Nenhuma coluna numérica encontrada para calcular médias mensais."
     
     # Calcular média mensal para TODAS as colunas numéricas
     media_mensal = df2.groupby('Ano_Mes')[numericas].mean().reset_index()
@@ -1075,6 +1078,9 @@ def calcular_media_mensal(df):
     # Adicionar Ano e Mes para referência
     media_mensal['Ano'] = media_mensal['Ano_Mes'].str.split('-').str[0].astype(int)
     media_mensal['Mes'] = media_mensal['Ano_Mes'].str.split('-').str[1].astype(int)
+    
+    # Ordenar por data
+    media_mensal = media_mensal.sort_values('Ano_Mes').reset_index(drop=True)
     
     return media_mensal, None
 
@@ -1095,6 +1101,7 @@ with tab4:
         # MÉDIA MENSAL
         # ============================================================
         st.markdown("### 📊 Média Mensal dos Dados")
+        st.markdown("A média mensal é calculada a partir dos valores diários de cada mês.")
         
         col_data = identificar_coluna_data(df_base)
         
@@ -1105,10 +1112,15 @@ with tab4:
                     st.error(f"❌ {erro}")
                 else:
                     st.session_state["df_mensal"] = media_mensal
-                    st.success("✅ Média mensal calculada com sucesso! Foram calculadas médias para todas as colunas numéricas.")
+                    
+                    # Mostrar quantas colunas foram calculadas
+                    num_colunas = len(media_mensal.columns) - 3  # menos Ano_Mes, Ano, Mes
+                    st.success(f"✅ Média mensal calculada com sucesso! Foram calculadas médias para {num_colunas} colunas numéricas.")
             
             if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
                 df_mensal = st.session_state["df_mensal"]
+                
+                # Mostrar todas as colunas com médias mensais
                 st.dataframe(df_mensal, use_container_width=True)
                 
                 # Botão para baixar a média mensal
@@ -1476,6 +1488,7 @@ with tab6:
         else:
             st.info("ℹ️ Ative a IA Gemini para gerar relatórios inteligentes.")
     st.markdown('</div>', unsafe_allow_html=True)
+
 # =============================================================================
 # FUNÇÕES DE EXPORTAÇÃO
 # =============================================================================

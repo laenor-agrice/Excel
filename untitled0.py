@@ -36,7 +36,7 @@ st.set_page_config(
 )
 
 # =============================================================================
-# CSS GLOBAL - DESIGN COLORIDO E GRANDE
+# CSS GLOBAL - DESIGN VERDE ÁGUA LAMINADO
 # =============================================================================
 
 st.markdown(
@@ -45,7 +45,7 @@ st.markdown(
     /* Estilo geral - tela cheia */
     .main {
         padding: 0rem 1rem;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #b8e6d6 0%, #a8d8c8 50%, #98cabc 100%);
         min-height: 100vh;
     }
     
@@ -57,23 +57,23 @@ st.markdown(
     
     /* Cards grandes e coloridos */
     .custom-card {
-        background: rgba(255, 255, 255, 0.95);
+        background: rgba(255, 255, 255, 0.92);
         border-radius: 20px;
         padding: 2.5rem;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        box-shadow: 0 8px 32px rgba(0,50,30,0.12);
         margin-bottom: 2rem;
         backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.3);
     }
     
     /* Título principal */
     .main-header {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        padding: 3rem 3rem;
+        background: linear-gradient(135deg, #2d8a6e 0%, #3da88a 50%, #4dc0a0 100%);
+        padding: 2.5rem 3rem;
         border-radius: 20px;
         margin-bottom: 2rem;
         color: white;
-        box-shadow: 0 8px 32px rgba(245, 87, 108, 0.3);
+        box-shadow: 0 8px 32px rgba(45, 138, 110, 0.3);
         text-align: center;
     }
     
@@ -92,7 +92,7 @@ st.markdown(
     
     /* Botões grandes */
     .stButton > button {
-        background: linear-gradient(135deg, #667eea, #764ba2);
+        background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
         border-radius: 14px;
         border: none;
@@ -101,21 +101,21 @@ st.markdown(
         font-size: 1.1rem;
         transition: all 0.3s ease;
         width: 100%;
-        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 4px 20px rgba(45, 138, 110, 0.3);
     }
     
     .stButton > button:hover {
         transform: translateY(-3px) scale(1.02);
-        box-shadow: 0 8px 30px rgba(102, 126, 234, 0.5);
-        background: linear-gradient(135deg, #764ba2, #667eea);
+        box-shadow: 0 8px 30px rgba(45, 138, 110, 0.4);
+        background: linear-gradient(135deg, #3da88a, #2d8a6e);
     }
     
-    /* Área de upload - grande e destacada */
+    /* Área de upload */
     .stFileUploader > div {
-        border: 3px dashed #764ba2;
+        border: 3px dashed #3da88a;
         border-radius: 20px;
         padding: 4rem 2rem;
-        background: linear-gradient(135deg, #f8f9ff, #eef1ff);
+        background: linear-gradient(135deg, #f0faf6, #e6f5ef);
         transition: all 0.3s ease;
         min-height: 200px;
         display: flex;
@@ -124,10 +124,10 @@ st.markdown(
     }
     
     .stFileUploader > div:hover {
-        border-color: #f5576c;
-        background: linear-gradient(135deg, #f0f2ff, #e6eaff);
+        border-color: #2d8a6e;
+        background: linear-gradient(135deg, #e8f8f2, #ddf2ea);
         transform: scale(1.01);
-        box-shadow: 0 8px 30px rgba(118, 75, 162, 0.15);
+        box-shadow: 0 4px 20px rgba(45, 138, 110, 0.15);
     }
     
     /* Métricas grandes */
@@ -135,7 +135,7 @@ st.markdown(
         background: rgba(255, 255, 255, 0.9);
         border-radius: 16px;
         padding: 1.5rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
         border: 1px solid rgba(255,255,255,0.3);
         transition: all 0.3s ease;
         backdrop-filter: blur(5px);
@@ -143,7 +143,7 @@ st.markdown(
     
     .stMetric:hover {
         transform: translateY(-5px);
-        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.1);
         background: rgba(255, 255, 255, 1);
     }
     
@@ -154,13 +154,13 @@ st.markdown(
     .stMetric label {
         font-size: 1.1rem !important;
         font-weight: 600 !important;
-        color: #4a4a6a !important;
+        color: #1a4a3a !important;
     }
     
     .stMetric div[data-testid="stMetricValue"] {
         font-size: 2.2rem !important;
         font-weight: 700 !important;
-        color: #764ba2 !important;
+        color: #2d8a6e !important;
     }
     
     /* Abas grandes */
@@ -169,7 +169,7 @@ st.markdown(
         background: rgba(255, 255, 255, 0.9);
         border-radius: 16px;
         padding: 10px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
         backdrop-filter: blur(5px);
         margin-bottom: 1.5rem;
     }
@@ -180,45 +180,45 @@ st.markdown(
         font-weight: 600;
         font-size: 1.05rem;
         transition: all 0.3s ease;
-        color: #4a4a6a;
+        color: #1a4a3a;
     }
     
     .stTabs [data-baseweb="tab"]:hover {
-        background-color: rgba(102, 126, 234, 0.1);
-        color: #667eea;
+        background-color: rgba(45, 138, 110, 0.1);
+        color: #2d8a6e;
     }
     
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #667eea, #764ba2);
+        background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
         font-weight: 700;
-        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 4px 20px rgba(45, 138, 110, 0.25);
     }
     
     /* Caixas de informação */
     .info-box {
-        background: linear-gradient(135deg, #e8f0fe, #d4e4f7);
-        border-left: 6px solid #667eea;
+        background: linear-gradient(135deg, #e6f5ef, #d4ede4);
+        border-left: 6px solid #3da88a;
         padding: 1.5rem 2rem;
         border-radius: 14px;
         margin: 1.5rem 0;
-        color: #2d3748;
+        color: #1a4a3a;
         font-size: 1.1rem;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
+        box-shadow: 0 4px 15px rgba(45, 138, 110, 0.08);
     }
     
     .config-box {
-        background: rgba(255, 255, 255, 0.9);
-        border: 2px solid #e8ecf1;
+        background: rgba(255, 255, 255, 0.85);
+        border: 2px solid #d4ede4;
         border-radius: 16px;
         padding: 2rem;
         margin: 1.5rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
     }
     
     .config-title {
         font-weight: 700;
-        color: #4a4a6a;
+        color: #1a4a3a;
         margin-bottom: 0.8rem;
         font-size: 1.3rem;
     }
@@ -227,35 +227,34 @@ st.markdown(
     .section-title {
         font-size: 1.8rem;
         font-weight: 700;
-        color: #4a4a6a;
+        color: #1a4a3a;
         margin-bottom: 1.5rem;
         padding-bottom: 0.8rem;
-        border-bottom: 4px solid #667eea;
+        border-bottom: 4px solid #3da88a;
         display: inline-block;
     }
     
-    /* Inputs grandes */
+    /* Inputs */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
         border-radius: 12px;
-        border: 2px solid #e0e4ed;
+        border: 2px solid #d4ede4;
         padding: 0.8rem 1rem;
         font-size: 1.05rem;
         transition: all 0.3s ease;
         background: white;
-        color: #1a5c1a !important;
+        color: #1a4a3a !important;
     }
     
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus,
     .stNumberInput > div > div > input:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
-        color: #1a5c1a !important;
+        border-color: #3da88a;
+        box-shadow: 0 0 0 4px rgba(45, 138, 110, 0.15);
+        color: #1a4a3a !important;
     }
     
-    /* Selectbox */
     .stSelectbox {
         margin-bottom: 1.5rem;
         min-height: 70px;
@@ -267,33 +266,33 @@ st.markdown(
     
     .stSelectbox > div > div {
         border-radius: 12px;
-        border: 2px solid #e0e4ed;
+        border: 2px solid #d4ede4;
         padding: 0.5rem 1rem;
         font-size: 1.05rem;
         transition: all 0.3s ease;
         background: white;
-        color: #1a5c1a !important;
+        color: #1a4a3a !important;
         min-height: 50px;
     }
     
     .stSelectbox > div > div > div {
-        color: #1a5c1a !important;
+        color: #1a4a3a !important;
         font-size: 1.05rem !important;
     }
     
     .stSelectbox > div > div:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+        border-color: #3da88a;
+        box-shadow: 0 0 0 4px rgba(45, 138, 110, 0.15);
     }
     
     .stSelectbox > div > div > div > div {
-        color: #1a5c1a !important;
+        color: #1a4a3a !important;
         font-size: 1rem !important;
         padding: 8px 12px !important;
     }
     
     .stSelectbox > div > div > div > div:hover {
-        background-color: #e8f5e9 !important;
+        background-color: #e6f5ef !important;
     }
     
     .stSelectbox > div > div > div:first-child {
@@ -302,17 +301,15 @@ st.markdown(
         align-items: center;
     }
     
-    /* Checkbox grande */
     .stCheckbox > label {
         font-weight: 600;
-        color: #4a4a6a;
+        color: #1a4a3a;
         font-size: 1.05rem;
     }
     
-    /* Dataframes */
     .stDataFrame {
         border-radius: 16px;
-        border: 1px solid #e8ecf1;
+        border: 1px solid #d4ede4;
         overflow: hidden;
         background: white;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
@@ -322,19 +319,17 @@ st.markdown(
         border-radius: 16px;
     }
     
-    /* Footer */
     footer {
         visibility: hidden;
     }
     
-    /* Rodapé */
     .footer {
         text-align: center;
         font-size: 14px;
         color: rgba(255,255,255,0.8);
         padding-top: 2.5rem;
         padding-bottom: 2.5rem;
-        border-top: 2px solid rgba(255,255,255,0.1);
+        border-top: 2px solid rgba(255,255,255,0.2);
         margin-top: 2rem;
     }
     
@@ -342,16 +337,15 @@ st.markdown(
         color: white;
     }
     
-    /* Nome do arquivo carregado */
     .file-info {
-        background: linear-gradient(135deg, #f093fb, #f5576c);
+        background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
         padding: 1.5rem 2rem;
         border-radius: 14px;
         margin: 1rem 0;
         font-weight: 600;
         font-size: 1.2rem;
-        box-shadow: 0 4px 20px rgba(245, 87, 108, 0.3);
+        box-shadow: 0 4px 20px rgba(45, 138, 110, 0.3);
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -362,6 +356,28 @@ st.markdown(
         padding: 0.3rem 1rem;
         border-radius: 20px;
         font-weight: 400;
+    }
+    
+    .file-info-multiple {
+        background: linear-gradient(135deg, #4dc0a0, #3da88a);
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 14px;
+        margin: 0.5rem 0;
+        font-weight: 500;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 15px rgba(45, 138, 110, 0.2);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .file-info-multiple span {
+        background: rgba(255,255,255,0.2);
+        padding: 0.2rem 0.8rem;
+        border-radius: 20px;
+        font-weight: 400;
+        font-size: 0.9rem;
     }
     
     .chart-container {
@@ -604,7 +620,7 @@ with tab1:
     st.markdown("""
     <div class="config-box">
         <div class="config-title">📁 Upload do Arquivo INMET</div>
-        <div style="color: #666; font-size: 1.1rem;">
+        <div style="color: #1a4a3a; font-size: 1.1rem;">
             <strong>200MB per file</strong> - CSV, TXT, DAT, XLS, XLSX
         </div>
     </div>
@@ -669,7 +685,7 @@ with tab1:
             st.error(f"❌ Erro ao carregar arquivo: {erro}")
     else:
         st.markdown("""
-        <div style="text-align: center; padding: 2rem; color: #999;">
+        <div style="text-align: center; padding: 2rem; color: #6a8a7a;">
             <span style="font-size: 3rem;">📁</span>
             <p style="font-size: 1.2rem; margin-top: 0.5rem;">Nenhum arquivo selecionado</p>
             <p style="font-size: 0.9rem;">Arraste ou clique para fazer upload</p>
@@ -800,7 +816,7 @@ with tab2:
         st.markdown("""
         <div class="config-box">
             <div class="config-title">📊 Métodos de Preenchimento</div>
-            <p style="margin: 0; color: #555; font-size: 1.05rem;">Técnica para preenchimento de falhas:</p>
+            <p style="margin: 0; color: #1a4a3a; font-size: 1.05rem;">Técnica para preenchimento de falhas:</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1056,24 +1072,17 @@ def calcular_media_mensal(df):
     
     # Selecionar TODAS as colunas numéricas (excluindo Ano, Mes, Ano_Mes)
     numericas = df2.select_dtypes(include=np.number).columns.tolist()
-    # Remover colunas auxiliares
     numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
     
-    # Remover colunas de data/hora que possam estar como numéricas
     palavras_excluir = ['hora', 'hora_', 'horario', 'data_juliana', 'timestamp']
     numericas = [c for c in numericas if not any(palavra in str(c).lower() for palavra in palavras_excluir)]
     
     if not numericas:
         return None, "Nenhuma coluna numérica encontrada."
     
-    # Calcular média mensal para TODAS as colunas numéricas
     media_mensal = df2.groupby('Ano_Mes')[numericas].mean().reset_index()
-    
-    # Adicionar Ano e Mes para referência
     media_mensal['Ano'] = media_mensal['Ano_Mes'].str.split('-').str[0].astype(int)
     media_mensal['Mes'] = media_mensal['Ano_Mes'].str.split('-').str[1].astype(int)
-    
-    # Ordenar por data
     media_mensal = media_mensal.sort_values('Ano_Mes').reset_index(drop=True)
     
     return media_mensal, None
@@ -1229,7 +1238,7 @@ with tab5:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# ABA 6 - MÉDIA MENSAL (NOVA ABA PRINCIPAL)
+# ABA 6 - MÉDIA MENSAL
 # =============================================================================
 
 with tab6:
@@ -1252,13 +1261,11 @@ with tab6:
     else:
         df_base = st.session_state["df_consolidado"]
         
-        # Identificar coluna de data
         col_data = identificar_coluna_data(df_base)
         
         if col_data is None:
             st.warning("⚠️ Nenhuma coluna de data encontrada para calcular médias mensais.")
         else:
-            # Mostrar informações da base
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("📊 Total de Linhas", len(df_base))
@@ -1269,7 +1276,6 @@ with tab6:
             
             st.markdown("---")
             
-            # Botão para calcular
             if st.button("📊 Calcular Média Mensal de Todas as Colunas", use_container_width=True):
                 with st.spinner("Calculando médias mensais..."):
                     media_mensal, erro = calcular_media_mensal(df_base)
@@ -1277,9 +1283,7 @@ with tab6:
                         st.error(f"❌ {erro}")
                     else:
                         st.session_state["df_mensal"] = media_mensal
-                        
-                        # Mostrar quantas colunas foram calculadas
-                        num_colunas = len(media_mensal.columns) - 3  # menos Ano_Mes, Ano, Mes
+                        num_colunas = len(media_mensal.columns) - 3
                         st.success(f"✅ Média mensal calculada com sucesso!")
                         st.info(f"📊 Foram calculadas médias para **{num_colunas}** colunas numéricas (excluindo data/hora).")
             
@@ -1288,13 +1292,9 @@ with tab6:
             if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
                 df_mensal = st.session_state["df_mensal"]
                 
-                # ============================================================
-                # TABELA DE MÉDIAS MENSAIS
-                # ============================================================
                 st.markdown("### 📋 Tabela de Médias Mensais")
                 st.dataframe(df_mensal, use_container_width=True)
                 
-                # Botão para baixar a média mensal
                 csv_mensal = df_mensal.to_csv(index=False).encode('utf-8')
                 col1, col2 = st.columns(2)
                 with col1:
@@ -1308,34 +1308,25 @@ with tab6:
                 
                 st.markdown("---")
                 
-                # ============================================================
-                # GRÁFICOS INTERATIVOS
-                # ============================================================
                 st.markdown("### 📊 Análise Gráfica das Médias Mensais")
                 
-                # Lista de colunas para seleção (excluindo Ano, Mes, Ano_Mes)
                 colunas_para_grafico = df_mensal.select_dtypes(include=np.number).columns.tolist()
                 colunas_para_grafico = [c for c in colunas_para_grafico if c not in ['Ano', 'Mes']]
                 
                 if colunas_para_grafico:
-                    st.markdown("#### Selecione uma ou mais variáveis para visualizar")
-                    
-                    # Seleção múltipla de variáveis
                     vars_selecionadas = st.multiselect(
-                        "Selecione as variáveis",
+                        "Selecione uma ou mais variáveis para visualizar",
                         colunas_para_grafico,
                         default=[colunas_para_grafico[0]] if colunas_para_grafico else []
                     )
                     
                     if vars_selecionadas:
-                        # Gráfico de linhas
                         st.markdown(f"**📈 Evolução Mensal das Variáveis Selecionadas**")
                         df_plot = df_mensal.set_index('Ano_Mes')[vars_selecionadas]
                         st.line_chart(df_plot, use_container_width=True)
                         
                         st.markdown("---")
                         
-                        # Gráfico de barras (apenas para uma variável)
                         if len(vars_selecionadas) == 1:
                             st.markdown(f"**📊 Distribuição Mensal - {vars_selecionadas[0]}**")
                             st.bar_chart(df_mensal.set_index('Ano_Mes')[vars_selecionadas[0]], use_container_width=True)
@@ -1344,8 +1335,6 @@ with tab6:
                             st.bar_chart(df_plot, use_container_width=True)
                         
                         st.markdown("---")
-                        
-                        # Estatísticas rápidas das variáveis selecionadas
                         st.markdown("### 📋 Estatísticas das Variáveis Selecionadas")
                         stats_cols = st.columns(min(len(vars_selecionadas), 4))
                         for idx, var in enumerate(vars_selecionadas[:4]):
@@ -1358,8 +1347,6 @@ with tab6:
                                 )
                     else:
                         st.info("ℹ️ Selecione pelo menos uma variável para visualizar o gráfico.")
-                else:
-                    st.warning("Nenhuma coluna numérica disponível para gráficos.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1466,7 +1453,7 @@ with tab7:
         <div style="display: flex; align-items: center; gap: 1rem; margin: 0.5rem 0;">
             <span style="font-weight: 500; font-size: 1.05rem;">Ativar análise com IA Gemini</span>
         </div>
-        <div style="color: #555; font-size: 1rem; margin-top: 0.5rem;">
+        <div style="color: #1a4a3a; font-size: 1rem; margin-top: 0.5rem;">
             A IA analisará padrões climáticos e fenômenos como El Niño/La Niña
         </div>
     </div>
@@ -1701,7 +1688,7 @@ with tab9:
             <div class="config-title">📍 Parâmetros Regionais</div>
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <span style="font-weight: 500; font-size: 1.1rem;">Latitude da Estação (°):</span>
-                <span style="color: #764ba2; font-weight: 700; font-size: 1.3rem;">-16,0</span>
+                <span style="color: #2d8a6e; font-weight: 700; font-size: 1.3rem;">-16,0</span>
             </div>
         </div>
         """, unsafe_allow_html=True)

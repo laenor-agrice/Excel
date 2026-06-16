@@ -234,7 +234,7 @@ st.markdown(
         display: inline-block;
     }
     
-    /* Inputs grandes - CORRIGIDO: texto em verde escuro */
+    /* Inputs grandes */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
@@ -255,7 +255,7 @@ st.markdown(
         color: #1a5c1a !important;
     }
     
-    /* Selectbox - CORRIGIDO: texto em verde escuro e sem corte */
+    /* Selectbox */
     .stSelectbox {
         margin-bottom: 1.5rem;
         min-height: 70px;
@@ -296,7 +296,6 @@ st.markdown(
         background-color: #e8f5e9 !important;
     }
     
-    /* Ajuste para o selectbox não ficar cortado - CORREÇÃO DO CORTE */
     .stSelectbox > div > div > div:first-child {
         min-height: 40px;
         display: flex;
@@ -365,19 +364,12 @@ st.markdown(
         font-weight: 400;
     }
     
-    /* Espaçamento para o gráfico */
     .chart-container {
         margin-top: 1rem;
         padding: 1rem;
         background: white;
         border-radius: 16px;
         box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    }
-    
-    /* Campo de senha - API Key */
-    .stTextInput input[type="password"] {
-        font-size: 1.05rem !important;
-        padding: 0.8rem 1rem !important;
     }
     </style>
     """,
@@ -442,13 +434,14 @@ st.markdown("""
 # CRIAÇÃO DAS ABAS
 # =============================================================================
 
-tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "🏠 Início",
     "📂 Importação",
     "🧹 Tratamento",
     "📅 Consolidação",
     "📈 Estatística",
     "📊 Gráficos",
+    "📅 Média Mensal",
     "🤖 IA",
     "📥 Exportação",
     "🌡️ Indicadores"
@@ -502,8 +495,8 @@ with tab0:
     <div class="info-box">
         <strong>📋 Fluxo recomendado:</strong><br>
         1️⃣ Importar dados → 2️⃣ Tratar dados → 3️⃣ Consolidar dados → 
-        4️⃣ Gerar estatísticas → 5️⃣ Criar gráficos → 6️⃣ Gerar relatório com IA → 
-        7️⃣ Exportar resultados → 8️⃣ Avaliar indicadores agrometeorológicos
+        4️⃣ Gerar estatísticas → 5️⃣ Criar gráficos → 6️⃣ Média Mensal → 
+        7️⃣ Gerar relatório com IA → 8️⃣ Exportar resultados
     </div>
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -1044,7 +1037,7 @@ def detectar_extremos(df):
     return pd.DataFrame(extremos)
 
 def calcular_media_mensal(df):
-    """Calcula a média mensal de TODAS as colunas numéricas"""
+    """Calcula a média mensal de TODAS as colunas numéricas (exceto data/hora)"""
     df2 = df.copy()
     
     # Identificar coluna de data
@@ -1063,14 +1056,15 @@ def calcular_media_mensal(df):
     
     # Selecionar TODAS as colunas numéricas (excluindo Ano, Mes, Ano_Mes)
     numericas = df2.select_dtypes(include=np.number).columns.tolist()
-    # Remover colunas auxiliares se existirem
+    # Remover colunas auxiliares
     numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
     
-    # Remover também colunas que claramente são acumuladas (contém 'acum' ou 'soma')
-    numericas = [c for c in numericas if 'acum' not in c.lower() and 'soma' not in c.lower()]
+    # Remover colunas de data/hora que possam estar como numéricas
+    palavras_excluir = ['hora', 'hora_', 'horario', 'data_juliana', 'timestamp']
+    numericas = [c for c in numericas if not any(palavra in str(c).lower() for palavra in palavras_excluir)]
     
     if not numericas:
-        return None, "Nenhuma coluna numérica encontrada para calcular médias mensais."
+        return None, "Nenhuma coluna numérica encontrada."
     
     # Calcular média mensal para TODAS as colunas numéricas
     media_mensal = df2.groupby('Ano_Mes')[numericas].mean().reset_index()
@@ -1097,85 +1091,18 @@ with tab4:
     else:
         df_base = st.session_state["df_consolidado"]
         
-        # ============================================================
-        # MÉDIA MENSAL
-        # ============================================================
-        st.markdown("### 📊 Média Mensal dos Dados")
-        st.markdown("A média mensal é calculada a partir dos valores diários de cada mês.")
-        
-        col_data = identificar_coluna_data(df_base)
-        
-        if col_data is not None:
-            if st.button("📊 Calcular Média Mensal", use_container_width=True):
-                media_mensal, erro = calcular_media_mensal(df_base)
-                if erro:
-                    st.error(f"❌ {erro}")
-                else:
-                    st.session_state["df_mensal"] = media_mensal
-                    
-                    # Mostrar quantas colunas foram calculadas
-                    num_colunas = len(media_mensal.columns) - 3  # menos Ano_Mes, Ano, Mes
-                    st.success(f"✅ Média mensal calculada com sucesso! Foram calculadas médias para {num_colunas} colunas numéricas.")
-            
-            if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
-                df_mensal = st.session_state["df_mensal"]
-                
-                # Mostrar todas as colunas com médias mensais
-                st.dataframe(df_mensal, use_container_width=True)
-                
-                # Botão para baixar a média mensal
-                csv_mensal = df_mensal.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Baixar Médias Mensais (CSV)",
-                    data=csv_mensal,
-                    file_name="medias_mensais.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-                
-                st.markdown("---")
-                
-                # Gráfico da média mensal - TODAS as colunas numéricas
-                colunas_num = df_mensal.select_dtypes(include=np.number).columns.tolist()
-                # Remover Ano e Mes da lista
-                colunas_num = [c for c in colunas_num if c not in ['Ano', 'Mes']]
-                
-                if colunas_num:
-                    st.markdown("#### Selecione a variável para visualizar a média mensal")
-                    var_mensal = st.selectbox(
-                        "Selecione a variável",
-                        colunas_num,
-                        key="var_mensal_estat"
-                    )
-                    if var_mensal:
-                        st.markdown(f"**📈 Média Mensal - {var_mensal}**")
-                        st.line_chart(df_mensal.set_index('Ano_Mes')[var_mensal], use_container_width=True)
-        else:
-            st.info("ℹ️ Nenhuma coluna de data encontrada para calcular média mensal.")
-        
-        st.markdown("---")
-        
-        # ============================================================
-        # ESTATÍSTICA COMPLETA
-        # ============================================================
         st.markdown("### 📊 Estatística Completa")
         estatisticas = gerar_estatisticas(df_base)
         st.dataframe(estatisticas, use_container_width=True)
         
         st.markdown("---")
         
-        # ============================================================
-        # VALORES EXTREMOS
-        # ============================================================
         st.markdown("### 📌 Valores Extremos")
         extremos = detectar_extremos(df_base)
         st.dataframe(extremos, use_container_width=True)
         
         st.markdown("---")
         
-        # ============================================================
-        # MÉTRICAS RÁPIDAS
-        # ============================================================
         st.markdown("### 📋 Métricas Rápidas")
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -1187,9 +1114,6 @@ with tab4:
         
         st.markdown("---")
         
-        # ============================================================
-        # GRÁFICOS DE DISTRIBUIÇÃO
-        # ============================================================
         numericas = df_base.select_dtypes(include=np.number).columns.tolist()
         
         if numericas:
@@ -1225,9 +1149,6 @@ with tab4:
                     st.metric("📊 Q3 (75%)", round(stats['75%'], 2))
                     st.metric("📈 Máximo", round(stats['max'], 2))
         
-        # ============================================================
-        # DOWNLOAD
-        # ============================================================
         st.markdown("---")
         st.session_state["estatisticas"] = estatisticas
         csv_estatisticas = estatisticas.to_csv(index=False).encode("utf-8")
@@ -1254,30 +1175,7 @@ with tab5:
         df = st.session_state["df_consolidado"]
         numericas = df.select_dtypes(include=np.number).columns.tolist()
         
-        # Verificar se há dados mensais
-        tem_mensal = "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None
-        
-        # Opção para usar dados diários ou mensais
-        tipo_dado = st.radio(
-            "Selecione o tipo de dado para visualização",
-            ["📊 Dados Diários", "📊 Dados Mensais"],
-            horizontal=True
-        )
-        
-        if tipo_dado == "📊 Dados Mensais" and tem_mensal:
-            df_graf = st.session_state["df_mensal"]
-            colunas_graf = df_graf.select_dtypes(include=np.number).columns.tolist()
-            colunas_graf = [c for c in colunas_graf if c not in ['Ano', 'Mes']]
-            if 'Ano_Mes' in df_graf.columns:
-                index_col = 'Ano_Mes'
-            else:
-                index_col = df_graf.columns[0]
-        else:
-            df_graf = df
-            colunas_graf = numericas
-            index_col = None
-        
-        if not colunas_graf:
+        if not numericas:
             st.warning("Sem colunas numéricas para visualizar.")
         else:
             st.markdown("#### Selecione o tipo de gráfico")
@@ -1290,35 +1188,26 @@ with tab5:
             st.markdown("#### Selecione a variável")
             var_graf = st.selectbox(
                 "Selecione a variável",
-                colunas_graf,
+                numericas,
                 key="var_graf_aba5"
             )
             
             if var_graf:
                 if tipo_grafico == "📈 Linhas":
                     st.markdown(f"**📈 Série - {var_graf}**")
-                    if index_col and index_col in df_graf.columns:
-                        st.line_chart(df_graf.set_index(index_col)[var_graf], use_container_width=True)
-                    else:
-                        st.line_chart(df_graf[var_graf], use_container_width=True)
+                    st.line_chart(df[var_graf], use_container_width=True)
                 
                 elif tipo_grafico == "📊 Barras":
                     st.markdown(f"**📊 Barras - {var_graf}**")
-                    if index_col and index_col in df_graf.columns:
-                        st.bar_chart(df_graf.set_index(index_col)[var_graf], use_container_width=True)
-                    else:
-                        st.bar_chart(df_graf[var_graf], use_container_width=True)
+                    st.bar_chart(df[var_graf], use_container_width=True)
                 
                 elif tipo_grafico == "📉 Área":
                     st.markdown(f"**📉 Área - {var_graf}**")
-                    if index_col and index_col in df_graf.columns:
-                        st.area_chart(df_graf.set_index(index_col)[var_graf], use_container_width=True)
-                    else:
-                        st.area_chart(df_graf[var_graf], use_container_width=True)
+                    st.area_chart(df[var_graf], use_container_width=True)
                 
                 elif tipo_grafico == "📊 Histograma":
                     st.markdown(f"**📊 Histograma - {var_graf}**")
-                    hist_data = df_graf[var_graf].dropna()
+                    hist_data = df[var_graf].dropna()
                     if len(hist_data) > 0:
                         bins = np.histogram_bin_edges(hist_data, bins='auto')
                         hist_counts = np.histogram(hist_data, bins=bins)[0]
@@ -1332,11 +1221,145 @@ with tab5:
             st.markdown("### 📋 Estatísticas Rápidas")
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("📉 Mínimo", round(df_graf[var_graf].min(), 2))
+                st.metric("📉 Mínimo", round(df[var_graf].min(), 2))
             with col2:
-                st.metric("📈 Máximo", round(df_graf[var_graf].max(), 2))
+                st.metric("📈 Máximo", round(df[var_graf].max(), 2))
             with col3:
-                st.metric("📊 Média", round(df_graf[var_graf].mean(), 2))
+                st.metric("📊 Média", round(df[var_graf].mean(), 2))
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# =============================================================================
+# ABA 6 - MÉDIA MENSAL (NOVA ABA PRINCIPAL)
+# =============================================================================
+
+with tab6:
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📅 Média Mensal dos Dados</div>', unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="info-box">
+        <strong>📊 Análise de Médias Mensais</strong><br>
+        Esta ferramenta calcula a média mensal de <strong>TODAS</strong> as colunas numéricas da sua planilha,
+        excluindo automaticamente colunas de data, hora e identificadores.
+        <br><br>
+        <strong>📌 Função Principal:</strong> Analisar a variação mensal de todas as variáveis climáticas 
+        (Temperatura, Umidade, Pressão, Vento, Radiação, Chuva, etc.)
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
+        st.warning("⚠️ Primeiro consolide os dados na aba 'Consolidação'.")
+    else:
+        df_base = st.session_state["df_consolidado"]
+        
+        # Identificar coluna de data
+        col_data = identificar_coluna_data(df_base)
+        
+        if col_data is None:
+            st.warning("⚠️ Nenhuma coluna de data encontrada para calcular médias mensais.")
+        else:
+            # Mostrar informações da base
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("📊 Total de Linhas", len(df_base))
+            with col2:
+                st.metric("📋 Colunas Numéricas", len(df_base.select_dtypes(include=np.number).columns))
+            with col3:
+                st.metric("📅 Coluna de Data", col_data)
+            
+            st.markdown("---")
+            
+            # Botão para calcular
+            if st.button("📊 Calcular Média Mensal de Todas as Colunas", use_container_width=True):
+                with st.spinner("Calculando médias mensais..."):
+                    media_mensal, erro = calcular_media_mensal(df_base)
+                    if erro:
+                        st.error(f"❌ {erro}")
+                    else:
+                        st.session_state["df_mensal"] = media_mensal
+                        
+                        # Mostrar quantas colunas foram calculadas
+                        num_colunas = len(media_mensal.columns) - 3  # menos Ano_Mes, Ano, Mes
+                        st.success(f"✅ Média mensal calculada com sucesso!")
+                        st.info(f"📊 Foram calculadas médias para **{num_colunas}** colunas numéricas (excluindo data/hora).")
+            
+            st.markdown("---")
+            
+            if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
+                df_mensal = st.session_state["df_mensal"]
+                
+                # ============================================================
+                # TABELA DE MÉDIAS MENSAIS
+                # ============================================================
+                st.markdown("### 📋 Tabela de Médias Mensais")
+                st.dataframe(df_mensal, use_container_width=True)
+                
+                # Botão para baixar a média mensal
+                csv_mensal = df_mensal.to_csv(index=False).encode('utf-8')
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.download_button(
+                        "📥 Baixar Médias Mensais (CSV)",
+                        data=csv_mensal,
+                        file_name="medias_mensais.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                
+                st.markdown("---")
+                
+                # ============================================================
+                # GRÁFICOS INTERATIVOS
+                # ============================================================
+                st.markdown("### 📊 Análise Gráfica das Médias Mensais")
+                
+                # Lista de colunas para seleção (excluindo Ano, Mes, Ano_Mes)
+                colunas_para_grafico = df_mensal.select_dtypes(include=np.number).columns.tolist()
+                colunas_para_grafico = [c for c in colunas_para_grafico if c not in ['Ano', 'Mes']]
+                
+                if colunas_para_grafico:
+                    st.markdown("#### Selecione uma ou mais variáveis para visualizar")
+                    
+                    # Seleção múltipla de variáveis
+                    vars_selecionadas = st.multiselect(
+                        "Selecione as variáveis",
+                        colunas_para_grafico,
+                        default=[colunas_para_grafico[0]] if colunas_para_grafico else []
+                    )
+                    
+                    if vars_selecionadas:
+                        # Gráfico de linhas
+                        st.markdown(f"**📈 Evolução Mensal das Variáveis Selecionadas**")
+                        df_plot = df_mensal.set_index('Ano_Mes')[vars_selecionadas]
+                        st.line_chart(df_plot, use_container_width=True)
+                        
+                        st.markdown("---")
+                        
+                        # Gráfico de barras (apenas para uma variável)
+                        if len(vars_selecionadas) == 1:
+                            st.markdown(f"**📊 Distribuição Mensal - {vars_selecionadas[0]}**")
+                            st.bar_chart(df_mensal.set_index('Ano_Mes')[vars_selecionadas[0]], use_container_width=True)
+                        else:
+                            st.markdown("**📊 Comparação Mensal (Barras)**")
+                            st.bar_chart(df_plot, use_container_width=True)
+                        
+                        st.markdown("---")
+                        
+                        # Estatísticas rápidas das variáveis selecionadas
+                        st.markdown("### 📋 Estatísticas das Variáveis Selecionadas")
+                        stats_cols = st.columns(min(len(vars_selecionadas), 4))
+                        for idx, var in enumerate(vars_selecionadas[:4]):
+                            with stats_cols[idx]:
+                                dados = df_mensal[var].dropna()
+                                st.metric(
+                                    f"📊 {var}",
+                                    f"Média: {dados.mean():.2f}",
+                                    f"Min: {dados.min():.2f} | Max: {dados.max():.2f}"
+                                )
+                    else:
+                        st.info("ℹ️ Selecione pelo menos uma variável para visualizar o gráfico.")
+                else:
+                    st.warning("Nenhuma coluna numérica disponível para gráficos.")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1406,7 +1429,6 @@ Explique os resultados em linguagem acessível.
 
 def consultar_ia(prompt_usuario, contexto):
     try:
-        # Usa a chave API definida diretamente no código
         api_key = GEMINI_API_KEY
         
         if not api_key or api_key == "SUA_CHAVE_API_AQUI":
@@ -1431,10 +1453,10 @@ def consultar_ia(prompt_usuario, contexto):
         return f"❌ Erro: {erro}"
 
 # =============================================================================
-# ABA 6 - IA
+# ABA 7 - IA
 # =============================================================================
 
-with tab6:
+with tab7:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">🤖 Inteligência Artificial</div>', unsafe_allow_html=True)
     
@@ -1544,10 +1566,10 @@ def gerar_csv_mensal():
     return buffer
 
 # =============================================================================
-# ABA 7 - EXPORTAÇÃO
+# ABA 8 - EXPORTAÇÃO
 # =============================================================================
 
-with tab7:
+with tab8:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📥 Exportação Profissional</div>', unsafe_allow_html=True)
     
@@ -1661,10 +1683,10 @@ def indice_conforto_termico(temperatura, umidade):
     return temperatura - (0.55 - 0.0055 * umidade) * (temperatura - 14.5)
 
 # =============================================================================
-# ABA 8 - INDICADORES
+# ABA 9 - INDICADORES
 # =============================================================================
 
-with tab8:
+with tab9:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">🌡️ Indicadores Agrometeorológicos</div>', unsafe_allow_html=True)
     

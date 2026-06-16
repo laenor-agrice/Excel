@@ -1317,7 +1317,78 @@ def gerar_relatorio_pdf_completo(df_mensal, df_indicadores, qualidade, eventos_e
 # ============================================================================
 # FUNÇÃO PRINCIPAL DE PROCESSAMENTO
 # ============================================================================
-
+def preenchimento_inteligente_falhas(df, metodo='multivariado'):
+    """
+    Preenchimento avançado de falhas usando múltiplas técnicas.
+    
+    Métodos disponíveis:
+    - interpolacao_linear: Interpolação linear entre pontos válidos
+    - interpolacao_spline: Interpolação spline cúbica
+    - media_movel: Média móvel com janela de 24 horas
+    - multivariado: Combinação de métodos (recomendado)
+    """
+    
+    df_filled = df.copy()
+    
+    # Identificar colunas numéricas
+    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
+                         'Precipitacao', 'U2', 'Press_Inst']
+    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
+    
+    try:
+        if metodo == 'interpolacao_linear':
+            for col in colunas_existentes:
+                if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
+                    df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=24)
+                    
+        elif metodo == 'interpolacao_spline':
+            for col in colunas_existentes:
+                if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
+                    try:
+                        df_filled[col] = df_filled[col].interpolate(method='spline', order=3, limit_direction='both')
+                    except:
+                        df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=24)
+                    
+        elif metodo == 'media_movel':
+            for col in colunas_existentes:
+                if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
+                    media_movel = df_filled[col].rolling(window=24, min_periods=6, center=True).mean()
+                    df_filled[col] = df_filled[col].fillna(media_movel)
+                    
+        elif metodo == 'multivariado':
+            # Combinação de métodos
+            for col in colunas_existentes:
+                if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
+                    # Primeiro, interpolação linear
+                    df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=12)
+                    
+                    # Depois, média móvel para os remanescentes
+                    mascara = df_filled[col].isna()
+                    if mascara.any():
+                        media_movel = df_filled[col].rolling(window=48, min_periods=12, center=True).mean()
+                        df_filled.loc[mascara, col] = media_movel.loc[mascara]
+                    
+                    # Por último, preenchimento sazonal
+                    if 'Month' in df_filled.columns:
+                        mascara = df_filled[col].isna()
+                        if mascara.any():
+                            medias_mensais = df_filled.groupby('Month')[col].transform('mean')
+                            df_filled.loc[mascara, col] = medias_mensais.loc[mascara]
+        
+        # Verificar se ainda há NaN e preencher com mediana
+        for col in colunas_existentes:
+            if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
+                if df_filled[col].isna().any():
+                    mediana = df_filled[col].median()
+                    if pd.notna(mediana):
+                        df_filled[col].fillna(mediana, inplace=True)
+                    else:
+                        df_filled[col].fillna(0, inplace=True)
+                
+    except Exception as e:
+        pass
+    
+    return df_filled
 def pipeline_completo_processamento(arquivo_bytes, config):
     """Pipeline completo de processamento de dados INMET"""
     

@@ -234,7 +234,7 @@ st.markdown(
         display: inline-block;
     }
     
-    /* Inputs grandes */
+    /* Inputs grandes - CORRIGIDO: texto em verde escuro */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
@@ -255,19 +255,30 @@ st.markdown(
         color: #1a5c1a !important;
     }
     
-    /* Selectbox - CORRIGIDO: texto em verde escuro */
+    /* Selectbox - CORRIGIDO: texto em verde escuro e sem corte */
+    .stSelectbox {
+        margin-bottom: 1.5rem;
+        min-height: 70px;
+    }
+    
+    .stSelectbox > div {
+        min-height: 60px;
+    }
+    
     .stSelectbox > div > div {
         border-radius: 12px;
         border: 2px solid #e0e4ed;
-        padding: 0.3rem 1rem;
+        padding: 0.5rem 1rem;
         font-size: 1.05rem;
         transition: all 0.3s ease;
         background: white;
         color: #1a5c1a !important;
+        min-height: 50px;
     }
     
     .stSelectbox > div > div > div {
         color: #1a5c1a !important;
+        font-size: 1.05rem !important;
     }
     
     .stSelectbox > div > div:focus {
@@ -277,19 +288,19 @@ st.markdown(
     
     .stSelectbox > div > div > div > div {
         color: #1a5c1a !important;
+        font-size: 1rem !important;
+        padding: 8px 12px !important;
     }
     
     .stSelectbox > div > div > div > div:hover {
         background-color: #e8f5e9 !important;
     }
     
-    /* Ajuste para o selectbox não ficar cortado */
-    .stSelectbox {
-        margin-bottom: 1.5rem;
-    }
-    
-    .stSelectbox > div {
-        min-height: 60px;
+    /* Ajuste para o selectbox não ficar cortado - CORREÇÃO DO CORTE */
+    .stSelectbox > div > div > div:first-child {
+        min-height: 40px;
+        display: flex;
+        align-items: center;
     }
     
     /* Checkbox grande */
@@ -362,6 +373,12 @@ st.markdown(
         border-radius: 16px;
         box-shadow: 0 2px 12px rgba(0,0,0,0.06);
     }
+    
+    /* Campo de senha - API Key */
+    .stTextInput input[type="password"] {
+        font-size: 1.05rem !important;
+        padding: 0.8rem 1rem !important;
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -406,6 +423,9 @@ if "arquivo_nome" not in st.session_state:
 
 if "df_mensal" not in st.session_state:
     st.session_state["df_mensal"] = None
+
+if "gemini_api_key" not in st.session_state:
+    st.session_state["gemini_api_key"] = ""
 
 # =============================================================================
 # TÍTULO PRINCIPAL
@@ -1024,7 +1044,7 @@ def detectar_extremos(df):
     return pd.DataFrame(extremos)
 
 def calcular_media_mensal(df):
-    """Calcula a média mensal dos dados"""
+    """Calcula a média mensal de TODAS as colunas numéricas"""
     df2 = df.copy()
     
     # Identificar coluna de data
@@ -1041,13 +1061,15 @@ def calcular_media_mensal(df):
     df2['Mes'] = df2[col_data].dt.month
     df2['Ano_Mes'] = df2[col_data].dt.strftime('%Y-%m')
     
-    # Selecionar apenas colunas numéricas
+    # Selecionar TODAS as colunas numéricas (excluindo Ano, Mes, Ano_Mes)
     numericas = df2.select_dtypes(include=np.number).columns.tolist()
+    # Remover colunas auxiliares se existirem
+    numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
     
     if not numericas:
         return None, "Nenhuma coluna numérica encontrada."
     
-    # Calcular média mensal
+    # Calcular média mensal para TODAS as colunas numéricas
     media_mensal = df2.groupby('Ano_Mes')[numericas].mean().reset_index()
     
     # Adicionar Ano e Mes para referência
@@ -1083,7 +1105,7 @@ with tab4:
                     st.error(f"❌ {erro}")
                 else:
                     st.session_state["df_mensal"] = media_mensal
-                    st.success("✅ Média mensal calculada com sucesso!")
+                    st.success("✅ Média mensal calculada com sucesso! Foram calculadas médias para todas as colunas numéricas.")
             
             if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
                 df_mensal = st.session_state["df_mensal"]
@@ -1101,9 +1123,9 @@ with tab4:
                 
                 st.markdown("---")
                 
-                # Gráfico da média mensal
+                # Gráfico da média mensal - TODAS as colunas numéricas
                 colunas_num = df_mensal.select_dtypes(include=np.number).columns.tolist()
-                # Remover Ano e Mes da lista se existirem
+                # Remover Ano e Mes da lista
                 colunas_num = [c for c in colunas_num if c not in ['Ano', 'Mes']]
                 
                 if colunas_num:
@@ -1246,12 +1268,14 @@ with tab5:
         if not colunas_graf:
             st.warning("Sem colunas numéricas para visualizar.")
         else:
+            st.markdown("#### Selecione o tipo de gráfico")
             tipo_grafico = st.selectbox(
                 "Selecione o tipo de gráfico",
                 ["📈 Linhas", "📊 Barras", "📉 Área", "📊 Histograma"],
                 key="tipo_graf_aba5"
             )
             
+            st.markdown("#### Selecione a variável")
             var_graf = st.selectbox(
                 "Selecione a variável",
                 colunas_graf,
@@ -1306,6 +1330,9 @@ with tab5:
 # =============================================================================
 # IA - PREPARAÇÃO DE CONTEXTO
 # =============================================================================
+
+# COLOQUE SUA CHAVE API AQUI
+GEMINI_API_KEY = "SUA_CHAVE_API_AQUI"  # Substitua pela sua chave real
 
 def gerar_contexto_automatico(df):
     numericas = df.select_dtypes(include=np.number)
@@ -1367,7 +1394,12 @@ Explique os resultados em linguagem acessível.
 
 def consultar_ia(prompt_usuario, contexto):
     try:
-        api_key = st.secrets["GEMINI_API_KEY"]
+        # Usa a chave API definida diretamente no código
+        api_key = GEMINI_API_KEY
+        
+        if not api_key or api_key == "SUA_CHAVE_API_AQUI":
+            return "⚠️ Chave API do Gemini não configurada. Por favor, edite o código e adicione sua chave API na variável GEMINI_API_KEY."
+        
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         payload = {
             "contents": [
@@ -1382,9 +1414,9 @@ def consultar_ia(prompt_usuario, contexto):
         if resposta.status_code == 200:
             dados = resposta.json()
             return dados["candidates"][0]["content"]["parts"][0]["text"]
-        return f"Erro na API Gemini: {resposta.status_code}"
+        return f"❌ Erro na API Gemini: {resposta.status_code} - {resposta.text}"
     except Exception as erro:
-        return f"Erro: {erro}"
+        return f"❌ Erro: {erro}"
 
 # =============================================================================
 # ABA 6 - IA
@@ -1444,7 +1476,6 @@ with tab6:
         else:
             st.info("ℹ️ Ative a IA Gemini para gerar relatórios inteligentes.")
     st.markdown('</div>', unsafe_allow_html=True)
-
 # =============================================================================
 # FUNÇÕES DE EXPORTAÇÃO
 # =============================================================================

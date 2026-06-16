@@ -671,36 +671,42 @@ def validar_consistencia_fisica(df):
 
 
 def analise_completa_qualidade(df):
-    """Análise completa da qualidade dos dados"""
-    
+    """
+    Analise completa da qualidade dos dados
+    """
     qualidade = {}
+    outliers_info = {}
     
-    # Identificar colunas numéricas
+    # Identificar colunas numericas
     colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
                          'Precipitacao', 'U2', 'Press_Inst']
     colunas_existentes = [c for c in colunas_numericas if c in df.columns]
     
-    # Estatísticas de completude
+    # Estatisticas de completude
     for col in colunas_existentes:
         try:
-            # Verificar se é uma Series
             if isinstance(df[col], pd.Series):
                 total = len(df)
                 presentes = int(df[col].notna().sum()) if df[col].notna().sum() is not None else 0
                 percentual = (presentes / total) * 100 if total > 0 else 0
+                
+                classificacao = 'Boa'
+                if percentual < 80:
+                    classificacao = 'Critica'
+                elif percentual < 95:
+                    classificacao = 'Regular'
                 
                 qualidade[col] = {
                     'total_registros': total,
                     'dados_presentes': presentes,
                     'dados_faltantes': total - presentes,
                     'percentual_completo': round(percentual, 2),
-                    'classificacao': 'Boa' if percentual >= 95 else 'Regular' if percentual >= 80 else 'Crítica'
+                    'classificacao': classificacao
                 }
-        except Exception as e:
+        except:
             pass
     
-    # Análise de outliers (usando IQR)
-    outliers_info = {}
+    # Analise de outliers (usando IQR)
     for col in colunas_existentes:
         try:
             if isinstance(df[col], pd.Series):
@@ -710,7 +716,7 @@ def analise_completa_qualidade(df):
                     Q3 = dados_validos.quantile(0.75)
                     IQR = Q3 - Q1
                     
-                    if IQR > 0:  # Evitar divisão por zero
+                    if IQR > 0:
                         limite_inferior = Q1 - 3 * IQR
                         limite_superior = Q3 + 3 * IQR
                         
@@ -723,10 +729,10 @@ def analise_completa_qualidade(df):
                             'num_outliers': num_outliers,
                             'percentual_outliers': round((num_outliers / len(dados_validos)) * 100, 2) if len(dados_validos) > 0 else 0
                         }
-        except Exception as e:
+        except:
             pass
     
-    # Análise de consistência temporal
+    # Analise de consistencia temporal
     if 'DateTime' in df.columns and isinstance(df['DateTime'], pd.Series):
         try:
             df_sorted = df.sort_values('DateTime')
@@ -740,7 +746,7 @@ def analise_completa_qualidade(df):
                     'intervalo_medio': str(intervalos.mean()) if not intervalos.empty else 'N/A',
                     'intervalo_mediano': str(intervalos.median()) if not intervalos.empty else 'N/A'
                 }
-        except Exception as e:
+        except:
             pass
     
     return qualidade, outliers_info

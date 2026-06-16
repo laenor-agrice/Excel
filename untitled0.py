@@ -204,18 +204,15 @@ def calcular_media_por_mes(df, coluna_data, variavel):
     df2 = df.copy()
     df2['Mes'] = df2[coluna_data].dt.month
     
-    # Calcular média por mês
     media_mensal = df2.groupby('Mes')[variavel].mean().reset_index()
     media_mensal.columns = ['Mes', 'Media']
     
-    # Adicionar nomes dos meses
     nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
                    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
     media_mensal['Mes_Nome'] = media_mensal['Mes'].apply(
         lambda x: nomes_meses[int(x)-1] if 1 <= int(x) <= 12 else str(x)
     )
     
-    # Ordenar por mês
     media_mensal = media_mensal.sort_values('Mes').reset_index(drop=True)
     
     return media_mensal
@@ -232,7 +229,7 @@ st.set_page_config(
 )
 
 # =============================================================================
-# CSS GLOBAL - FUNDO AZUL E CARDS VERDE PISCINA
+# CSS GLOBAL - LAYOUT UNIFORME
 # =============================================================================
 
 st.markdown(
@@ -254,9 +251,9 @@ st.markdown(
         width: 100% !important;
     }
     
-    /* Elementos principais - verde piscina */
-    .custom-card {
-        background: linear-gradient(145deg, rgba(180, 230, 210, 0.95), rgba(140, 210, 190, 0.92));
+    /* Todos os cards com o mesmo estilo - verde piscina */
+    .custom-card, .main-header {
+        background: linear-gradient(145deg, rgba(180, 230, 210, 0.92), rgba(140, 210, 190, 0.88));
         border-radius: 16px;
         padding: 1.8rem;
         box-shadow: 0 4px 20px rgba(0,50,30,0.12);
@@ -264,17 +261,7 @@ st.markdown(
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255,255,255,0.2);
         width: 100%;
-    }
-    
-    .main-header {
-        background: linear-gradient(135deg, #0d2b45 0%, #1a5276 50%, #2e86c1 100%);
-        padding: 1.8rem 2.5rem;
-        border-radius: 16px;
-        margin-bottom: 1.5rem;
-        color: white;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-        text-align: center;
-        width: 100%;
+        color: #1a4a3a;
     }
     
     .main-header h1 {
@@ -282,15 +269,17 @@ st.markdown(
         font-size: 2.2rem;
         font-weight: 700;
         letter-spacing: -1px;
+        color: #1a4a3a;
     }
     
     .main-header p {
         margin: 0.4rem 0 0 0;
-        opacity: 0.9;
+        opacity: 0.85;
         font-size: 1.1rem;
+        color: #1a4a3a;
     }
     
-    /* Botões em verde piscina */
+    /* Botões em verde piscina - uniforme */
     .stButton > button {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
@@ -313,11 +302,11 @@ st.markdown(
     /* Upload em verde piscina */
     .stFileUploader > div {
         border: 2px dashed #3da88a;
-        border-radius: 16px;
-        padding: 2.5rem 2rem;
-        background: rgba(200, 240, 225, 0.4);
+        border-radius: 12px;
+        padding: 2rem;
+        background: rgba(200, 240, 225, 0.35);
         transition: all 0.3s ease;
-        min-height: 120px;
+        min-height: 100px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -325,14 +314,14 @@ st.markdown(
     
     .stFileUploader > div:hover {
         border-color: #2d8a6e;
-        background: rgba(180, 230, 215, 0.5);
+        background: rgba(180, 230, 215, 0.45);
         transform: scale(1.01);
         box-shadow: 0 4px 20px rgba(45, 138, 110, 0.1);
     }
     
-    /* Métricas em verde piscina - tamanho uniforme */
+    /* Métricas em verde piscina - uniforme */
     .stMetric {
-        background: rgba(200, 240, 225, 0.8);
+        background: rgba(200, 240, 225, 0.75);
         border-radius: 12px;
         padding: 1rem;
         box-shadow: 0 2px 15px rgba(0,0,0,0.05);
@@ -344,7 +333,7 @@ st.markdown(
     .stMetric:hover {
         transform: translateY(-3px);
         box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        background: rgba(200, 240, 225, 0.95);
+        background: rgba(200, 240, 225, 0.9);
     }
     
     .stMetric > div {
@@ -372,7 +361,7 @@ st.markdown(
     
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
-        background: rgba(200, 240, 225, 0.8);
+        background: rgba(200, 240, 225, 0.75);
         border-radius: 12px;
         padding: 8px 12px;
         box-shadow: 0 2px 15px rgba(0,0,0,0.06);
@@ -414,19 +403,19 @@ st.markdown(
     
     /* Caixas de informação em verde piscina */
     .info-box {
-        background: linear-gradient(135deg, rgba(200, 240, 225, 0.7), rgba(160, 220, 200, 0.6));
+        background: rgba(200, 240, 225, 0.5);
         border-left: 4px solid #3da88a;
         padding: 1rem 1.5rem;
         border-radius: 10px;
         margin: 1rem 0;
         color: #1a4a3a;
         font-size: 1rem;
-        box-shadow: 0 2px 10px rgba(45, 138, 110, 0.06);
+        box-shadow: 0 2px 10px rgba(45, 138, 110, 0.05);
     }
     
     .config-box {
-        background: rgba(200, 240, 225, 0.6);
-        border: 1px solid rgba(100, 200, 170, 0.25);
+        background: rgba(200, 240, 225, 0.4);
+        border: 1px solid rgba(100, 200, 170, 0.2);
         border-radius: 12px;
         padding: 1.5rem;
         margin: 1rem 0;
@@ -450,16 +439,16 @@ st.markdown(
         display: inline-block;
     }
     
-    /* Inputs em verde piscina - tamanho uniforme */
+    /* Inputs em verde piscina - uniforme */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
         border-radius: 10px;
-        border: 1px solid rgba(100, 200, 170, 0.35);
+        border: 1px solid rgba(100, 200, 170, 0.3);
         padding: 0.6rem 0.8rem;
         font-size: 0.95rem;
         transition: all 0.3s ease;
-        background: rgba(255,255,255,0.9);
+        background: rgba(255,255,255,0.85);
         color: #1a4a3a !important;
     }
     
@@ -467,29 +456,29 @@ st.markdown(
     .stTextArea > div > div > textarea:focus,
     .stNumberInput > div > div > input:focus {
         border-color: #3da88a;
-        box-shadow: 0 0 0 3px rgba(45, 138, 110, 0.12);
+        box-shadow: 0 0 0 3px rgba(45, 138, 110, 0.1);
         color: #1a4a3a !important;
     }
     
-    /* Selectbox em verde piscina - tamanho uniforme */
+    /* Selectbox em verde piscina - uniforme */
     .stSelectbox {
         margin-bottom: 1rem;
-        min-height: 55px;
+        min-height: 50px;
     }
     
     .stSelectbox > div {
-        min-height: 50px;
+        min-height: 45px;
     }
     
     .stSelectbox > div > div {
         border-radius: 10px;
-        border: 1px solid rgba(100, 200, 170, 0.35);
+        border: 1px solid rgba(100, 200, 170, 0.3);
         padding: 0.4rem 0.8rem;
         font-size: 0.95rem;
         transition: all 0.3s ease;
-        background: rgba(255,255,255,0.9);
+        background: rgba(255,255,255,0.85);
         color: #1a4a3a !important;
-        min-height: 45px;
+        min-height: 42px;
     }
     
     .stSelectbox > div > div > div {
@@ -499,7 +488,7 @@ st.markdown(
     
     .stSelectbox > div > div:focus {
         border-color: #3da88a;
-        box-shadow: 0 0 0 3px rgba(45, 138, 110, 0.12);
+        box-shadow: 0 0 0 3px rgba(45, 138, 110, 0.1);
     }
     
     .stSelectbox > div > div > div > div {
@@ -509,11 +498,11 @@ st.markdown(
     }
     
     .stSelectbox > div > div > div > div:hover {
-        background-color: rgba(200, 240, 225, 0.4) !important;
+        background-color: rgba(200, 240, 225, 0.3) !important;
     }
     
     .stSelectbox > div > div > div:first-child {
-        min-height: 35px;
+        min-height: 32px;
         display: flex;
         align-items: center;
     }
@@ -527,9 +516,9 @@ st.markdown(
     /* Dataframes - ocupam toda a largura */
     .stDataFrame {
         border-radius: 12px;
-        border: 1px solid rgba(100, 200, 170, 0.25);
+        border: 1px solid rgba(100, 200, 170, 0.2);
         overflow: hidden;
-        background: rgba(255,255,255,0.9);
+        background: rgba(255,255,255,0.85);
         box-shadow: 0 2px 10px rgba(0,0,0,0.04);
         width: 100%;
     }
@@ -610,7 +599,7 @@ st.markdown(
     }
     
     ::-webkit-scrollbar-track {
-        background: rgba(200, 240, 225, 0.2);
+        background: rgba(200, 240, 225, 0.15);
         border-radius: 8px;
     }
     
@@ -662,7 +651,7 @@ if "gemini_api_key" not in st.session_state:
     st.session_state["gemini_api_key"] = ""
 
 # =============================================================================
-# TÍTULO PRINCIPAL
+# TÍTULO PRINCIPAL - AGORA COM O MESMO ESTILO DOS CARDS
 # =============================================================================
 
 st.markdown("""

@@ -6,9 +6,11 @@ from datetime import datetime
 import base64
 import warnings
 import requests
-import json
 import re
-import math
+import matplotlib.pyplot as plt
+import seaborn as sns
+from plotly import graph_objs as go
+import plotly.express as px
 warnings.filterwarnings('ignore')
 
 # ============================================================================
@@ -16,7 +18,7 @@ warnings.filterwarnings('ignore')
 # ============================================================================
 
 st.set_page_config(
-    page_title="INMET Professional Processor - Sistema Completo de Análise Meteorológica",
+    page_title="Smart Meteorological Processor - Sistema Completo de Análise Meteorológica",
     page_icon="🌾",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -25,12 +27,10 @@ st.set_page_config(
 # CSS Personalizado Avançado
 st.markdown("""
 <style>
-    /* Estilo principal */
     .stApp {
         background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
     }
     
-    /* Cabeçalho principal */
     .main-header {
         background: linear-gradient(135deg, rgba(27, 94, 87, 0.95), rgba(15, 55, 70, 0.95));
         backdrop-filter: blur(10px);
@@ -50,7 +50,6 @@ st.markdown("""
         margin-bottom: 0.5rem;
     }
     
-    /* Cards de métricas */
     .metric-card {
         background: linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
         border-radius: 20px;
@@ -67,33 +66,6 @@ st.markdown("""
         box-shadow: 0 8px 25px rgba(0,0,0,0.2);
     }
     
-    /* Cards de alerta */
-    .warning-card {
-        background: linear-gradient(135deg, rgba(255,193,7,0.15), rgba(255,152,0,0.08));
-        border-left: 5px solid #ff9800;
-        border-radius: 15px;
-        padding: 1.2rem;
-        margin: 1rem 0;
-        backdrop-filter: blur(5px);
-    }
-    
-    .critical-card {
-        background: linear-gradient(135deg, rgba(244,67,54,0.15), rgba(229,57,53,0.08));
-        border-left: 5px solid #f44336;
-        border-radius: 15px;
-        padding: 1.2rem;
-        margin: 1rem 0;
-    }
-    
-    .success-card {
-        background: linear-gradient(135deg, rgba(76,175,80,0.12), rgba(56,142,60,0.08));
-        border-left: 5px solid #4caf50;
-        border-radius: 15px;
-        padding: 1.2rem;
-        margin: 1rem 0;
-    }
-    
-    /* Tabs personalizadas */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background: rgba(255,255,255,0.05);
@@ -115,34 +87,13 @@ st.markdown("""
         box-shadow: 0 2px 10px rgba(46,125,50,0.3);
     }
     
-    /* DataFrame */
-    .stDataFrame {
-        background: rgba(255,255,255,0.05);
-        border-radius: 15px;
-        overflow: hidden;
-    }
-    
-    /* Botões */
-    .stButton button {
-        background: linear-gradient(135deg, #2e7d32, #1b5e20);
-        border: none;
-        border-radius: 30px;
-        padding: 10px 25px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-    
-    .stButton button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 20px rgba(46,125,50,0.4);
-    }
-    
-    /* Expander */
-    .streamlit-expanderHeader {
-        background: linear-gradient(135deg, rgba(46,125,50,0.2), rgba(27,94,32,0.1));
-        border-radius: 15px;
-        font-weight: 600;
-        color: #81c784 !important;
+    .footer {
+        text-align: center;
+        padding: 20px;
+        font-size: 12px;
+        color: #999;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        margin-top: 30px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -151,31 +102,23 @@ st.markdown("""
 # CONFIGURAÇÃO DA IA GEMINI
 # ============================================================================
 
-GEMINI_API_KEY = "AQ.Ab8RN6J5uzUogvavjQyfFr3wGWEaJbdrW3oByqhWo2bm_mMxmQ"  # Insira sua chave API aqui
+GEMINI_API_KEY = "AQ.Ab8RN6J5uzUogvavjQyfFr3wGWEaJbdrW3oByqhWo2bm_mMxmQ"
 
 def consultar_gemini(prompt, contexto=""):
     """Consulta a API Gemini para análises climáticas"""
     try:
         if not GEMINI_API_KEY:
-            return "⚠️ API Key do Gemini não configurada. Insira sua chave na variável GEMINI_API_KEY."
+            return "⚠️ API Key do Gemini não configurada."
         
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
         
-        prompt_completo = f"""Você é um meteorologista especialista em climatologia e engenheiro agrônomo. 
-        Analise os seguintes dados climáticos e forneça uma interpretação profissional.
+        prompt_completo = f"""Você é um meteorologista especialista. Analise os dados climáticos.
 
-        CONTEXTO DOS DADOS:
+        CONTEXTO:
         {contexto}
 
-        PERGUNTA/ANÁLISE SOLICITADA:
+        PERGUNTA:
         {prompt}
-
-        Por favor, forneça uma análise que inclua:
-        1. Identificação de padrões climáticos anormais
-        2. Possível relação com fenômenos como El Niño, La Niña, ou outras oscilações climáticas
-        3. Implicações para a agricultura (se aplicável)
-        4. Recomendações práticas
-        5. Use linguagem técnica mas acessível a profissionais da área
 
         RESPOSTA:
         """
@@ -198,41 +141,31 @@ def consultar_gemini(prompt, contexto=""):
             if "candidates" in resultado and resultado["candidates"]:
                 return resultado["candidates"][0]["content"]["parts"][0]["text"]
             else:
-                return "Não foi possível obter uma análise detalhada da IA."
-        elif response.status_code == 429:
-            return "⚠️ Limite de requisições da API atingido. Tente novamente em alguns instantes."
+                return "Não foi possível obter uma análise detalhada."
         else:
-            return f"⚠️ Erro na consulta da IA: Status {response.status_code}"
+            return f"⚠️ Erro na consulta: Status {response.status_code}"
             
     except Exception as e:
-        return f"⚠️ Erro ao consultar IA: {str(e)}"
+        return f"⚠️ Erro: {str(e)}"
 
 # ============================================================================
-# FUNÇÕES AVANÇADAS DE DETECÇÃO DE FORMATO
+# FUNÇÕES DE LEITURA E PROCESSAMENTO
 # ============================================================================
 
-def detectar_formato_arquivo_avancado(arquivo_bytes):
-    """Detecção avançada de formato de arquivo INMET"""
-    
-    # Ler primeiras linhas para análise
+def detectar_formato_arquivo(arquivo_bytes):
+    """Detecção avançada de formato de arquivo"""
     conteudo = arquivo_bytes.getvalue().decode('utf-8', errors='ignore')[:5000]
     linhas = conteudo.split('\n')
     
     info = {
         'delimiter': None,
-        'encoding': 'utf-8',
-        'has_header': True,
-        'date_format': None,
         'decimal_separator': ',',
-        'columns_mapping': {},
         'skiprows': 0,
         'station_name': None,
         'latitude': None,
-        'longitude': None,
-        'altitude': None
+        'longitude': None
     }
     
-    # Detectar delimitador
     delimiters = [';', ',', '\t', '|']
     for delim in delimiters:
         if delim in linhas[0]:
@@ -242,34 +175,13 @@ def detectar_formato_arquivo_avancado(arquivo_bytes):
     if not info['delimiter']:
         info['delimiter'] = ';'
     
-    # Detectar separador decimal
     if ',' in conteudo and '.' not in conteudo:
         info['decimal_separator'] = ','
     elif '.' in conteudo and ',' not in conteudo:
         info['decimal_separator'] = '.'
     else:
-        if re.search(r'\d+,\d+', conteudo):
-            info['decimal_separator'] = ','
-        else:
-            info['decimal_separator'] = '.'
+        info['decimal_separator'] = ',' if re.search(r'\d+,\d+', conteudo) else '.'
     
-    # Detectar formato de data
-    padroes_data = [
-        (r'\d{2}/\d{2}/\d{4}', '%d/%m/%Y'),
-        (r'\d{4}-\d{2}-\d{2}', '%Y-%m-%d'),
-        (r'\d{2}-\d{2}-\d{4}', '%d-%m-%Y'),
-        (r'\d{2}\.\d{2}\.\d{4}', '%d.%m.%Y')
-    ]
-    
-    for padrao, formato in padroes_data:
-        if re.search(padrao, conteudo):
-            info['date_format'] = formato
-            break
-    
-    if not info['date_format']:
-        info['date_format'] = '%Y-%m-%d'
-    
-    # Extrair informações da estação do cabeçalho
     for i, linha in enumerate(linhas[:20]):
         if 'ESTACAO' in linha.upper() or 'ESTAÇÃO' in linha.upper():
             partes = linha.split(info['delimiter'])
@@ -294,9 +206,8 @@ def detectar_formato_arquivo_avancado(arquivo_bytes):
 
 def ler_arquivo_inteligente(arquivo_bytes):
     """Leitura inteligente com auto-detecção"""
-    info = detectar_formato_arquivo_avancado(arquivo_bytes)
+    info = detectar_formato_arquivo(arquivo_bytes)
     
-    # Tentar diferentes estratégias de leitura
     estrategias = [
         {'skiprows': 0, 'header': 0},
         {'skiprows': 1, 'header': 0},
@@ -311,13 +222,12 @@ def ler_arquivo_inteligente(arquivo_bytes):
             df_temp = pd.read_csv(
                 arquivo_bytes,
                 sep=info['delimiter'],
-                encoding=info['encoding'],
+                encoding='utf-8',
                 skiprows=estrategia['skiprows'],
                 header=estrategia['header'] if isinstance(estrategia['header'], int) else 'infer',
                 on_bad_lines='skip'
             )
             
-            # Verificar se leu corretamente
             if len(df_temp.columns) > 3 and len(df_temp) > 10:
                 df = df_temp
                 info['skiprows'] = estrategia['skiprows']
@@ -326,9 +236,8 @@ def ler_arquivo_inteligente(arquivo_bytes):
             continue
     
     if df is None:
-        raise ValueError("Não foi possível ler o arquivo. Verifique o formato.")
+        raise ValueError("Não foi possível ler o arquivo.")
     
-    # Corrigir separador decimal
     if info['decimal_separator'] == ',':
         for col in df.select_dtypes(include=['object']).columns:
             df[col] = df[col].astype(str).str.replace(',', '.')
@@ -338,91 +247,30 @@ def ler_arquivo_inteligente(arquivo_bytes):
                 pass
     
     return df, info
-# Adicione esta função após a leitura do arquivo
-def diagnosticar_colunas(df):
-    st.markdown("### 🔍 Diagnóstico de Colunas")
-    st.write("**Colunas encontradas no arquivo:**")
-    st.write(list(df.columns))
-    
-    # Verificar colunas de umidade
-    col_umidade = [c for c in df.columns if any(x in c.lower() for x in ['umid', 'ur', 'umidade'])]
-    st.write(f"**Colunas de umidade detectadas:** {col_umidade}")
-    
-    # Verificar colunas de vento
-    col_vento = [c for c in df.columns if any(x in c.lower() for x in ['vento', 'vel', 'u2'])]
-    st.write(f"**Colunas de vento detectadas:** {col_vento}")
-    
-    # Verificar colunas de temperatura
-    col_temp = [c for c in df.columns if any(x in c.lower() for x in ['temp', 'temperatura'])]
-    st.write(f"**Colunas de temperatura detectadas:** {col_temp}")
-    
-    # Verificar colunas de precipitação
-    col_precip = [c for c in df.columns if any(x in c.lower() for x in ['precip', 'chuva'])]
-    st.write(f"**Colunas de precipitação detectadas:** {col_precip}")
-    
-    return col_umidade, col_vento, col_temp, col_precip
-# ============================================================================
-# FUNÇÕES AVANÇADAS DE TRATAMENTO DE DADOS
-# ============================================================================
 
 def padronizar_colunas(df):
-    """Padronização completa de nomes de colunas"""
-    
-    mapeamento_completo = {
-        # Datas e horários
-        'data': 'Date', 'DATA': 'Date', 'Data': 'Date', 'DT_DATA': 'Date',
-        'hora': 'Time', 'HORA': 'Time', 'Hora': 'Time', 'HR_DATA': 'Time',
-        'datahora': 'DateTime', 'DATAHORA': 'DateTime', 'DataHora': 'DateTime',
-        
-        # Temperaturas
+    """Padronização de nomes de colunas"""
+    mapeamento = {
+        'data': 'Date', 'DATA': 'Date', 'Data': 'Date',
+        'hora': 'Time', 'HORA': 'Time', 'Hora': 'Time',
         'temp_ins': 'Temp_Inst', 'temperatura_ins': 'Temp_Inst',
-        'temp_inst': 'Temp_Inst', 'TEMP_INS': 'Temp_Inst',
-        'temp_max': 'Tmax', 'temperatura_maxima': 'Tmax', 'TEMPERATURA MAXIMA': 'Tmax',
-        'temp_maxima': 'Tmax', 'TEMP_MAX': 'Tmax', 'temp_max_inst': 'Tmax',
-        'temp_min': 'Tmin', 'temperatura_minima': 'Tmin', 'TEMPERATURA MINIMA': 'Tmin',
-        'temp_minima': 'Tmin', 'TEMP_MIN': 'Tmin', 'temp_min_inst': 'Tmin',
-        
-        # Umidade (ADICIONAR MAIS VARIAÇÕES)
-        'umid_ins': 'UR_Inst', 'umidade_ins': 'UR_Inst', 'UMIDADE INST': 'UR_Inst',
-        'umid_inst': 'UR_Inst', 'umidade_inst': 'UR_Inst', 'umidade_instantanea': 'UR_Inst',
-        'ur_inst': 'UR_Inst', 'UR_inst': 'UR_Inst',
-        'umid_max': 'URmax', 'umidade_maxima': 'URmax', 'UMIDADE MAXIMA': 'URmax',
-        'ur_max': 'URmax', 'UR_max': 'URmax',
-        'umid_min': 'URmin', 'umidade_minima': 'URmin', 'UMIDADE MINIMA': 'URmin',
-        'ur_min': 'URmin', 'UR_min': 'URmin',
-        'umidade': 'UR_Inst', 'umidade_relativa': 'UR_Inst',
-        
-        # Pressão
-        'pressao_ins': 'Press_Inst', 'pressao_atm': 'Press_Inst',
-        'pressao_max': 'Pressmax', 'pressao_min': 'Pressmin',
-        
-        # Vento (ADICIONAR MAIS VARIAÇÕES)
-        'vel_vento': 'U2', 'velocidade_vento': 'U2', 'VEL_VENTO': 'U2',
-        'vento_medio': 'U2', 'vento': 'U2', 'vel_vento_medio': 'U2',
-        'vento_rajada': 'Raj_vento', 'vento_raj': 'Raj_vento', 'rajada': 'Raj_vento',
-        'dir_vento': 'Dir_vento', 'direcao_vento': 'Dir_vento', 'vento_dir': 'Dir_vento',
-        
-        # Radiação e precipitação
-        'radiacao': 'Rad_KJ', 'radiacao_solar': 'Rad_KJ', 'rad_solar': 'Rad_KJ',
-        'precip': 'Precipitacao', 'chuva': 'Precipitacao', 'PRECIPITACAO': 'Precipitacao',
-        'precipitacao_total': 'Precipitacao', 'precipitacao_mensal': 'Precipitacao',
-        'precipitacao_instantanea': 'Precipitacao', 'precip_inst': 'Precipitacao',
-        
-        # Ponto de orvalho
-        'pto_orvalho': 'Td_Inst', 'ponto_orvalho': 'Td_Inst',
-        'pto_orvalho_max': 'Tdmax', 'pto_orvalho_min': 'Tdmin'
+        'temp_max': 'Tmax', 'temperatura_maxima': 'Tmax',
+        'temp_min': 'Tmin', 'temperatura_minima': 'Tmin',
+        'umid_ins': 'UR_Inst', 'umidade_ins': 'UR_Inst',
+        'umid_max': 'URmax', 'umidade_maxima': 'URmax',
+        'umid_min': 'URmin', 'umidade_minima': 'URmin',
+        'precip': 'Precipitacao', 'chuva': 'Precipitacao',
+        'vel_vento': 'U2', 'velocidade_vento': 'U2',
+        'pressao_ins': 'Press_Inst', 'pressao_atm': 'Press_Inst'
     }
-        
-    df_renomeado = df.copy()
     
-    # Renomear colunas
+    df_renomeado = df.copy()
     for col in df_renomeado.columns:
         col_lower = col.lower().strip()
-        if col_lower in mapeamento_completo:
-            df_renomeado.rename(columns={col: mapeamento_completo[col_lower]}, inplace=True)
+        if col_lower in mapeamento:
+            df_renomeado.rename(columns={col: mapeamento[col_lower]}, inplace=True)
         else:
-            # Tentar matching fuzzy
-            for chave, valor in mapeamento_completo.items():
+            for chave, valor in mapeamento.items():
                 if chave in col_lower or col_lower in chave:
                     df_renomeado.rename(columns={col: valor}, inplace=True)
                     break
@@ -431,18 +279,15 @@ def padronizar_colunas(df):
 
 def corrigir_datas(df):
     """Correção robusta de datas"""
-    
     df_corrigido = df.copy()
     
-    # Identificar coluna de data
     col_data = None
     for col in df_corrigido.columns:
-        if col.lower() in ['date', 'data', 'dt', 'datetime']:
+        if col.lower() in ['date', 'data', 'dt']:
             col_data = col
             break
     
     if not col_data:
-        # Procurar coluna que parece conter datas
         for col in df_corrigido.columns:
             amostra = df_corrigido[col].dropna().iloc[0] if len(df_corrigido[col].dropna()) > 0 else ''
             if isinstance(amostra, str) and ('/' in amostra or '-' in amostra):
@@ -451,9 +296,7 @@ def corrigir_datas(df):
                     break
     
     if col_data:
-        # Tentar diferentes formatos
-        formatos = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%Y/%m/%d']
-        
+        formatos = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y']
         for formato in formatos:
             try:
                 df_corrigido['Date'] = pd.to_datetime(df_corrigido[col_data], format=formato, errors='coerce')
@@ -462,850 +305,531 @@ def corrigir_datas(df):
             except:
                 continue
         
-        # Se falhou, tenta inferência automática
         if df_corrigido['Date'].isna().sum() > len(df_corrigido) * 0.5:
             df_corrigido['Date'] = pd.to_datetime(df_corrigido[col_data], errors='coerce')
     
-    # Identificar coluna de hora
     col_hora = None
     for col in df_corrigido.columns:
         if col.lower() in ['time', 'hora', 'hr']:
             col_hora = col
             break
     
-    if col_hora:
-        # Padronizar formato de hora
-        df_corrigido['Time_Str'] = df_corrigido[col_hora].astype(str).str.zfill(4)
-        df_corrigido['Hour'] = df_corrigido['Time_Str'].str[:2]
-        df_corrigido['Minute'] = df_corrigido['Time_Str'].str[2:4]
+    if col_hora and 'Date' in df_corrigido.columns:
         df_corrigido['DateTime'] = pd.to_datetime(
             df_corrigido['Date'].dt.strftime('%Y-%m-%d') + ' ' + 
-            df_corrigido['Hour'] + ':' + df_corrigido['Minute'],
+            df_corrigido[col_hora].astype(str).str.zfill(4).str[:2] + ':' + 
+            df_corrigido[col_hora].astype(str).str.zfill(4).str[2:4],
             errors='coerce'
         )
-    else:
+    elif 'Date' in df_corrigido.columns:
         df_corrigido['DateTime'] = df_corrigido['Date']
     
-    # Extrair componentes de data
-    df_corrigido['Year'] = df_corrigido['DateTime'].dt.year
-    df_corrigido['Month'] = df_corrigido['DateTime'].dt.month
-    df_corrigido['Day'] = df_corrigido['DateTime'].dt.day
-    df_corrigido['DayOfYear'] = df_corrigido['DateTime'].dt.dayofyear
-    df_corrigido['Week'] = df_corrigido['DateTime'].dt.isocalendar().week
-    df_corrigido['Season'] = df_corrigido['Month'].map({12: 'Summer', 1: 'Summer', 2: 'Summer',
-                                                        3: 'Autumn', 4: 'Autumn', 5: 'Autumn',
-                                                        6: 'Winter', 7: 'Winter', 8: 'Winter',
-                                                        9: 'Spring', 10: 'Spring', 11: 'Spring'})
+    if 'DateTime' in df_corrigido.columns:
+        df_corrigido['Year'] = df_corrigido['DateTime'].dt.year
+        df_corrigido['Month'] = df_corrigido['DateTime'].dt.month
+        df_corrigido['Day'] = df_corrigido['DateTime'].dt.day
+        df_corrigido['Hour'] = df_corrigido['DateTime'].dt.hour
     
     return df_corrigido
 
-# ============================================================================
-# FUNÇÕES AVANÇADAS DE QUALIDADE DE DADOS
-# ============================================================================
-
-def validar_consistencia_fisica(df):
+def preenchimento_inteligente_falhas(df, limite_max_falhas=10):
     """
-    Valida a consistência física dos dados meteorológicos.
-    
-    Verifica se os valores estão dentro de faixas plausíveis:
-    - Temperatura: -50°C a 60°C
-    - Umidade: 0% a 100%
-    - Precipitação: >= 0 mm
-    - Velocidade do vento: >= 0 m/s
-    - Pressão: 800 hPa a 1100 hPa
-    
-    Retorna:
-        df_validado: DataFrame com os dados originais
-        alertas: Lista de dicionários com os registros inconsistentes
+    Preenchimento de falhas - apenas se não houver mais de 10 falhas consecutivas
     """
-    df_validado = df.copy()
-    alertas = []
+    df_filled = df.copy()
+    substituicoes = []
     
-    # Verificar temperatura
-    for col in ['Tmax', 'Tmin', 'Temp_Inst']:
-        if col in df_validado.columns:
-            try:
-                # Verificar se a coluna é um DataFrame (erro) ou Series
-                if isinstance(df_validado[col], pd.DataFrame):
-                    # Se for DataFrame, pegar a primeira coluna
-                    df_validado[col] = df_validado[col].iloc[:, 0]
-                
-                # Garantir que a coluna é numérica
-                if not pd.api.types.is_numeric_dtype(df_validado[col]):
-                    df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
-                
-                # Verificar valores inválidos
-                mask_invalid = (df_validado[col] < -50) | (df_validado[col] > 60)
-                num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
-                
-                if num_invalidos > 0:
-                    exemplos = []
-                    if 'DateTime' in df_validado.columns and len(df_validado) > 0:
-                        datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
-                        if len(datas_invalidas) > 0:
-                            exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
-                    
-                    alertas.append({
-                        'variavel': col,
-                        'quantidade': num_invalidos,
-                        'exemplos': exemplos
-                    })
-            except Exception as e:
-                pass
-    
-    # Verificar umidade
-    for col in ['UR_Inst', 'URmax', 'URmin']:
-        if col in df_validado.columns:
-            try:
-                # Verificar se a coluna é um DataFrame
-                if isinstance(df_validado[col], pd.DataFrame):
-                    df_validado[col] = df_validado[col].iloc[:, 0]
-                
-                if not pd.api.types.is_numeric_dtype(df_validado[col]):
-                    df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
-                
-                mask_invalid = (df_validado[col] < 0) | (df_validado[col] > 100)
-                num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
-                
-                if num_invalidos > 0:
-                    exemplos = []
-                    if 'DateTime' in df_validado.columns and len(df_validado) > 0:
-                        datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
-                        if len(datas_invalidas) > 0:
-                            exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
-                    
-                    alertas.append({
-                        'variavel': col,
-                        'quantidade': num_invalidos,
-                        'exemplos': exemplos
-                    })
-            except Exception as e:
-                pass
-    
-    # Verificar precipitação
-    if 'Precipitacao' in df_validado.columns:
-        try:
-            # Verificar se a coluna é um DataFrame
-            if isinstance(df_validado['Precipitacao'], pd.DataFrame):
-                df_validado['Precipitacao'] = df_validado['Precipitacao'].iloc[:, 0]
-            
-            if not pd.api.types.is_numeric_dtype(df_validado['Precipitacao']):
-                df_validado['Precipitacao'] = pd.to_numeric(df_validado['Precipitacao'], errors='coerce')
-            
-            mask_invalid = df_validado['Precipitacao'] < 0
-            num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
-            
-            if num_invalidos > 0:
-                exemplos = []
-                if 'DateTime' in df_validado.columns and len(df_validado) > 0:
-                    datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
-                    if len(datas_invalidas) > 0:
-                        exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
-                
-                alertas.append({
-                    'variavel': 'Precipitacao',
-                    'quantidade': num_invalidos,
-                    'exemplos': exemplos
-                })
-        except Exception as e:
-            pass
-    
-    # Verificar vento
-    if 'U2' in df_validado.columns:
-        try:
-            # Verificar se a coluna é um DataFrame
-            if isinstance(df_validado['U2'], pd.DataFrame):
-                df_validado['U2'] = df_validado['U2'].iloc[:, 0]
-            
-            if not pd.api.types.is_numeric_dtype(df_validado['U2']):
-                df_validado['U2'] = pd.to_numeric(df_validado['U2'], errors='coerce')
-            
-            mask_invalid = df_validado['U2'] < 0
-            num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
-            
-            if num_invalidos > 0:
-                exemplos = []
-                if 'DateTime' in df_validado.columns and len(df_validado) > 0:
-                    datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
-                    if len(datas_invalidas) > 0:
-                        exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
-                
-                alertas.append({
-                    'variavel': 'U2',
-                    'quantidade': num_invalidos,
-                    'exemplos': exemplos
-                })
-        except Exception as e:
-            pass
-    
-    # Verificar pressão
-    for col in ['Press_Inst', 'Pressmax', 'Pressmin']:
-        if col in df_validado.columns:
-            try:
-                # Verificar se a coluna é um DataFrame
-                if isinstance(df_validado[col], pd.DataFrame):
-                    df_validado[col] = df_validado[col].iloc[:, 0]
-                
-                if not pd.api.types.is_numeric_dtype(df_validado[col]):
-                    df_validado[col] = pd.to_numeric(df_validado[col], errors='coerce')
-                
-                mask_invalid = (df_validado[col] < 800) | (df_validado[col] > 1100)
-                num_invalidos = int(mask_invalid.sum()) if mask_invalid.sum() is not None else 0
-                
-                if num_invalidos > 0:
-                    exemplos = []
-                    if 'DateTime' in df_validado.columns and len(df_validado) > 0:
-                        datas_invalidas = df_validado.loc[mask_invalid, 'DateTime']
-                        if len(datas_invalidas) > 0:
-                            exemplos = datas_invalidas.dt.strftime('%Y-%m-%d %H:%M').tolist()[:5]
-                    
-                    alertas.append({
-                        'variavel': col,
-                        'quantidade': num_invalidos,
-                        'exemplos': exemplos
-                    })
-            except Exception as e:
-                pass
-    
-    return df_validado, alertas
-
-
-def analise_completa_qualidade(df):
-    """
-    Analise completa da qualidade dos dados
-    """
-    qualidade = {}
-    outliers_info = {}
-    
-    # Identificar colunas numericas
     colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
                          'Precipitacao', 'U2', 'Press_Inst']
     colunas_existentes = [c for c in colunas_numericas if c in df.columns]
     
-    # Estatisticas de completude
     for col in colunas_existentes:
         try:
-            if isinstance(df[col], pd.Series):
-                total = len(df)
-                presentes = int(df[col].notna().sum()) if df[col].notna().sum() is not None else 0
-                percentual = (presentes / total) * 100 if total > 0 else 0
-                
-                classificacao = 'Boa'
-                if percentual < 80:
-                    classificacao = 'Critica'
-                elif percentual < 95:
-                    classificacao = 'Regular'
-                
-                qualidade[col] = {
-                    'total_registros': total,
-                    'dados_presentes': presentes,
-                    'dados_faltantes': total - presentes,
-                    'percentual_completo': round(percentual, 2),
-                    'classificacao': classificacao
-                }
-        except:
-            pass
+            # Contar falhas consecutivas
+            mask_falhas = df_filled[col].isna()
+            max_consecutivas = 0
+            consecutivas = 0
+            for val in mask_falhas:
+                if val:
+                    consecutivas += 1
+                    max_consecutivas = max(max_consecutivas, consecutivas)
+                else:
+                    consecutivas = 0
+            
+            if max_consecutivas > limite_max_falhas:
+                substituicoes.append({
+                    'variavel': col,
+                    'status': 'NÃO PREENCHIDO',
+                    'motivo': f'{max_consecutivas} falhas consecutivas (> {limite_max_falhas})'
+                })
+                continue
+            
+            num_falhas_original = df_filled[col].isna().sum()
+            
+            # Interpolação linear
+            df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=limite_max_falhas)
+            
+            # Média móvel para remanescentes
+            mascara = df_filled[col].isna()
+            if mascara.any():
+                media_movel = df_filled[col].rolling(window=24, min_periods=6, center=True).mean()
+                df_filled.loc[mascara, col] = media_movel.loc[mascara]
+            
+            # Preenchimento sazonal
+            if 'Month' in df_filled.columns:
+                mascara = df_filled[col].isna()
+                if mascara.any():
+                    medias_mensais = df_filled.groupby('Month')[col].transform('mean')
+                    df_filled.loc[mascara, col] = medias_mensais.loc[mascara]
+            
+            # Último recurso: mediana
+            if df_filled[col].isna().any():
+                mediana = df_filled[col].median()
+                if pd.notna(mediana):
+                    df_filled[col].fillna(mediana, inplace=True)
+            
+            num_falhas_final = df_filled[col].isna().sum()
+            num_substituidos = num_falhas_original - num_falhas_final
+            
+            if num_substituidos > 0:
+                substituicoes.append({
+                    'variavel': col,
+                    'status': 'PREENCHIDO',
+                    'quantidade': num_substituidos,
+                    'motivo': f'{num_substituidos} valores substituídos'
+                })
+        except Exception as e:
+            substituicoes.append({'variavel': col, 'status': 'ERRO', 'motivo': str(e)})
     
-    # Analise de outliers (usando IQR)
+    return df_filled, substituicoes
+
+def detectar_outliers_tratar(df, limite_fator=3):
+    """Detecta e trata outliers usando IQR"""
+    df_tratado = df.copy()
+    outliers_info = {}
+    
+    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
+                         'Precipitacao', 'U2', 'Press_Inst']
+    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
+    
     for col in colunas_existentes:
         try:
-            if isinstance(df[col], pd.Series):
-                dados_validos = df[col].dropna()
-                if len(dados_validos) > 0 and pd.api.types.is_numeric_dtype(dados_validos):
-                    Q1 = dados_validos.quantile(0.25)
-                    Q3 = dados_validos.quantile(0.75)
-                    IQR = Q3 - Q1
+            dados_validos = df_tratado[col].dropna()
+            if len(dados_validos) > 0:
+                Q1 = dados_validos.quantile(0.25)
+                Q3 = dados_validos.quantile(0.75)
+                IQR = Q3 - Q1
+                
+                if IQR > 0:
+                    limite_inferior = Q1 - limite_fator * IQR
+                    limite_superior = Q3 + limite_fator * IQR
                     
-                    if IQR > 0:
-                        limite_inferior = Q1 - 3 * IQR
-                        limite_superior = Q3 + 3 * IQR
-                        
-                        mask_outliers = (df[col] < limite_inferior) | (df[col] > limite_superior)
-                        num_outliers = int(mask_outliers.sum()) if mask_outliers.sum() is not None else 0
+                    mask_outliers = (df_tratado[col] < limite_inferior) | (df_tratado[col] > limite_superior)
+                    num_outliers = mask_outliers.sum()
+                    
+                    if num_outliers > 0:
+                        mediana = dados_validos.median()
+                        df_tratado.loc[mask_outliers, col] = mediana
                         
                         outliers_info[col] = {
-                            'limite_inferior': round(limite_inferior, 2),
-                            'limite_superior': round(limite_superior, 2),
-                            'num_outliers': num_outliers,
-                            'percentual_outliers': round((num_outliers / len(dados_validos)) * 100, 2) if len(dados_validos) > 0 else 0
+                            'num_outliers': int(num_outliers),
+                            'percentual': round((num_outliers / len(dados_validos)) * 100, 2),
+                            'limites': f'[{limite_inferior:.2f}, {limite_superior:.2f}]'
                         }
-        except:
+        except Exception as e:
             pass
     
-    # Analise de consistencia temporal
-    if 'DateTime' in df.columns and isinstance(df['DateTime'], pd.Series):
-        try:
-            df_sorted = df.sort_values('DateTime')
-            if len(df_sorted) > 1:
-                intervalos = df_sorted['DateTime'].diff().dropna()
-                
-                qualidade['temporal'] = {
-                    'inicio': str(df_sorted['DateTime'].min()),
-                    'fim': str(df_sorted['DateTime'].max()),
-                    'dias_totais': (df_sorted['DateTime'].max() - df_sorted['DateTime'].min()).days,
-                    'intervalo_medio': str(intervalos.mean()) if not intervalos.empty else 'N/A',
-                    'intervalo_mediano': str(intervalos.median()) if not intervalos.empty else 'N/A'
-                }
-        except:
-            pass
-    
-    return qualidade, outliers_info
-# ============================================================================
-# FUNÇÕES DE CONSOLIDAÇÃO E INDICADORES
-# ============================================================================
+    return df_tratado, outliers_info
 
-def consolidacao_avancada_por_mes(df):
-    """Consolidação avançada com tratamento diferenciado por variável"""
-    
+def consolidar_medias_mensais(df):
+    """
+    CRIA UM DATAFRAME SEPARADO com médias mensais.
+    NÃO altera os dados originais.
+    Mantém todas as 2100+ linhas originais intactas.
+    """
     df_temp = df.copy()
     
-    # Verificar se a coluna DateTime existe
     if 'DateTime' not in df_temp.columns:
-        # Tentar criar a partir de Date e Time
         if 'Date' in df_temp.columns:
             df_temp['DateTime'] = pd.to_datetime(df_temp['Date'], errors='coerce')
         else:
-            raise ValueError("Coluna DateTime não encontrada para consolidação")
+            return pd.DataFrame()
     
-    # Criar período mês-ano
-    df_temp['Period'] = df_temp['DateTime'].dt.to_period('M')
+    df_temp['AnoMes'] = df_temp['DateTime'].dt.to_period('M')
     
-    # Dicionário de funções de agregação por tipo de variável
     agregacoes = {
-        'Tmax': 'max',                    # Temperatura máxima: valor máximo absoluto
-        'Tmin': 'min',                    # Temperatura mínima: valor mínimo absoluto
-        'Temp_Inst': 'mean',              # Temperatura instantânea: média
-        'UR_Inst': 'mean',                # Umidade instantânea: média
-        'URmax': 'max',                   # Umidade máxima: valor máximo
-        'URmin': 'min',                   # Umidade mínima: valor mínimo
-        'Precipitacao': 'sum',            # Precipitação: soma total
-        'U2': 'mean',                     # Velocidade do vento: média
-        'Press_Inst': 'mean',             # Pressão: média
-        'Rad_KJ': 'sum'                   # Radiação: soma total
+        'Tmax': 'max',
+        'Tmin': 'min',
+        'Temp_Inst': 'mean',
+        'UR_Inst': 'mean',
+        'URmax': 'max',
+        'URmin': 'min',
+        'Precipitacao': 'sum',
+        'U2': 'mean',
+        'Press_Inst': 'mean'
     }
     
-    # Filtrar apenas colunas existentes e que não são DataFrames
-    agregacoes_filtradas = {}
-    for k, v in agregacoes.items():
-        if k in df_temp.columns:
-            # Verificar se a coluna é uma Series e não um DataFrame
-            if isinstance(df_temp[k], pd.Series):
-                agregacoes_filtradas[k] = v
+    agregacoes_filtradas = {k: v for k, v in agregacoes.items() if k in df_temp.columns}
     
     if not agregacoes_filtradas:
-        raise ValueError("Nenhuma coluna válida para agregação encontrada")
+        return pd.DataFrame()
     
-    # Aplicar agregação
-    df_consolidado = df_temp.groupby('Period').agg(agregacoes_filtradas).reset_index()
+    df_mensal = df_temp.groupby('AnoMes').agg(agregacoes_filtradas).reset_index()
+    df_mensal['Mês'] = df_mensal['AnoMes'].astype(str)
+    df_mensal['Ano'] = df_mensal['AnoMes'].dt.year
+    df_mensal['Numero_Mês'] = df_mensal['AnoMes'].dt.month
     
-    # Converter período para string
-    df_consolidado['Mes'] = df_consolidado['Period'].astype(str)
-    df_consolidado['Ano'] = df_consolidado['Period'].dt.year
-    df_consolidado['Numero_Mes'] = df_consolidado['Period'].dt.month
+    df_mensal = df_mensal.sort_values('AnoMes').reset_index(drop=True)
     
-    # Ordenar por data
-    df_consolidado = df_consolidado.sort_values('Period').reset_index(drop=True)
+    return df_mensal
+
+def analise_completa_qualidade(df):
+    """Análise da qualidade dos dados"""
+    qualidade = {}
     
-    # Adicionar médias móveis (com verificação de segurança)
-    if 'Temp_Inst' in df_consolidado.columns and isinstance(df_consolidado['Temp_Inst'], pd.Series):
-        df_consolidado['Temp_Media_Movel_3M'] = df_consolidado['Temp_Inst'].rolling(window=3, min_periods=1).mean()
-        df_consolidado['Temp_Media_Movel_12M'] = df_consolidado['Temp_Inst'].rolling(window=12, min_periods=1).mean()
+    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
+                         'Precipitacao', 'U2', 'Press_Inst']
+    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
     
-    if 'Precipitacao' in df_consolidado.columns and isinstance(df_consolidado['Precipitacao'], pd.Series):
-        df_consolidado['Precip_Acumulada_Ano'] = df_consolidado.groupby('Ano')['Precipitacao'].cumsum()
+    for col in colunas_existentes:
+        total = len(df)
+        presentes = df[col].notna().sum()
+        percentual = (presentes / total) * 100 if total > 0 else 0
+        
+        classificacao = 'Boa' if percentual >= 95 else 'Regular' if percentual >= 80 else 'Crítica'
+        
+        qualidade[col] = {
+            'percentual_completo': round(percentual, 2),
+            'classificacao': classificacao,
+            'dados_faltantes': total - presentes
+        }
     
-    return df_consolidado
+    if 'DateTime' in df.columns:
+        qualidade['periodo'] = {
+            'inicio': df['DateTime'].min(),
+            'fim': df['DateTime'].max(),
+            'total_registros': len(df)
+        }
+    
+    return qualidade
+
+def detectar_eventos_extremos(df):
+    """Detecta eventos climáticos extremos"""
+    eventos = []
+    
+    if 'Temp_Inst' in df.columns:
+        media_temp = df['Temp_Inst'].mean()
+        std_temp = df['Temp_Inst'].std()
+        if pd.notna(std_temp) and std_temp > 0:
+            limite_calor = media_temp + 2 * std_temp
+            mask_calor = df['Temp_Inst'] > limite_calor
+            if mask_calor.sum() > 0:
+                eventos.append({
+                    'tipo': 'Onda de Calor',
+                    'gravidade': 'Alta',
+                    'descricao': f'{mask_calor.sum()} ocorrências acima de {limite_calor:.1f}°C',
+                    'quantidade': int(mask_calor.sum())
+                })
+    
+    if 'Precipitacao' in df.columns:
+        media_precip = df['Precipitacao'].mean()
+        std_precip = df['Precipitacao'].std()
+        if pd.notna(std_precip) and std_precip > 0:
+            limite_chuva = media_precip + 2 * std_precip
+            mask_chuva = df['Precipitacao'] > limite_chuva
+            if mask_chuva.sum() > 0:
+                eventos.append({
+                    'tipo': 'Chuva Intensa',
+                    'gravidade': 'Alta',
+                    'descricao': f'{mask_chuva.sum()} ocorrências acima de {limite_chuva:.1f} mm',
+                    'quantidade': int(mask_chuva.sum())
+                })
+    
+    return eventos
 
 # ============================================================================
-# FUNÇÕES DE VISUALIZAÇÃO AVANÇADA
+# FUNÇÕES DE GRÁFICOS INTERATIVOS
 # ============================================================================
 
-def gerar_climograma_streamlit(df_mensal):
-    """
-    Geração de climograma usando streamlit nativo e Vega-Lite.
+def criar_grafico_temperatura(df, tipo='linha'):
+    """Cria gráfico de temperatura interativo"""
+    if 'DateTime' not in df.columns or 'Temp_Inst' not in df.columns:
+        return None
     
-    Verifica a existência das colunas necessárias e exibe os gráficos disponíveis.
-    """
+    df_plot = df.dropna(subset=['Temp_Inst']).copy()
     
-    # Verificar se o DataFrame está vazio
+    if tipo == 'linha':
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=df_plot['DateTime'],
+            y=df_plot['Temp_Inst'],
+            mode='lines',
+            name='Temperatura',
+            line=dict(color='#e74c3c', width=2),
+            fill='tozeroy',
+            fillcolor='rgba(231, 76, 60, 0.1)'
+        ))
+        
+        fig.update_layout(
+            title='🌡️ Temperatura ao Longo do Tempo',
+            xaxis_title='Data/Hora',
+            yaxis_title='Temperatura (°C)',
+            template='plotly_dark',
+            height=400,
+            hovermode='x unified'
+        )
+        
+        return fig
+    
+    elif tipo == 'box':
+        df_plot['Hora'] = df_plot['DateTime'].dt.hour
+        fig = px.box(df_plot, x='Hora', y='Temp_Inst', 
+                     title='📊 Distribuição da Temperatura por Hora',
+                     labels={'Hora': 'Hora do Dia', 'Temp_Inst': 'Temperatura (°C)'},
+                     color_discrete_sequence=['#e74c3c'])
+        fig.update_layout(template='plotly_dark', height=400)
+        return fig
+    
+    return None
+
+def criar_grafico_precipitacao(df):
+    """Cria gráfico de precipitação"""
+    if 'DateTime' not in df.columns or 'Precipitacao' not in df.columns:
+        return None
+    
+    df_plot = df.dropna(subset=['Precipitacao']).copy()
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df_plot['DateTime'],
+        y=df_plot['Precipitacao'],
+        name='Precipitação',
+        marker_color='#3498db',
+        marker_line_color='#2980b9',
+        marker_line_width=1
+    ))
+    
+    fig.update_layout(
+        title='☔ Precipitação ao Longo do Tempo',
+        xaxis_title='Data/Hora',
+        yaxis_title='Precipitação (mm)',
+        template='plotly_dark',
+        height=400,
+        bargap=0.1
+    )
+    
+    return fig
+
+def criar_grafico_umidade(df):
+    """Cria gráfico de umidade"""
+    if 'DateTime' not in df.columns or 'UR_Inst' not in df.columns:
+        return None
+    
+    df_plot = df.dropna(subset=['UR_Inst']).copy()
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df_plot['DateTime'],
+        y=df_plot['UR_Inst'],
+        mode='lines',
+        name='Umidade',
+        line=dict(color='#2ecc71', width=2),
+        fill='tozeroy',
+        fillcolor='rgba(46, 204, 113, 0.1)'
+    ))
+    
+    fig.update_layout(
+        title='💧 Umidade Relativa ao Longo do Tempo',
+        xaxis_title='Data/Hora',
+        yaxis_title='Umidade (%)',
+        template='plotly_dark',
+        height=400,
+        yaxis_range=[0, 100]
+    )
+    
+    return fig
+
+def criar_grafico_vento(df):
+    """Cria gráfico de velocidade do vento"""
+    if 'DateTime' not in df.columns or 'U2' not in df.columns:
+        return None
+    
+    df_plot = df.dropna(subset=['U2']).copy()
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df_plot['DateTime'],
+        y=df_plot['U2'],
+        mode='lines',
+        name='Vento',
+        line=dict(color='#f39c12', width=2)
+    ))
+    
+    fig.update_layout(
+        title='💨 Velocidade do Vento ao Longo do Tempo',
+        xaxis_title='Data/Hora',
+        yaxis_title='Velocidade (m/s)',
+        template='plotly_dark',
+        height=400
+    )
+    
+    return fig
+
+def criar_grafico_comparativo_mensal(df_mensal):
+    """Cria gráfico comparativo mensal"""
     if df_mensal is None or df_mensal.empty:
-        st.warning("⚠️ Nenhum dado disponível para gerar o climograma.")
-        return
+        return None
     
-    # Criar uma cópia segura
-    df = df_mensal.copy()
+    fig = go.Figure()
     
-    # Verificar quais colunas existem
-    colunas_disponiveis = df.columns.tolist()
+    if 'Temp_Inst' in df_mensal.columns:
+        fig.add_trace(go.Bar(
+            x=df_mensal['Mês'],
+            y=df_mensal['Temp_Inst'],
+            name='Temperatura Média',
+            marker_color='#e74c3c',
+            yaxis='y'
+        ))
     
-    # Mapear possíveis nomes de colunas
-    mapeamento_mes = ['Mes', 'Mês', 'mes', 'mês', 'Period', 'period', 'ANO_MES', 'ano_mes']
-    mapeamento_precip = ['Precipitacao', 'precipitacao', 'Precip', 'precip', 'CHUVA', 'chuva', 'PRECIPITACAO']
-    mapeamento_temp = ['Temp_Inst', 'temp_inst', 'Temperatura', 'temperatura', 'TEMP_MEDIA', 'temp_media']
+    if 'Precipitacao' in df_mensal.columns:
+        fig.add_trace(go.Scatter(
+            x=df_mensal['Mês'],
+            y=df_mensal['Precipitacao'],
+            name='Precipitação Total',
+            marker_color='#3498db',
+            line=dict(width=3),
+            yaxis='y2'
+        ))
     
-    # Encontrar a coluna correta para Mês
-    col_mes = None
-    for col in mapeamento_mes:
-        if col in colunas_disponiveis:
-            col_mes = col
-            break
-    if col_mes is None and len(df) > 0:
-        # Usar o índice se não encontrar coluna de mês
-        df['Mes'] = df.index.astype(str)
-        col_mes = 'Mes'
+    fig.update_layout(
+        title='📊 Comparativo Mensal',
+        template='plotly_dark',
+        height=450,
+        xaxis_title='Mês',
+        yaxis=dict(title='Temperatura (°C)', side='left', color='#e74c3c'),
+        yaxis2=dict(title='Precipitação (mm)', overlaying='y', side='right', color='#3498db'),
+        hovermode='x unified'
+    )
     
-    # Encontrar a coluna correta para Precipitação
-    col_precip = None
-    for col in mapeamento_precip:
-        if col in colunas_disponiveis:
-            col_precip = col
-            break
-    
-    # Encontrar a coluna correta para Temperatura
-    col_temp = None
-    for col in mapeamento_temp:
-        if col in colunas_disponiveis:
-            col_temp = col
-            break
-    
-    # Se não encontrar temperatura, tentar Tmax ou Tmin
-    if col_temp is None and 'Tmax' in colunas_disponiveis:
-        col_temp = 'Tmax'
-    if col_temp is None and 'Tmin' in colunas_disponiveis:
-        col_temp = 'Tmin'
-    
-    # Preparar DataFrame para exibição
-    df_exibicao = df[[col_mes]].copy()
-    df_exibicao.rename(columns={col_mes: 'Mes'}, inplace=True)
-    
-    # Adicionar precipitação se disponível
-    if col_precip:
-        df_exibicao['Precipitacao'] = df[col_precip]
-    else:
-        df_exibicao['Precipitacao'] = 0
-    
-    # Adicionar temperatura se disponível
-    if col_temp:
-        df_exibicao['Temp_Inst'] = df[col_temp]
-    else:
-        df_exibicao['Temp_Inst'] = 0
-    
-    # ===== GRÁFICO 1: Precipitação =====
-    st.markdown("### ☔ Precipitação Mensal")
-    if col_precip and df_exibicao['Precipitacao'].sum() > 0:
-        df_precip = df_exibicao[['Mes', 'Precipitacao']].set_index('Mes')
-        st.bar_chart(df_precip, height=350, color='#3498db')
-    else:
-        st.info("📌 Dados de precipitação não disponíveis para este arquivo")
-    
-    # ===== GRÁFICO 2: Temperatura =====
-    st.markdown("### 🌡️ Temperatura")
-    if col_temp and df_exibicao['Temp_Inst'].sum() != 0:
-        df_temp = df_exibicao[['Mes', 'Temp_Inst']].set_index('Mes')
-        st.line_chart(df_temp, height=350, color='#e74c3c')
-    else:
-        st.info("📌 Dados de temperatura não disponíveis para este arquivo")
-    
-    st.markdown("---")
-    
-    # ===== GRÁFICO COMBINADO INTERATIVO (Vega-Lite) =====
-    if col_precip and col_temp and df_exibicao['Precipitacao'].sum() > 0 and df_exibicao['Temp_Inst'].sum() != 0:
-        st.markdown("### 📊 Análise Combinada (Precipitação vs Temperatura)")
-        
-        # Preparar dados para Vega-Lite
-        df_vega = df_exibicao[['Mes', 'Precipitacao', 'Temp_Inst']].copy()
-        df_vega['Precipitacao'] = df_vega['Precipitacao'].round(1)
-        df_vega['Temp_Inst'] = df_vega['Temp_Inst'].round(1)
-        
-        # Gráfico combinado com Vega-Lite
-        chart = {
-            "title": "Relação entre Precipitação e Temperatura",
-            "mark": {"type": "bar", "tooltip": True},
-            "encoding": {
-                "x": {"field": "Mes", "type": "ordinal", "title": "Mês", "sort": None},
-                "y": {"field": "Precipitacao", "type": "quantitative", "title": "Precipitação (mm)"},
-                "tooltip": [
-                    {"field": "Mes", "type": "nominal", "title": "Mês"},
-                    {"field": "Precipitacao", "type": "quantitative", "title": "Precipitação (mm)", "format": ".1f"},
-                    {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)", "format": ".1f"}
-                ]
-            }
-        }
-        
-        line_chart = {
-            "mark": {"type": "line", "color": "red", "tooltip": True},
-            "encoding": {
-                "y": {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)", "axis": {"titleColor": "red"}}
-            }
-        }
-        
-        chart['layer'] = [{"mark": "bar"}, {"mark": {"type": "line", "color": "red"}}]
-        chart['encoding']['y'] = {"field": "Precipitacao", "type": "quantitative", "title": "Precipitação (mm)"}
-        chart['encoding']['y2'] = {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)"}
-        
-        st.vega_lite_chart(df_vega, {
-            "layer": [
-                {"mark": {"type": "bar", "tooltip": True}, "encoding": {"y": {"field": "Precipitacao", "type": "quantitative", "title": "Precipitação (mm)"}}},
-                {"mark": {"type": "line", "color": "red", "tooltip": True}, "encoding": {"y": {"field": "Temp_Inst", "type": "quantitative", "title": "Temperatura (°C)", "axis": {"titleColor": "red"}}}}],
-            "encoding": {"x": {"field": "Mes", "type": "ordinal", "title": "Mês", "sort": None}},
-            "title": "Precipitação e Temperatura"
-        }, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # ===== GRÁFICO COMBINADO =====
-    st.markdown("### 📊 Dados Mensais Consolidados")
-    
-    # Mostrar apenas colunas que existem
-    colunas_para_mostrar = ['Mes']
-    if col_precip:
-        colunas_para_mostrar.append('Precipitacao')
-    if col_temp:
-        colunas_para_mostrar.append('Temp_Inst')
-    
-    # Adicionar outras colunas úteis se disponíveis
-    for col in ['GDD_Acumulado', 'ETo_Total_mm', 'Horas_Frio_10C', 'Tmax', 'Tmin', 'UR_Inst', 'U2']:
-        if col in df.columns:
-            colunas_para_mostrar.append(col)
-            df_exibicao[col] = df[col]
-    
-    st.dataframe(df_exibicao[colunas_para_mostrar].set_index('Mes'), use_container_width=True)
-    
-    # ===== INDICADORES ACUMULADOS =====
-    st.markdown("---")
-    st.markdown("### 🌱 Indicadores Acumulados")
-    
-    col_i1, col_i2, col_i3, col_i4 = st.columns(4)
-    
-    with col_i1:
-        if col_precip and df_exibicao['Precipitacao'].sum() > 0:
-            st.metric("☔ Precipitação Total", f"{df_exibicao['Precipitacao'].sum():.0f} mm")
-        else:
-            st.metric("☔ Precipitação Total", "N/D")
-    
-    with col_i2:
-        if 'GDD_Acumulado' in df.columns and df['GDD_Acumulado'].sum() > 0:
-            st.metric("🌾 GDD Total", f"{df['GDD_Acumulado'].sum():.0f}")
-        else:
-            st.metric("🌾 GDD Total", "N/D")
-    
-    with col_i3:
-        if 'ETo_Total_mm' in df.columns and df['ETo_Total_mm'].sum() > 0:
-            st.metric("💧 ETo Total", f"{df['ETo_Total_mm'].sum():.0f} mm")
-        else:
-            st.metric("💧 ETo Total", "N/D")
-    
-    with col_i4:
-        if 'Horas_Frio_10C' in df.columns and df['Horas_Frio_10C'].sum() > 0:
-            st.metric("❄️ Horas de Frio", f"{df['Horas_Frio_10C'].sum():.0f} h")
-        else:
-            st.metric("❄️ Horas de Frio", "N/D")
-    
-    # ===== GRÁFICO GDD =====
-    if 'GDD_Acumulado' in df.columns and df['GDD_Acumulado'].sum() > 0:
-        st.markdown("---")
-        st.markdown("### 📈 Evolução do GDD Acumulado")
-        df_gdd = df_exibicao[['Mes', 'GDD_Acumulado']].set_index('Mes')
-        st.line_chart(df_gdd, height=300, color='#4caf50')
-    
-    # ===== GRÁFICO ETo =====
-    if 'ETo_Total_mm' in df.columns and df['ETo_Total_mm'].sum() > 0:
-        st.markdown("### 💧 Evolução da ETo Mensal")
-        df_eto = df_exibicao[['Mes', 'ETo_Total_mm']].set_index('Mes')
-        st.line_chart(df_eto, height=300, color='#9c27b0')
+    return fig
 
+def criar_heatmap_correlacao(df):
+    """Cria heatmap de correlação entre variáveis"""
+    colunas_correlacao = ['Temp_Inst', 'UR_Inst', 'U2', 'Press_Inst']
+    colunas_existentes = [c for c in colunas_correlacao if c in df.columns]
+    
+    if len(colunas_existentes) < 2:
+        return None
+    
+    corr_matrix = df[colunas_existentes].corr()
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=corr_matrix.values,
+        x=corr_matrix.columns,
+        y=corr_matrix.columns,
+        colorscale='RdBu',
+        zmin=-1, zmax=1,
+        text=corr_matrix.values.round(2),
+        texttemplate='%{text}',
+        textfont={"size": 12}
+    ))
+    
+    fig.update_layout(
+        title='📈 Matriz de Correlação entre Variáveis',
+        template='plotly_dark',
+        height=450,
+        width=550
+    )
+    
+    return fig
 
-def gerar_relatorio_pdf_completo(df_mensal, df_indicadores, qualidade, eventos_extremos, nome_estacao, info_estacao):
-    """Geração de relatório PDF completo e profissional"""
+# ============================================================================
+# RELATÓRIO HTML
+# ============================================================================
+
+def gerar_relatorio_html(df_original, df_mensal, qualidade, eventos, substituicoes, outliers, nome_estacao):
+    """Gera relatório HTML completo"""
     
     data_geracao = datetime.now().strftime('%d/%m/%Y às %H:%M')
-    
-    # Preparar tabela de dados mensais
-    tabela_mensal = ""
-    for _, row in df_mensal.iterrows():
-        tabela_mensal += f"""
-        <tr>
-            <td>{row['Mes']}</td>
-            <td>{row.get('Temp_Inst', 0):.1f}</td>
-            <td>{row.get('Tmax', 0):.1f}</td>
-            <td>{row.get('Tmin', 0):.1f}</td>
-            <td>{row.get('Precipitacao', 0):.1f}</td>
-            <td>{row.get('UR_Inst', 0):.1f}</td>
-            <td>{row.get('U2', 0):.1f}</td>
-        </tr>
-        """
-    
-    # Preparar tabela de indicadores
-    tabela_indicadores = ""
-    if df_indicadores is not None and len(df_indicadores) > 0:
-        for _, row in df_indicadores.iterrows():
-            tabela_indicadores += f"""
-            <tr>
-                <td>{row.get('Mes', 'N/A')}</td>
-                <td>{row.get('GDD_Acumulado', 0):.0f}</td>
-                <td>{row.get('Horas_Frio_10C', 0):.0f}</td>
-                <td>{row.get('ETo_Total_mm', 0):.1f}</td>
-                <td>{row.get('Indice_Aridade', 0):.2f}</td>
-                <td>{row.get('Classificacao_Aridade', 'N/A')}</td>
-            </tr>
-            """
-    
-    # Preparar tabela de qualidade
-    tabela_qualidade = ""
-    for var, info in qualidade.items():
-        if var != 'temporal' and isinstance(info, dict):
-            tabela_qualidade += f"""
-            <tr>
-                <td>{var}</td>
-                <td>{info.get('percentual_completo', 0):.1f}%</td>
-                <td>{info.get('classificacao', 'N/A')}</td>
-                <td>{info.get('num_outliers', 0)}</td>
-            </tr>
-            """
-    
-    # Preparar cards de eventos
-    eventos_html = ""
-    for evento in eventos_extremos:
-        classe = 'critical-card' if evento['gravidade'] == 'Crítica' else 'warning-card' if evento['gravidade'] == 'Alta' else 'success-card'
-        eventos_html += f"""
-            <div class="{classe}">
-                <strong>🔴 {evento['tipo']}</strong><br>
-                {evento['descricao']}<br>
-                <small>Gravidade: {evento['gravidade']}</small>
-            </div>
-        """
     
     html_content = f"""
     <!DOCTYPE html>
     <html lang="pt-BR">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Relatório Meteorológico Completo - {nome_estacao}</title>
+        <title>Relatório Meteorológico - {nome_estacao}</title>
         <style>
-            @page {{
-                size: A4;
-                margin: 2cm;
-            }}
-            body {{
-                font-family: 'Segoe UI', Arial, sans-serif;
-                margin: 0;
-                padding: 20px;
-                background: #f5f5f5;
-                line-height: 1.6;
-            }}
-            .container {{
-                max-width: 1200px;
-                margin: 0 auto;
-                background: white;
-                box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            }}
-            .header {{
-                background: linear-gradient(135deg, #1a5f7a, #0d3b4f);
-                color: white;
-                padding: 40px;
-                text-align: center;
-                border-radius: 10px 10px 0 0;
-            }}
-            .header h1 {{
-                margin: 0;
-                font-size: 28px;
-            }}
-            .header p {{
-                margin: 10px 0 0;
-                opacity: 0.9;
-            }}
-            .section {{
-                background: white;
-                margin: 20px;
-                padding: 25px;
-                border-radius: 10px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-                page-break-inside: avoid;
-            }}
-            .section h2 {{
-                color: #1a5f7a;
-                border-bottom: 3px solid #4caf50;
-                padding-bottom: 10px;
-                margin-top: 0;
-            }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin: 15px 0;
-            }}
-            th, td {{
-                border: 1px solid #ddd;
-                padding: 10px;
-                text-align: center;
-            }}
-            th {{
-                background: linear-gradient(135deg, #1a5f7a, #0d3b4f);
-                color: white;
-                font-weight: bold;
-            }}
-            tr:nth-child(even) {{
-                background-color: #f9f9f9;
-            }}
-            .metric-grid {{
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 15px;
-                margin: 20px 0;
-            }}
-            .metric-card {{
-                background: linear-gradient(135deg, #e8f4f8, #d4eaf1);
-                padding: 15px;
-                border-radius: 10px;
-                text-align: center;
-            }}
-            .metric-value {{
-                font-size: 28px;
-                font-weight: bold;
-                color: #1a5f7a;
-            }}
-            .metric-label {{
-                font-size: 12px;
-                color: #666;
-                margin-top: 5px;
-            }}
-            .warning-card {{
-                background: #fff3cd;
-                border-left: 4px solid #ffc107;
-                padding: 15px;
-                margin: 15px 0;
-                border-radius: 5px;
-            }}
-            .critical-card {{
-                background: #f8d7da;
-                border-left: 4px solid #f44336;
-                padding: 15px;
-                margin: 15px 0;
-                border-radius: 5px;
-            }}
-            .success-card {{
-                background: #d4edda;
-                border-left: 4px solid #28a745;
-                padding: 15px;
-                margin: 15px 0;
-                border-radius: 5px;
-            }}
-            .footer {{
-                text-align: center;
-                padding: 20px;
-                font-size: 12px;
-                color: #999;
-                border-top: 1px solid #eee;
-                margin-top: 20px;
-            }}
-            @media print {{
-                body {{
-                    background: white;
-                    padding: 0;
-                }}
-                .section {{
-                    break-inside: avoid;
-                }}
-            }}
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
+            .container {{ max-width: 1200px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; }}
+            .header {{ background: linear-gradient(135deg, #1a5f7a, #0d3b4f); color: white; padding: 30px; text-align: center; }}
+            .section {{ padding: 20px; border-bottom: 1px solid #eee; }}
+            .section h2 {{ color: #1a5f7a; border-left: 4px solid #4caf50; padding-left: 15px; }}
+            table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
+            th, td {{ border: 1px solid #ddd; padding: 10px; text-align: center; }}
+            th {{ background: #1a5f7a; color: white; }}
+            .metric {{ display: inline-block; background: #e8f4f8; padding: 15px; margin: 10px; border-radius: 10px; min-width: 150px; text-align: center; }}
+            .metric-value {{ font-size: 24px; font-weight: bold; color: #1a5f7a; }}
+            .warning {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0; }}
+            .success {{ background: #d4edda; border-left: 4px solid #28a745; padding: 10px; margin: 10px 0; }}
+            .footer {{ text-align: center; padding: 20px; font-size: 12px; color: #999; }}
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <h1>🌾 RELATÓRIO METEOROLÓGICO COMPLETO</h1>
+                <h1>🌾 RELATÓRIO METEOROLÓGICO</h1>
                 <h2>{nome_estacao}</h2>
-                <p>Latitude: {info_estacao.get('latitude', 'N/A')}° | 
-                   Longitude: {info_estacao.get('longitude', 'N/A')}° | 
-                   Altitude: {info_estacao.get('altitude', 'N/A')} m</p>
                 <p>Gerado em: {data_geracao}</p>
             </div>
             
             <div class="section">
-                <h2>📊 Resumo Estatístico do Período</h2>
-                <div class="metric-grid">
-                    <div class="metric-card">
-                        <div class="metric-value">{df_mensal['Temp_Inst'].mean():.1f}°C</div>
-                        <div class="metric-label">Temperatura Média</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{df_mensal['Tmax'].max():.1f}°C</div>
-                        <div class="metric-label">Temperatura Máxima Absoluta</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{df_mensal['Tmin'].min():.1f}°C</div>
-                        <div class="metric-label">Temperatura Mínima Absoluta</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{df_mensal['Precipitacao'].sum():.0f} mm</div>
-                        <div class="metric-label">Precipitação Total</div>
-                    </div>
+                <h2>📊 Resumo do Processamento</h2>
+                <div class="metric">
+                    <div class="metric-value">{len(df_original):,}</div>
+                    <div>Registros Originais</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">{len(df_mensal) if df_mensal is not None else 0}</div>
+                    <div>Meses Consolidados</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">{len(eventos)}</div>
+                    <div>Eventos Extremos</div>
                 </div>
             </div>
             
             <div class="section">
                 <h2>📅 Dados Mensais Consolidados</h2>
+                {df_mensal.to_html(index=False) if df_mensal is not None else "<p>Não disponível</p>"}
+            </div>
+            
+            <div class="section">
+                <h2>📈 Qualidade dos Dados</h2>
                 <table>
-                    <thead>
-                        <tr>
-                            <th>Mês</th>
-                            <th>Temp Média (°C)</th>
-                            <th>Tmax (°C)</th>
-                            <th>Tmin (°C)</th>
-                            <th>Precipitação (mm)</th>
-                            <th>Umidade (%)</th>
-                            <th>Vento (m/s)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tabela_mensal}
-                    </tbody>
+                    <tr><th>Variável</th><th>Completude</th><th>Classificação</th><th>Faltantes</th></tr>
+                    {"".join([f"<tr><td>{k}</td><td>{v['percentual_completo']}%</td><td>{v['classificacao']}</td><td>{v['dados_faltantes']}</td></tr>" for k, v in qualidade.items() if k not in ['periodo']])}
                 </table>
             </div>
             
             <div class="section">
-                <h2>🌱 Indicadores Agrícolas e Climáticos</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Mês</th>
-                            <th>GDD Acumulado</th>
-                            <th>Horas de Frio (10°C)</th>
-                            <th>ETo Total (mm)</th>
-                            <th>Índice de Aridez</th>
-                            <th>Classificação</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tabela_indicadores}
-                    </tbody>
-                </table>
+                <h2>🔄 Substituições Realizadas</h2>
+                {"".join([f"<div class='success'>✅ {s['variavel']}: {s.get('motivo', '')}</div>" for s in substituicoes if s['status'] == 'PREENCHIDO'])}
+                {"".join([f"<div class='warning'>⚠️ {s['variavel']}: {s.get('motivo', '')}</div>" for s in substituicoes if s['status'] == 'NÃO PREENCHIDO'])}
             </div>
             
             <div class="section">
-                <h2>⚠️ Eventos Climáticos Extremos Detectados</h2>
-                {eventos_html if eventos_extremos else "<p>✅ Nenhum evento climático extremo detectado no período analisado</p>"}
+                <h2>⚠️ Outliers Tratados</h2>
+                {"".join([f"<div class='warning'>🔍 {k}: {v['num_outliers']} outliers ({v['percentual']}%)</div>" for k, v in outliers.items()]) if outliers else "<p>✅ Nenhum outlier detectado</p>"}
             </div>
             
             <div class="section">
-                <h2>📈 Análise de Qualidade dos Dados</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Variável</th>
-                            <th>Completude (%)</th>
-                            <th>Classificação</th>
-                            <th>Outliers</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tabela_qualidade}
-                    </tbody>
-                </table>
+                <h2>🌡️ Eventos Climáticos Extremos</h2>
+                {"".join([f"<div class='warning'><strong>{e['tipo']}</strong>: {e['descricao']}</div>" for e in eventos]) if eventos else "<p>✅ Nenhum evento extremo detectado</p>"}
             </div>
             
             <div class="footer">
-                <p>Relatório gerado automaticamente pelo INMET Smart Processor</p>
-                <p>Este relatório pode ser utilizado para fins acadêmicos, científicos e de planejamento agrícola</p>
+                <p>Smart Meteorological Processor - Aplicativo para fins acadêmicos</p>
+                <p>⚠️ Este aplicativo não pertence ao INMET</p>
             </div>
         </div>
     </body>
@@ -1315,139 +839,49 @@ def gerar_relatorio_pdf_completo(df_mensal, df_indicadores, qualidade, eventos_e
     return html_content
 
 # ============================================================================
-# FUNÇÃO PRINCIPAL DE PROCESSAMENTO
+# PIPELINE PRINCIPAL
 # ============================================================================
-def preenchimento_inteligente_falhas(df, metodo='multivariado'):
-    """
-    Preenchimento avançado de falhas usando múltiplas técnicas.
-    
-    Métodos disponíveis:
-    - interpolacao_linear: Interpolação linear entre pontos válidos
-    - interpolacao_spline: Interpolação spline cúbica
-    - media_movel: Média móvel com janela de 24 horas
-    - multivariado: Combinação de métodos (recomendado)
-    """
-    
-    df_filled = df.copy()
-    
-    # Identificar colunas numéricas
-    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
-                         'Precipitacao', 'U2', 'Press_Inst']
-    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
-    
-    try:
-        if metodo == 'interpolacao_linear':
-            for col in colunas_existentes:
-                if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
-                    df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=24)
-                    
-        elif metodo == 'interpolacao_spline':
-            for col in colunas_existentes:
-                if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
-                    try:
-                        df_filled[col] = df_filled[col].interpolate(method='spline', order=3, limit_direction='both')
-                    except:
-                        df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=24)
-                    
-        elif metodo == 'media_movel':
-            for col in colunas_existentes:
-                if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
-                    media_movel = df_filled[col].rolling(window=24, min_periods=6, center=True).mean()
-                    df_filled[col] = df_filled[col].fillna(media_movel)
-                    
-        elif metodo == 'multivariado':
-            # Combinação de métodos
-            for col in colunas_existentes:
-                if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
-                    # Primeiro, interpolação linear
-                    df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=12)
-                    
-                    # Depois, média móvel para os remanescentes
-                    mascara = df_filled[col].isna()
-                    if mascara.any():
-                        media_movel = df_filled[col].rolling(window=48, min_periods=12, center=True).mean()
-                        df_filled.loc[mascara, col] = media_movel.loc[mascara]
-                    
-                    # Por último, preenchimento sazonal
-                    if 'Month' in df_filled.columns:
-                        mascara = df_filled[col].isna()
-                        if mascara.any():
-                            medias_mensais = df_filled.groupby('Month')[col].transform('mean')
-                            df_filled.loc[mascara, col] = medias_mensais.loc[mascara]
-        
-        # Verificar se ainda há NaN e preencher com mediana
-        for col in colunas_existentes:
-            if col in df_filled.columns and isinstance(df_filled[col], pd.Series):
-                if df_filled[col].isna().any():
-                    mediana = df_filled[col].median()
-                    if pd.notna(mediana):
-                        df_filled[col].fillna(mediana, inplace=True)
-                    else:
-                        df_filled[col].fillna(0, inplace=True)
-                
-    except Exception as e:
-        pass
-    
-    return df_filled
-def pipeline_completo_processamento(arquivo_bytes, config):
-    """Pipeline completo de processamento de dados INMET"""
+
+def pipeline_completo(arquivo_bytes, config):
+    """Pipeline completo de processamento"""
     
     resultados = {}
     
     try:
-        # Passo 1: Detecção de formato
-        with st.spinner("🔍 Detectando formato do arquivo..."):
-            df, info_estacao = ler_arquivo_inteligente(arquivo_bytes)
-            resultados['info_estacao'] = info_estacao
+        # Leitura
+        df, info_estacao = ler_arquivo_inteligente(arquivo_bytes)
+        resultados['info_estacao'] = info_estacao
+        resultados['dados_originais'] = df.copy()  # PRESERVA OS DADOS ORIGINAIS
         
-        # Passo 2: Padronização de colunas
-        with st.spinner("📋 Padronizando colunas..."):
-            df = padronizar_colunas(df)
+        # Processamento
+        df = padronizar_colunas(df)
+        df = corrigir_datas(df)
         
-        # Passo 3: Correção de datas
-        with st.spinner("📅 Corrigindo datas..."):
-            df = corrigir_datas(df)
+        # Qualidade
+        qualidade = analise_completa_qualidade(df)
+        resultados['qualidade'] = qualidade
         
-        # Passo 4: Validação de consistência física
-        with st.spinner("🔬 Validando consistência física dos dados..."):
-            df, alertas_fisicos = validar_consistencia_fisica(df)
-            if alertas_fisicos:
-                st.warning(f"⚠️ Foram encontrados {len(alertas_fisicos)} tipos de inconsistências físicas nos dados.")
-                with st.expander("📋 Detalhes das inconsistências encontradas"):
-                    for alerta in alertas_fisicos:
-                        st.write(f"**Variável:** {alerta['variavel']}")
-                        st.write(f"**Quantidade de registros inconsistentes:** {alerta['quantidade']}")
-                        if alerta['exemplos']:
-                            st.write(f"**Exemplos (data/hora):** {', '.join(alerta['exemplos'][:3])}")
-                        st.markdown("---")
+        # Preenchimento de falhas
+        df, substituicoes = preenchimento_inteligente_falhas(df, limite_max_falhas=10)
+        resultados['substituicoes'] = substituicoes
         
-        # Passo 5: Análise de qualidade
-        with st.spinner("📊 Analisando qualidade dos dados..."):
-            qualidade, outliers = analise_completa_qualidade(df)
-            resultados['qualidade'] = qualidade
-            resultados['outliers'] = outliers
+        # Tratamento de outliers
+        df, outliers = detectar_outliers_tratar(df)
+        resultados['outliers'] = outliers
         
-        # Passo 6: Preenchimento de falhas
-        with st.spinner("🔄 Preenchendo falhas nos dados..."):
-            metodo_falhas = config.get('metodo_falhas', 'multivariado')
-            df = preenchimento_inteligente_falhas(df, metodo=metodo_falhas)
+        # Eventos extremos
+        eventos = detectar_eventos_extremos(df)
+        resultados['eventos'] = eventos
         
-        # Passo 7: Detecção de eventos extremos
-        with st.spinner("⚠️ Detectando eventos climáticos extremos..."):
-            eventos_extremos = detectar_eventos_extremos(df)
-            resultados['eventos_extremos'] = eventos_extremos
+        # Dados consolidados (TABELA SEPARADA - NÃO ALTERA OS ORIGINAIS)
+        df_mensal = consolidar_medias_mensais(df)
+        resultados['dados_mensais'] = df_mensal
+        resultados['dados_processados'] = df
         
-        # Passo 8: Consolidação mensal
-        with st.spinner("📆 Consolidando dados por mês..."):
-            df_mensal = consolidacao_avancada_por_mes(df)
-            resultados['dados_mensais'] = df_mensal
-        
-        # Passo 9: Cálculo de indicadores agrícolas
-        with st.spinner("🌱 Calculando indicadores agrícolas..."):
-            latitude = config.get('latitude', info_estacao.get('latitude', -16.0))
-            df_indicadores, df = calcular_indicadores_agricolas_avancados(df, df_mensal, latitude)
-            resultados['indicadores'] = df_indicadores
-            resultados['dados_diarios'] = df
+        # Estatísticas
+        resultados['total_registros_original'] = len(resultados['dados_originais'])
+        resultados['total_registros_processados'] = len(df)
+        resultados['total_meses'] = len(df_mensal) if df_mensal is not None else 0
         
         return resultados
         
@@ -1455,704 +889,298 @@ def pipeline_completo_processamento(arquivo_bytes, config):
         st.error(f"❌ Erro no processamento: {str(e)}")
         return None
 
-
-def analise_completa_qualidade(df):
-    """Análise completa da qualidade dos dados"""
-    
-    qualidade = {}
-    # Identificar colunas numéricas
-    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
-                         'Precipitacao', 'U2', 'Press_Inst']
-    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
-    
-    # Estatísticas de completude
-    for col in colunas_existentes:
-        try:
-            # Verificar se é uma Series
-            if isinstance(df[col], pd.Series):
-                total = len(df)
-                presentes = int(df[col].notna().sum()) if df[col].notna().sum() is not None else 0
-                percentual = (presentes / total) * 100 if total > 0 else 0
-                
-                qualidade[col] = {
-                    'total_registros': total,
-                    'dados_presentes': presentes,
-                    'dados_faltantes': total - presentes,
-                    'percentual_completo': round(percentual, 2),
-                    'classificacao': 'Boa' if percentual >= 95 else 'Regular' if percentual >= 80 else 'Crítica'
-                }
-        except Exception as e:
-            pass
-    
-    # Análise de outliers (usando IQR)
-    outliers_info = {}
-    for col in colunas_existentes:
-        try:
-            if isinstance(df[col], pd.Series):
-                dados_validos = df[col].dropna()
-                if len(dados_validos) > 0 and pd.api.types.is_numeric_dtype(dados_validos):
-                    Q1 = dados_validos.quantile(0.25)
-                    Q3 = dados_validos.quantile(0.75)
-                    IQR = Q3 - Q1
-                    
-                    if IQR > 0:  # Evitar divisão por zero
-                        limite_inferior = Q1 - 3 * IQR
-                        limite_superior = Q3 + 3 * IQR
-                        
-                        mask_outliers = (df[col] < limite_inferior) | (df[col] > limite_superior)
-                        num_outliers = int(mask_outliers.sum()) if mask_outliers.sum() is not None else 0
-                        
-                        outliers_info[col] = {
-                            'limite_inferior': round(limite_inferior, 2),
-                            'limite_superior': round(limite_superior, 2),
-                            'num_outliers': num_outliers,
-                            'percentual_outliers': round((num_outliers / len(dados_validos)) * 100, 2) if len(dados_validos) > 0 else 0
-                        }
-        except Exception as e:
-            pass
-    
-    # Análise de consistência temporal
-    if 'DateTime' in df.columns and isinstance(df['DateTime'], pd.Series):
-        try:
-            df_sorted = df.sort_values('DateTime')
-            if len(df_sorted) > 1:
-                intervalos = df_sorted['DateTime'].diff().dropna()
-                
-                qualidade['temporal'] = {
-                    'inicio': str(df_sorted['DateTime'].min()),
-                    'fim': str(df_sorted['DateTime'].max()),
-                    'dias_totais': (df_sorted['DateTime'].max() - df_sorted['DateTime'].min()).days,
-                    'intervalo_medio': str(intervalos.mean()) if not intervalos.empty else 'N/A',
-                    'intervalo_mediano': str(intervalos.median()) if not intervalos.empty else 'N/A'
-                }
-        except Exception as e:
-            pass
-    
-    return qualidade, outliers_info
 # ============================================================================
-# INTERFACE PRINCIPAL DO STREAMLIT
+# INTERFACE PRINCIPAL
 # ============================================================================
 
 def main():
     # Cabeçalho
     st.markdown("""
     <div class="main-header">
-        <h1>🌾 INMET Smart Processor</h1>
+        <h1>🌾 Smart Meteorological Processor</h1>
         <p style="color: #a0c4d6; font-size: 1.1rem;">
             Sistema Profissional de Tratamento, Análise e Visualização de Dados Meteorológicos
         </p>
         <p style="color: #81c784; font-size: 0.9rem;">
-            🔬 IA Integrada | 📊 Indicadores Agrícolas | 🌡️ Detecção de Eventos Extremos | 📈 Relatórios Automáticos
+            🔬 Preserva dados originais | 📊 Médias mensais separadas | 🌡️ Tratamento inteligente | 📈 Gráficos interativos
         </p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Sidebar - Configurações
+    # Sidebar
     with st.sidebar:
-        st.markdown("## ⚙️ Configurações Avançadas")
+        st.markdown("## ⚙️ Configurações")
         
         uploaded_file = st.file_uploader(
-            "📂 **Upload do Arquivo INMET**",
-            type=['csv', 'txt', 'dat'],
-            help="Arquivos CSV, TXT ou DAT baixados do portal do INMET"
+            "📂 **Upload do Arquivo**",
+            type=['csv', 'txt', 'dat', 'xlsx', 'xls'],
+            help="Arquivos de dados meteorológicos"
         )
         
         st.markdown("---")
         
-        st.markdown("### 🔧 Métodos de Preenchimento")
-        metodo_falhas = st.selectbox(
-            "**Técnica para preenchimento de falhas:**",
-            ["multivariado", "interpolacao_linear", "interpolacao_spline", "media_movel"],
-            format_func=lambda x: {
-                "multivariado": "🧠 Multivariado (Recomendado)",
-                "interpolacao_linear": "📈 Interpolação Linear",
-                "interpolacao_spline": "📊 Spline Cúbico",
-                "media_movel": "📉 Média Móvel"
-            }[x]
-        )
-        
-        st.markdown("---")
-        
-        st.markdown("### 🌍 Parâmetros Regionais")
-        latitude = st.number_input(
-            "**Latitude da Estação (°):**",
-            value=-16.0,
-            step=0.1,
-            format="%.1f",
-            help="Use valores negativos para Sul do Equador"
-        )
+        st.markdown("### 🔧 Configurações de Processamento")
+        limite_falhas = st.slider("Limite máximo de falhas consecutivas", 5, 30, 10)
+        fator_outliers = st.slider("Fator para detecção de outliers (IQR)", 2.0, 5.0, 3.0, 0.5)
         
         st.markdown("---")
         
         st.markdown("### 🤖 IA Gemini")
-        usar_ia = st.checkbox("**Ativar análise com IA Gemini**", value=True)
-        if usar_ia:
-            st.info("A IA analisará padrões climáticos e fenômenos como El Niño/La Niña")
+        usar_ia = st.checkbox("Ativar análise com IA", value=True)
         
         st.markdown("---")
-        
-        st.markdown("### 📄 Relatório")
-        incluir_eventos = st.checkbox("**Incluir análise de eventos extremos**", value=True)
-        incluir_indicadores = st.checkbox("**Incluir indicadores agrícolas**", value=True)
-        
-        st.markdown("---")
-        st.caption("🔬 Desenvolvido para análise profissional de dados meteorológicos")
-        st.caption("Versão 2.0 - Pipeline Completo")
+        st.caption("🔬 Desenvolvido para análise profissional")
+        st.caption("⚠️ Aplicativo para fins acadêmicos")
     
     # Área principal
     if uploaded_file is not None:
         
-        # Configurações do pipeline
         config = {
-            'metodo_falhas': metodo_falhas,
-            'latitude': latitude,
-            'usar_ia': usar_ia,
-            'incluir_eventos': incluir_eventos,
-            'incluir_indicadores': incluir_indicadores
+            'limite_falhas': limite_falhas,
+            'fator_outliers': fator_outliers,
+            'usar_ia': usar_ia
         }
         
-        # Processar dados
-        with st.status("🔄 **Processando dados meteorológicos...**", expanded=True) as status:
-            st.write("📁 Lendo e analisando arquivo...")
-            resultados = pipeline_completo_processamento(uploaded_file, config)
-            
-            if resultados:
-                status.update(label="✅ Processamento concluído!", state="complete")
+        with st.spinner("🔄 Processando dados..."):
+            resultados = pipeline_completo(uploaded_file, config)
         
         if resultados:
-            # Extrair resultados
+            df_original = resultados['dados_originais']
+            df_processado = resultados['dados_processados']
             df_mensal = resultados['dados_mensais']
-            df_indicadores = resultados.get('indicadores')
             qualidade = resultados.get('qualidade', {})
-            eventos = resultados.get('eventos_extremos', [])
+            eventos = resultados.get('eventos', [])
+            substituicoes = resultados.get('substituicoes', [])
+            outliers = resultados.get('outliers', {})
             info_estacao = resultados.get('info_estacao', {})
-            df_diario = resultados.get('dados_diarios', pd.DataFrame())
             
             nome_estacao = info_estacao.get('station_name', 'Estação Meteorológica')
             
-            # Alertas de qualidade
-            alertas_criticos = []
-            for var, info in qualidade.items():
-                if var != 'temporal' and isinstance(info, dict):
-                    if info.get('percentual_completo', 100) < 70:
-                        alertas_criticos.append(f"⚠️ {var}: {info['percentual_completo']:.1f}% de dados válidos")
+            # Cards de resumo
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("📊 Registros Originais", f"{resultados['total_registros_original']:,}")
+            with col2:
+                st.metric("✅ Registros Processados", f"{resultados['total_registros_processados']:,}")
+            with col3:
+                st.metric("📅 Meses Consolidados", resultados['total_meses'])
+            with col4:
+                st.metric("⚠️ Eventos Extremos", len(eventos))
             
-            if alertas_criticos:
-                with st.expander("⚠️ **Alertas de Qualidade dos Dados**", expanded=True):
-                    for alerta in alertas_criticos[:5]:
-                        st.warning(alerta)
-                    if len(alertas_criticos) > 5:
-                        st.info(f"... e mais {len(alertas_criticos) - 5} alertas")
+            # Exibir alertas
+            if substituicoes:
+                with st.expander("📋 **Dados substituídos no preenchimento de falhas**", expanded=False):
+                    for sub in substituicoes:
+                        if sub['status'] == 'PREENCHIDO':
+                            st.success(f"✅ {sub['variavel']}: {sub.get('quantidade', 0)} valores preenchidos")
+                        elif sub['status'] == 'NÃO PREENCHIDO':
+                            st.warning(f"⚠️ {sub['variavel']}: {sub.get('motivo', '')}")
             
-            # Tabs principais
+            if outliers:
+                with st.expander("📊 **Outliers detectados e tratados**", expanded=False):
+                    for var, info in outliers.items():
+                        st.info(f"🔍 {var}: {info['num_outliers']} outliers ({info['percentual']}%) - Limites: {info['limites']}")
+            
+            # TABS
             tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-                "📊 **Dados Consolidados**",
-                "🌱 **Indicadores Agrícolas**",
-                "📈 **Visualizações**",
-                "⚠️ **Eventos Extremos**",
-                "🤖 **Análise IA**",
-                "📥 **Downloads**"
+                "📊 Dados Originais",
+                "📅 Médias Mensais",
+                "📈 Gráficos",
+                "🔬 Análise de Qualidade",
+                "🤖 IA Gemini",
+                "📥 Downloads"
             ])
             
-                                               # Tab 1: Dados Consolidados
+            # TAB 1: DADOS ORIGINAIS
             with tab1:
-                st.markdown("### 📊 Tabela de Dados Mensais Consolidados")
+                st.markdown("### 📊 Dados Originais (Preservados na Íntegra)")
+                st.caption(f"Total de registros: {len(df_original):,} linhas")
                 
-                # Formatar para exibição
-                df_exibicao = df_mensal.copy()
-                
-                # Verificar quais colunas existem
-                colunas_originais = df_exibicao.columns.tolist()
-                
-                # Criar dicionário de renomeação sem duplicatas
-                renomear = {}
-                
-                # Mapear colunas existentes (APENAS UMA VEZ para cada nome final)
-                if 'Mes' in colunas_originais:
-                    renomear['Mes'] = 'Mês'
-                if 'Temp_Inst' in colunas_originais:
-                    renomear['Temp_Inst'] = 'Temp Média'
-                if 'Tmax' in colunas_originais:
-                    renomear['Tmax'] = 'T Max'
-                if 'Tmin' in colunas_originais:
-                    renomear['Tmin'] = 'T Min'
-                if 'Precipitacao' in colunas_originais:
-                    renomear['Precipitacao'] = 'Precipitação'
-                if 'UR_Inst' in colunas_originais:
-                    renomear['UR_Inst'] = 'UR Média'
-                if 'U2' in colunas_originais:
-                    renomear['U2'] = 'Vento'
-                
-                # Aplicar renomeação
-                df_exibicao = df_exibicao.rename(columns=renomear)
-                
-                # Garantir que não há colunas duplicadas
-                df_exibicao = df_exibicao.loc[:, ~df_exibicao.columns.duplicated()]
-                
-                # Selecionar apenas as colunas renomeadas para exibição
-                colunas_para_exibir = [v for v in renomear.values() if v in df_exibicao.columns]
-                
-                if colunas_para_exibir:
-                    st.dataframe(df_exibicao[colunas_para_exibir], use_container_width=True)
-                else:
-                    st.dataframe(df_exibicao, use_container_width=True)
+                # Amostra dos dados
+                st.dataframe(df_original.head(100), use_container_width=True)
                 
                 # Estatísticas descritivas
-                st.markdown("### 📈 Estatísticas Descritivas do Período")
-                col_est1, col_est2, col_est3, col_est4 = st.columns(4)
-                
-                with col_est1:
-                    if 'Temp_Inst' in df_mensal.columns:
-                        try:
-                            media_temp = df_mensal['Temp_Inst'].mean()
-                            min_temp = df_mensal['Temp_Inst'].min()
-                            max_temp = df_mensal['Temp_Inst'].max()
-                            
-                            if pd.notna(media_temp):
-                                st.metric("🌡️ Temperatura Média", f"{media_temp:.1f}°C")
-                                st.caption(f"Min: {min_temp:.1f}°C | Max: {max_temp:.1f}°C")
-                            else:
-                                st.info("Dados de temperatura não disponíveis")
-                        except Exception:
-                            st.info("Dados de temperatura não disponíveis")
-                    else:
-                        st.info("Dados de temperatura não disponíveis")
-                
-                with col_est2:
-                    if 'Precipitacao' in df_mensal.columns:
-                        try:
-                            soma_precip = df_mensal['Precipitacao'].sum()
-                            media_precip = df_mensal['Precipitacao'].mean()
-                            
-                            if pd.notna(soma_precip):
-                                st.metric("☔ Precipitação Total", f"{soma_precip:.0f} mm")
-                                st.caption(f"Média mensal: {media_precip:.1f} mm")
-                            else:
-                                st.info("Dados de precipitação não disponíveis")
-                        except Exception:
-                            st.info("Dados de precipitação não disponíveis")
-                    else:
-                        st.info("Dados de precipitação não disponíveis")
-                
-                with col_est3:
-                    if 'UR_Inst' in df_mensal.columns:
-                        try:
-                            media_ur = df_mensal['UR_Inst'].mean()
-                            min_ur = df_mensal['UR_Inst'].min()
-                            max_ur = df_mensal['UR_Inst'].max()
-                            
-                            if pd.notna(media_ur):
-                                st.metric("💧 Umidade Média", f"{media_ur:.1f}%")
-                                st.caption(f"Min: {min_ur:.1f}% | Max: {max_ur:.1f}%")
-                            else:
-                                st.info("Dados de umidade não disponíveis")
-                        except Exception:
-                            st.info("Dados de umidade não disponíveis")
-                    else:
-                        st.info("Dados de umidade não disponíveis")
-                
-                with col_est4:
-                    if 'U2' in df_mensal.columns:
-                        try:
-                            media_vento = df_mensal['U2'].mean()
-                            max_vento = df_mensal['U2'].max()
-                            
-                            if pd.notna(media_vento):
-                                st.metric("💨 Velocidade do Vento", f"{media_vento:.1f} m/s")
-                                st.caption(f"Máxima: {max_vento:.1f} m/s")
-                            else:
-                                st.info("Dados de vento não disponíveis")
-                        except Exception:
-                            st.info("Dados de vento não disponíveis")
-                    else:
-                        st.info("Dados de vento não disponíveis")
+                st.markdown("### 📈 Estatísticas Descritivas")
+                colunas_stats = ['Temp_Inst', 'UR_Inst', 'Precipitacao', 'U2']
+                colunas_existentes = [c for c in colunas_stats if c in df_original.columns]
+                if colunas_existentes:
+                    st.dataframe(df_original[colunas_existentes].describe(), use_container_width=True)
             
-            # Tab 2: Indicadores Agrícolas
+            # TAB 2: MÉDIAS MENSAIS
             with tab2:
-                if incluir_indicadores and df_indicadores is not None and len(df_indicadores) > 0:
-                    st.markdown("### 🌱 Indicadores Agrícolas e Climáticos")
+                st.markdown("### 📅 Dados Consolidados por Mês")
+                st.caption("Médias mensais calculadas a partir dos dados horários")
+                
+                if df_mensal is not None and not df_mensal.empty:
+                    st.dataframe(df_mensal, use_container_width=True)
                     
-                    # Selecionar colunas para exibição
-                    colunas_ind = ['Mes', 'GDD_Acumulado', 'Horas_Frio_10C', 'ETo_Total_mm', 'Indice_Aridade', 'Classificacao_Aridade']
-                    colunas_existentes_ind = [c for c in colunas_ind if c in df_indicadores.columns]
-                    
-                    if colunas_existentes_ind:
-                        df_ind_exibicao = df_indicadores[colunas_existentes_ind].copy()
-                        
-                        # Renomear
-                        renomeios_ind = {
-                            'Mes': 'Mês',
-                            'GDD_Acumulado': 'GDD Acumulado',
-                            'Horas_Frio_10C': 'Horas de Frio (10°C)',
-                            'ETo_Total_mm': 'ETo Total (mm)',
-                            'Indice_Aridade': 'Índice de Aridez',
-                            'Classificacao_Aridade': 'Classificação'
-                        }
-                        df_ind_exibicao = df_ind_exibicao.rename(columns={k: v for k, v in renomeios_ind.items() if k in df_ind_exibicao.columns})
-                        
-                        st.dataframe(df_ind_exibicao, use_container_width=True)
-                    else:
-                        st.warning("Indicadores não disponíveis para os dados atuais")
-                    
-                    # Cards explicativos
-                    st.markdown("---")
-                    st.markdown("### 📖 Interpretação dos Indicadores")
-                    
-                    col_int1, col_int2, col_int3 = st.columns(3)
-                    
-                    with col_int1:
-                        st.info("""
-                        **🌾 GDD (Graus-Dia)**  
-                        Soma térmica diária (Tb=10°C).  
-                        Essencial para prever:  
-                        • Ciclo das culturas  
-                        • Época de floração  
-                        • Estimativa de colheita
-                        """)
-                    
-                    with col_int2:
-                        st.info("""
-                        **❄️ Horas de Frio**  
-                        Horas com Tmin ≤ 10°C.  
-                        Fundamental para:  
-                        • Frutíferas temperadas  
-                        • Dormência de gemas  
-                        • Produção de maçã, uva
-                        """)
-                    
-                    with col_int3:
-                        st.info("""
-                        **💧 ETo (Evapotranspiração)**  
-                        Demanda evaporativa atmosférica.  
-                        Aplica-se em:  
-                        • Manejo de irrigação  
-                        • Balanço hídrico  
-                        • Dimensionamento de projetos
-                        """)
+                    # Gráfico comparativo mensal
+                    fig = criar_grafico_comparativo_mensal(df_mensal)
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.info("ℹ️ Indicadores agrícolas não disponíveis ou desativados nas configurações")
+                    st.info("Dados mensais não disponíveis para este arquivo")
             
-            # Tab 3: Visualizações
+            # TAB 3: GRÁFICOS
             with tab3:
                 st.markdown("### 📈 Visualizações Interativas")
                 
-                # Climograma
-                if len(df_mensal) > 0:
-                    gerar_climograma_streamlit(df_mensal)
-                else:
-                    st.warning("Dados insuficientes para gerar visualizações")
-            
-            # Tab 4: Eventos Extremos
-            with tab4:
-                if incluir_eventos and eventos:
-                    st.markdown("### ⚠️ Eventos Climáticos Extremos Detectados")
+                tipo_grafico = st.radio("Selecione o tipo de visualização:", 
+                                        ["Série Temporal", "Boxplot por Hora", "Heatmap de Correlação"],
+                                        horizontal=True)
+                
+                if tipo_grafico == "Série Temporal":
+                    col_graf1, col_graf2 = st.columns(2)
                     
-                    for evento in eventos:
-                        if evento['gravidade'] == 'Crítica':
-                            st.error(f"🔴 **{evento['tipo']}** - Gravidade: {evento['gravidade']}")
-                        elif evento['gravidade'] == 'Alta':
-                            st.warning(f"🟠 **{evento['tipo']}** - Gravidade: {evento['gravidade']}")
+                    with col_graf1:
+                        fig_temp = criar_grafico_temperatura(df_processado, 'linha')
+                        if fig_temp:
+                            st.plotly_chart(fig_temp, use_container_width=True)
                         else:
-                            st.info(f"🟡 **{evento['tipo']}** - Gravidade: {evento['gravidade']}")
-                        
-                        st.write(evento['descricao'])
-                        if evento.get('datas'):
-                            with st.expander(f"📅 Datas dos eventos ({len(evento['datas'])} ocorrências)"):
-                                st.write(', '.join(evento['datas'][:10]))
-                                if len(evento['datas']) > 10:
-                                    st.write(f"... e mais {len(evento['datas']) - 10} ocorrências")
-                        st.markdown("---")
-                else:
-                    st.success("✅ Nenhum evento climático extremo detectado no período analisado")
+                            st.info("Dados de temperatura não disponíveis")
+                    
+                    with col_graf2:
+                        fig_umid = criar_grafico_umidade(df_processado)
+                        if fig_umid:
+                            st.plotly_chart(fig_umid, use_container_width=True)
+                        else:
+                            st.info("Dados de umidade não disponíveis")
+                    
+                    fig_precip = criar_grafico_precipitacao(df_processado)
+                    if fig_precip:
+                        st.plotly_chart(fig_precip, use_container_width=True)
+                    else:
+                        st.info("Dados de precipitação não disponíveis")
+                    
+                    fig_vento = criar_grafico_vento(df_processado)
+                    if fig_vento:
+                        st.plotly_chart(fig_vento, use_container_width=True)
+                    else:
+                        st.info("Dados de vento não disponíveis")
+                
+                elif tipo_grafico == "Boxplot por Hora":
+                    fig_box = criar_grafico_temperatura(df_processado, 'box')
+                    if fig_box:
+                        st.plotly_chart(fig_box, use_container_width=True)
+                    else:
+                        st.info("Dados insuficientes para boxplot")
+                
+                else:  # Heatmap
+                    fig_heat = criar_heatmap_correlacao(df_processado)
+                    if fig_heat:
+                        st.plotly_chart(fig_heat, use_container_width=True)
+                    else:
+                        st.info("Dados insuficientes para matriz de correlação")
             
-            # Tab 5: Análise com IA Gemini
+            # TAB 4: ANÁLISE DE QUALIDADE
+            with tab4:
+                st.markdown("### 📋 Análise de Qualidade dos Dados")
+                
+                if qualidade:
+                    for var, info in qualidade.items():
+                        if var != 'periodo':
+                            percentual = info.get('percentual_completo', 0)
+                            if percentual >= 95:
+                                st.success(f"**{var}**: {percentual:.1f}% completo ✅")
+                            elif percentual >= 80:
+                                st.warning(f"**{var}**: {percentual:.1f}% completo ⚠️")
+                            else:
+                                st.error(f"**{var}**: {percentual:.1f}% completo ❌")
+                    
+                    if 'periodo' in qualidade:
+                        st.markdown("#### 📅 Período Analisado")
+                        st.write(f"Início: {qualidade['periodo']['inicio']}")
+                        st.write(f"Fim: {qualidade['periodo']['fim']}")
+                        st.write(f"Total de registros: {qualidade['periodo']['total_registros']:,}")
+            
+            # TAB 5: IA GEMINI
             with tab5:
-                st.markdown("### 🤖 Análise Inteligente com IA Gemini")
+                st.markdown("### 🤖 Análise com IA Gemini")
                 
                 if usar_ia:
-                    st.markdown("A IA analisará os dados climáticos e fornecerá insights profissionais")
+                    tipo_analise = st.selectbox(
+                        "Tipo de análise:",
+                        ["Análise Climática Geral", "Identificação de Fenômenos", "Impactos na Agricultura"]
+                    )
                     
-                    col_ia1, col_ia2 = st.columns([2, 1])
-                    
-                    with col_ia1:
-                        tipo_analise = st.selectbox(
-                            "**Selecione o tipo de análise:**",
-                            ["Análise Climática Geral", "Identificação de Fenômenos (El Niño/La Niña)", 
-                             "Impactos na Agricultura", "Previsão de Tendências", "Análise Personalizada"]
-                        )
-                    
-                    with col_ia2:
-                        pergunta_personalizada = ""
-                        if tipo_analise == "Análise Personalizada":
-                            pergunta_personalizada = st.text_input("Sua pergunta específica:")
-                    
-                    if st.button("🚀 **Executar Análise com IA**", use_container_width=True):
-                        with st.spinner("🤖 Consultando IA Gemini. Analisando dados climáticos..."):
-                            # Preparar contexto de forma segura
+                    if st.button("🚀 Executar Análise", use_container_width=True):
+                        with st.spinner("Consultando IA..."):
                             contexto = f"""
-                            Dados da estação {nome_estacao}:
-                            - Período analisado: {df_mensal['Mes'].iloc[0]} a {df_mensal['Mes'].iloc[-1]}
+                            Estação: {nome_estacao}
+                            Registros processados: {resultados['total_registros_processados']:,}
+                            Meses analisados: {resultados['total_meses']}
                             """
                             
-                            # Adicionar métricas de forma segura
-                            if 'Temp_Inst' in df_mensal.columns:
-                                try:
-                                    media_temp = df_mensal['Temp_Inst'].mean()
-                                    if pd.notna(media_temp):
-                                        contexto += f"- Temperatura média: {media_temp:.1f}°C\n"
-                                except:
-                                    pass
+                            if 'Temp_Inst' in df_processado.columns:
+                                contexto += f"Temperatura média: {df_processado['Temp_Inst'].mean():.1f}°C\n"
+                            if 'Precipitacao' in df_processado.columns:
+                                contexto += f"Precipitação total: {df_processado['Precipitacao'].sum():.1f} mm\n"
                             
-                            if 'Precipitacao' in df_mensal.columns:
-                                try:
-                                    soma_precip = df_mensal['Precipitacao'].sum()
-                                    if pd.notna(soma_precip):
-                                        contexto += f"- Precipitação total: {soma_precip:.1f} mm\n"
-                                except:
-                                    pass
+                            prompt = f"Faça uma {tipo_analise.lower()} baseada nos dados fornecidos."
+                            resposta = consultar_gemini(prompt, contexto)
                             
-                            if 'Tmax' in df_mensal.columns:
-                                try:
-                                    max_temp = df_mensal['Tmax'].max()
-                                    if pd.notna(max_temp):
-                                        contexto += f"- Temperatura máxima registrada: {max_temp:.1f}°C\n"
-                                except:
-                                    pass
-                            
-                            if 'Tmin' in df_mensal.columns:
-                                try:
-                                    min_temp = df_mensal['Tmin'].min()
-                                    if pd.notna(min_temp):
-                                        contexto += f"- Temperatura mínima registrada: {min_temp:.1f}°C\n"
-                                except:
-                                    pass
-                            
-                            if 'UR_Inst' in df_mensal.columns:
-                                try:
-                                    media_ur = df_mensal['UR_Inst'].mean()
-                                    if pd.notna(media_ur):
-                                        contexto += f"- Umidade média: {media_ur:.1f}%\n"
-                                except:
-                                    pass
-                            
-                            if 'U2' in df_mensal.columns:
-                                try:
-                                    media_vento = df_mensal['U2'].mean()
-                                    if pd.notna(media_vento):
-                                        contexto += f"- Velocidade média do vento: {media_vento:.1f} m/s\n"
-                                except:
-                                    pass
-                            
-                            if df_indicadores is not None and len(df_indicadores) > 0:
-                                try:
-                                    if 'GDD_Acumulado' in df_indicadores.columns:
-                                        gdd_total = df_indicadores['GDD_Acumulado'].sum()
-                                        if pd.notna(gdd_total):
-                                            contexto += f"- GDD acumulado total: {gdd_total:.0f}\n"
-                                except:
-                                    pass
-                                
-                                try:
-                                    if 'ETo_Total_mm' in df_indicadores.columns:
-                                        eto_total = df_indicadores['ETo_Total_mm'].sum()
-                                        if pd.notna(eto_total):
-                                            contexto += f"- ETo total: {eto_total:.1f} mm\n"
-                                except:
-                                    pass
-                                
-                                try:
-                                    if 'Horas_Frio_10C' in df_indicadores.columns:
-                                        horas_frio_total = df_indicadores['Horas_Frio_10C'].sum()
-                                        if pd.notna(horas_frio_total):
-                                            contexto += f"- Horas de frio total: {horas_frio_total:.0f} horas\n"
-                                except:
-                                    pass
-                            
-                            if eventos:
-                                contexto += f"\n- Eventos extremos detectados: {len(eventos)}"
-                            
-                            # Montar prompt
-                            if tipo_analise == "Análise Personalizada" and pergunta_personalizada:
-                                prompt = pergunta_personalizada
-                            elif tipo_analise == "Identificação de Fenômenos (El Niño/La Niña)":
-                                prompt = f"""Analise os dados climáticos e identifique possíveis evidências de fenômenos como 
-                                El Niño, La Niña ou outras oscilações climáticas. Compare com padrões históricos esperados 
-                                para a região de latitude {latitude:.1f}°."""
-                            elif tipo_analise == "Impactos na Agricultura":
-                                prompt = f"""Com base nos dados climáticos, analise os potenciais impactos na agricultura. 
-                                Inclua recomendações sobre épocas de plantio, irrigação, escolha de culturas e manejo 
-                                fitossanitário. Considere GDD, horas de frio e eventos extremos detectados."""
-                            elif tipo_analise == "Previsão de Tendências":
-                                prompt = f"""Projete tendências climáticas para os próximos meses baseado nos padrões 
-                                identificados na série histórica. Destaque possíveis anomalias e recomendações de adaptação."""
-                            else:
-                                prompt = f"""Faça uma análise climática completa dos dados fornecidos. Identifique padrões, 
-                                anomalias e forneça um diagnóstico profissional sobre o comportamento climático no período."""
-                            
-                            resposta_ia = consultar_gemini(prompt, contexto)
-                            
-                            st.markdown("---")
-                            st.markdown("### 🧠 Resposta da IA Gemini")
-                            st.markdown(resposta_ia)
+                            st.markdown("### 🧠 Resposta da IA")
+                            st.markdown(resposta)
                 else:
-                    st.info("ℹ️ Ative a análise com IA Gemini na barra lateral para obter insights inteligentes")
+                    st.info("Ative a IA Gemini na barra lateral")
             
-            # Tab 6: Downloads
+            # TAB 6: DOWNLOADS
             with tab6:
-                st.markdown("### 💾 Download de Relatórios e Dados")
+                st.markdown("### 💾 Downloads")
                 
                 col_down1, col_down2 = st.columns(2)
                 
                 with col_down1:
-                    st.markdown("#### 📊 Dados em CSV")
+                    # CSV dos dados originais
+                    csv_original = df_original.to_csv(index=False, sep=';', decimal=',')
+                    st.download_button(
+                        label="📥 Dados Originais (CSV)",
+                        data=csv_original,
+                        file_name=f"{nome_estacao.replace(' ', '_')}_dados_originais.csv",
+                        mime="text/csv"
+                    )
                     
-                    # Dados mensais
-                    if df_mensal is not None and not df_mensal.empty:
-                        try:
-                            csv_mensal = df_mensal.to_csv(index=False, sep=';', decimal=',')
-                            st.download_button(
-                                label="📥 Dados Mensais Consolidados (CSV)",
-                                data=csv_mensal,
-                                file_name=f"{nome_estacao.replace(' ', '_')}_dados_mensais.csv",
-                                mime="text/csv"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao gerar CSV mensal: {str(e)}")
-                    else:
-                        st.warning("⚠️ Dados mensais não disponíveis")
-                    
-                    # Indicadores agrícolas
-                    if df_indicadores is not None and len(df_indicadores) > 0:
-                        try:
-                            csv_indicadores = df_indicadores.to_csv(index=False, sep=';', decimal=',')
-                            st.download_button(
-                                label="🌱 Indicadores Agrícolas (CSV)",
-                                data=csv_indicadores,
-                                file_name=f"{nome_estacao.replace(' ', '_')}_indicadores_agricolas.csv",
-                                mime="text/csv"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao gerar CSV de indicadores: {str(e)}")
-                    else:
-                        st.info("📌 Indicadores agrícolas não disponíveis")
-                    
-                    # Dados diários (amostra)
-                    if not df_diario.empty:
-                        try:
-                            csv_diario = df_diario.head(1000).to_csv(index=False, sep=';', decimal=',')
-                            st.download_button(
-                                label="📋 Amostra de Dados Diários (CSV)",
-                                data=csv_diario,
-                                file_name=f"{nome_estacao.replace(' ', '_')}_dados_diarios_amostra.csv",
-                                mime="text/csv"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao gerar CSV diário: {str(e)}")
+                    # CSV dos dados processados
+                    csv_processado = df_processado.to_csv(index=False, sep=';', decimal=',')
+                    st.download_button(
+                        label="📥 Dados Processados (CSV)",
+                        data=csv_processado,
+                        file_name=f"{nome_estacao.replace(' ', '_')}_dados_processados.csv",
+                        mime="text/csv"
+                    )
                 
                 with col_down2:
-                    st.markdown("#### 📄 Relatório Completo")
-                    
-                    # Relatório PDF (HTML)
+                    # CSV das médias mensais
                     if df_mensal is not None and not df_mensal.empty:
-                        try:
-                            relatorio_html = gerar_relatorio_pdf_completo(
-                                df_mensal, df_indicadores, qualidade, eventos, 
-                                nome_estacao, info_estacao
-                            )
-                            
-                            b64 = base64.b64encode(relatorio_html.encode()).decode()
-                            href = f'<a href="data:text/html;base64,{b64}" download="{nome_estacao.replace(" ", "_")}_relatorio_completo.html" style="text-decoration: none;">'
-                            href += '<button style="background: linear-gradient(135deg, #2e7d32, #1b5e20); border: none; border-radius: 30px; padding: 10px 25px; color: white; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 10px;">📑 Baixar Relatório HTML</button></a>'
-                            st.markdown(href, unsafe_allow_html=True)
-                        except Exception as e:
-                            st.error(f"Erro ao gerar relatório: {str(e)}")
-                    else:
-                        st.warning("⚠️ Dados insuficientes para gerar relatório")
+                        csv_mensal = df_mensal.to_csv(index=False, sep=';', decimal=',')
+                        st.download_button(
+                            label="📥 Médias Mensais (CSV)",
+                            data=csv_mensal,
+                            file_name=f"{nome_estacao.replace(' ', '_')}_medias_mensais.csv",
+                            mime="text/csv"
+                        )
                     
-                    # Excel com todas as abas
-                    if df_mensal is not None and not df_mensal.empty:
-                        try:
-                            output_excel = BytesIO()
-                            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                                df_mensal.to_excel(writer, sheet_name='Dados_Mensais', index=False)
-                                if df_indicadores is not None and len(df_indicadores) > 0:
-                                    df_indicadores.to_excel(writer, sheet_name='Indicadores_Agricolas', index=False)
-                                if not df_diario.empty:
-                                    df_diario.head(5000).to_excel(writer, sheet_name='Dados_Diarios', index=False)
-                                if qualidade:
-                                    # Criar DataFrame de qualidade de forma segura
-                                    qualidade_dados = []
-                                    for var, info in qualidade.items():
-                                        if isinstance(info, dict):
-                                            linha = {}
-                                            for k, v in info.items():
-                                                if isinstance(v, (int, float, str)):
-                                                    linha[k] = v
-                                            if linha:
-                                                qualidade_dados.append(linha)
-                                    if qualidade_dados:
-                                        df_qualidade = pd.DataFrame(qualidade_dados)
-                                        df_qualidade.to_excel(writer, sheet_name='Qualidade_Dados', index=False)
-                            
-                            st.download_button(
-                                label="📊 Excel Completo (Todas as Abas)",
-                                data=output_excel.getvalue(),
-                                file_name=f"{nome_estacao.replace(' ', '_')}_dados_completos.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
-                        except Exception as e:
-                            st.error(f"Erro ao gerar Excel: {str(e)}")
-                    else:
-                        st.warning("⚠️ Dados insuficientes para gerar Excel")
-                
-                st.markdown("---")
-                st.markdown("### 📋 Resumo do Processamento")
-                
-                # Criar resumo para exibição
-                if df_mensal is not None and not df_mensal.empty:
-                    try:
-                        # Calcular qualidade média de forma segura
-                        qualidade_media = "N/A"
-                        if qualidade:
-                            percentuais = []
-                            for v in qualidade.values():
-                                if isinstance(v, dict) and 'percentual_completo' in v:
-                                    try:
-                                        percentual = float(v['percentual_completo'])
-                                        if not np.isnan(percentual):
-                                            percentuais.append(percentual)
-                                    except:
-                                        pass
-                            if percentuais:
-                                qualidade_media = f"{np.mean(percentuais):.1f}%"
-                        
-                        # Calcular número de indicadores de forma segura
-                        num_indicadores = 0
-                        if df_indicadores is not None:
-                            num_indicadores = len([c for c in df_indicadores.columns if c not in ['Mes', 'Ano', 'Numero_Mes']])
-                        
-                        resumo = {
-                            "Estação": str(nome_estacao),
-                            "Período": f"{df_mensal['Mes'].iloc[0]} a {df_mensal['Mes'].iloc[-1]}" if 'Mes' in df_mensal.columns else "N/A",
-                            "Meses analisados": int(len(df_mensal)),
-                            "Qualidade média dos dados": qualidade_media,
-                            "Eventos extremos": int(len(eventos)) if eventos else 0,
-                            "Indicadores calculados": int(num_indicadores)
-                        }
-                        st.json(resumo)
-                    except Exception as e:
-                        st.warning(f"Não foi possível gerar o resumo completo: {str(e)}")
-                else:
-                    st.warning("⚠️ Não há dados suficientes para exibir o resumo")
-
+                    # Relatório HTML
+                    relatorio_html = gerar_relatorio_html(
+                        df_original, df_mensal, qualidade, eventos, 
+                        substituicoes, outliers, nome_estacao
+                    )
+                    b64 = base64.b64encode(relatorio_html.encode()).decode()
+                    href = f'<a href="data:text/html;base64,{b64}" download="{nome_estacao.replace(" ", "_")}_relatorio.html" style="text-decoration: none;">'
+                    href += '<button style="background: linear-gradient(135deg, #2e7d32, #1b5e20); border: none; border-radius: 30px; padding: 10px 25px; color: white; font-weight: 600; cursor: pointer; width: 100%; margin-top: 0px;">📑 Relatório HTML</button></a>'
+                    st.markdown(href, unsafe_allow_html=True)
+    
+    # Footer
+    st.markdown("""
+    <div class="footer">
+        <p>⚠️ Smart Meteorological Processor - Aplicativo para fins acadêmicos e de pesquisa</p>
+        <p>Este aplicativo não pertence ao INMET. Os dados processados devem ser validados antes de uso profissional.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ============================================================================
-# PONTO DE ENTRADA PRINCIPAL
+# EXECUÇÃO
 # ============================================================================
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        st.error(f"❌ Erro na execução do aplicativo: {str(e)}")
-        st.info("Verifique se todos os dados necessários foram preenchidos corretamente.")
+    main()

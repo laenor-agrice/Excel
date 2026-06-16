@@ -755,103 +755,107 @@ def detectar_eventos_extremos(df):
     
     eventos = []
     
-    # Verificar se DateTime existe e é datetime
+    # Verificar se DateTime existe
     if 'DateTime' not in df.columns:
         return eventos
     
     # Temperaturas extremas
     if 'Tmax' in df.columns:
-        # Garantir que a coluna é numérica
-        if pd.api.types.is_numeric_dtype(df['Tmax']):
-            tmax_99 = df['Tmax'].quantile(0.99)
+        try:
+            # Garantir que a coluna é numérica
+            if not pd.api.types.is_numeric_dtype(df['Tmax']):
+                tmax_series = pd.to_numeric(df['Tmax'], errors='coerce')
+            else:
+                tmax_series = df['Tmax']
+            
+            tmax_99 = tmax_series.quantile(0.99)
             if not pd.isna(tmax_99):
-                dias_calor_extremo = df[df['Tmax'] > tmax_99]
-                if len(dias_calor_extremo) > 0:
+                mask_calor = tmax_series > tmax_99
+                if mask_calor.any():
+                    dias_calor = df[mask_calor]
                     eventos.append({
                         'tipo': 'Calor Extremo',
-                        'descricao': f"{len(dias_calor_extremo)} dias com temperatura máxima acima de {tmax_99:.1f}°C",
-                        'datas': dias_calor_extremo['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10],
+                        'descricao': f"{len(dias_calor)} dias com temperatura máxima acima de {tmax_99:.1f}°C",
+                        'datas': dias_calor['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in dias_calor.columns else [],
                         'gravidade': 'Alta'
                     })
+        except Exception as e:
+            pass
     
     if 'Tmin' in df.columns:
-        if pd.api.types.is_numeric_dtype(df['Tmin']):
-            tmin_1 = df['Tmin'].quantile(0.01)
+        try:
+            if not pd.api.types.is_numeric_dtype(df['Tmin']):
+                tmin_series = pd.to_numeric(df['Tmin'], errors='coerce')
+            else:
+                tmin_series = df['Tmin']
+            
+            tmin_1 = tmin_series.quantile(0.01)
             if not pd.isna(tmin_1):
-                dias_frio_extremo = df[df['Tmin'] < tmin_1]
-                if len(dias_frio_extremo) > 0:
+                mask_frio = tmin_series < tmin_1
+                if mask_frio.any():
+                    dias_frio = df[mask_frio]
                     eventos.append({
                         'tipo': 'Frio Extremo',
-                        'descricao': f"{len(dias_frio_extremo)} dias com temperatura mínima abaixo de {tmin_1:.1f}°C",
-                        'datas': dias_frio_extremo['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10],
+                        'descricao': f"{len(dias_frio)} dias com temperatura mínima abaixo de {tmin_1:.1f}°C",
+                        'datas': dias_frio['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in dias_frio.columns else [],
                         'gravidade': 'Alta'
                     })
+        except Exception as e:
+            pass
     
     # Precipitação extrema
     if 'Precipitacao' in df.columns:
-        if pd.api.types.is_numeric_dtype(df['Precipitacao']):
+        try:
+            if not pd.api.types.is_numeric_dtype(df['Precipitacao']):
+                precip_series = pd.to_numeric(df['Precipitacao'], errors='coerce')
+            else:
+                precip_series = df['Precipitacao']
+            
             # Dias com chuva intensa (> 50mm)
-            chuva_intensa = df[df['Precipitacao'] > 50]
-            if len(chuva_intensa) > 0:
+            mask_intensa = precip_series > 50
+            if mask_intensa.any():
+                chuva_intensa = df[mask_intensa]
                 eventos.append({
                     'tipo': 'Chuva Intensa',
                     'descricao': f"{len(chuva_intensa)} dias com precipitação > 50mm",
-                    'datas': chuva_intensa['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10],
+                    'datas': chuva_intensa['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in chuva_intensa.columns else [],
                     'gravidade': 'Média'
                 })
             
             # Dias com chuva torrencial (> 100mm)
-            chuva_torrencial = df[df['Precipitacao'] > 100]
-            if len(chuva_torrencial) > 0:
+            mask_torrencial = precip_series > 100
+            if mask_torrencial.any():
+                chuva_torrencial = df[mask_torrencial]
                 eventos.append({
                     'tipo': 'Chuva Torrencial',
                     'descricao': f"{len(chuva_torrencial)} dias com precipitação > 100mm",
-                    'datas': chuva_torrencial['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10],
+                    'datas': chuva_torrencial['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in chuva_torrencial.columns else [],
                     'gravidade': 'Crítica'
                 })
+        except Exception as e:
+            pass
     
     # Ventos fortes
     if 'U2' in df.columns:
-        if pd.api.types.is_numeric_dtype(df['U2']):
-            ventos_fortes = df[df['U2'] > 10]
-            if len(ventos_fortes) > 0:
+        try:
+            if not pd.api.types.is_numeric_dtype(df['U2']):
+                vento_series = pd.to_numeric(df['U2'], errors='coerce')
+            else:
+                vento_series = df['U2']
+            
+            mask_ventos = vento_series > 10
+            if mask_ventos.any():
+                ventos_fortes = df[mask_ventos]
                 eventos.append({
                     'tipo': 'Ventos Fortes',
                     'descricao': f"{len(ventos_fortes)} dias com vento > 10 m/s",
-                    'datas': ventos_fortes['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10],
+                    'datas': ventos_fortes['DateTime'].dt.strftime('%Y-%m-%d').tolist()[:10] if 'DateTime' in ventos_fortes.columns else [],
                     'gravidade': 'Média'
                 })
-    
-    # Ondas de calor (simplificado)
-    if 'Tmax' in df.columns and 'DateTime' in df.columns:
-        if pd.api.types.is_numeric_dtype(df['Tmax']):
-            df_sorted = df.sort_values('DateTime')
-            media_tmax = df_sorted['Tmax'].mean()
-            if not pd.isna(media_tmax):
-                df_sorted['Acima_Media'] = df_sorted['Tmax'] > media_tmax
-                
-                sequencia = 0
-                ondas_calor = []
-                for val in df_sorted['Acima_Media']:
-                    if val:
-                        sequencia += 1
-                    else:
-                        if sequencia >= 3:
-                            ondas_calor.append(sequencia)
-                        sequencia = 0
-                if sequencia >= 3:
-                    ondas_calor.append(sequencia)
-                
-                if len(ondas_calor) > 0:
-                    eventos.append({
-                        'tipo': 'Onda de Calor',
-                        'descricao': f"{len(ondas_calor)} ondas de calor identificadas (mínimo 3 dias consecutivos)",
-                        'datas': [],
-                        'gravidade': 'Média'
-                    })
+        except Exception as e:
+            pass
     
     return eventos
-
 # ============================================================================
 # FUNÇÕES DE CONSOLIDAÇÃO E INDICADORES
 # ============================================================================

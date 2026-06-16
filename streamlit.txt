@@ -1,10 +1,10 @@
 streamlit
 pandas
 numpy
+requests
+zipfile36
 matplotlib
 seaborn
-scipy
 openpyxl
 python-docx
-requests
 scikit-learn

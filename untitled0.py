@@ -9,6 +9,8 @@ import os
 from io import BytesIO
 import csv
 from datetime import datetime
+from scipy import stats
+from scipy.stats import f_oneway, tukey_hsd
 
 st.write(sys.version)
 
@@ -385,20 +387,11 @@ if "estatisticas" not in st.session_state:
 if "relatorio_ia" not in st.session_state:
     st.session_state["relatorio_ia"] = None
 
-if "df_indicadores" not in st.session_state:
-    st.session_state["df_indicadores"] = None
-
 if "latitude" not in st.session_state:
     st.session_state["latitude"] = -16.0
 
 if "ia_ativada" not in st.session_state:
     st.session_state["ia_ativada"] = False
-
-if "arquivo_nome" not in st.session_state:
-    st.session_state["arquivo_nome"] = None
-
-if "df_mensal" not in st.session_state:
-    st.session_state["df_mensal"] = None
 
 if "gemini_api_key" not in st.session_state:
     st.session_state["gemini_api_key"] = ""
@@ -418,17 +411,15 @@ st.markdown("""
 # CRIAÇÃO DAS ABAS
 # =============================================================================
 
-tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🏠 Início",
     "📂 Importação",
     "🧹 Tratamento",
     "📅 Consolidação",
     "📈 Estatística",
     "📊 Gráficos",
-    "📅 Média Mensal",
     "🤖 IA",
-    "📥 Exportação",
-    "🌡️ Indicadores"
+    "📥 Exportação"
 ])
 
 # =============================================================================
@@ -479,8 +470,7 @@ with tab0:
     <div class="info-box">
         <strong>📋 Fluxo recomendado:</strong><br>
         1️⃣ Importar dados → 2️⃣ Tratar dados → 3️⃣ Consolidar dados → 
-        4️⃣ Gerar estatísticas → 5️⃣ Criar gráficos → 6️⃣ Média Mensal → 
-        7️⃣ Gerar relatório com IA → 8️⃣ Exportar resultados
+        4️⃣ Análise Estatística → 5️⃣ Gráficos → 6️⃣ IA → 7️⃣ Exportar
     </div>
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -576,14 +566,6 @@ def ler_planilha_universal(arquivo):
     df = converter_colunas_numericas(df)
     df = converter_datas(df)
     return df
-
-def identificar_coluna_data(df):
-    palavras = ["data", "date", "datetime", "tempo", "timestamp"]
-    for col in df.columns:
-        nome = str(col).lower()
-        if any(p in nome for p in palavras):
-            return col
-    return None
 
 # =============================================================================
 # ABA 1 - IMPORTAÇÃO
@@ -889,6 +871,14 @@ with tab2:
 # FUNÇÕES DE CONSOLIDAÇÃO
 # =============================================================================
 
+def identificar_coluna_data(df):
+    palavras = ["data", "date", "datetime", "tempo", "timestamp"]
+    for col in df.columns:
+        nome = str(col).lower()
+        if any(p in nome for p in palavras):
+            return col
+    return None
+
 def consolidar_dataframe(df):
     df2 = df.copy()
     coluna_data = identificar_coluna_data(df2)
@@ -952,214 +942,336 @@ with tab3:
             st.markdown("---")
             st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
             st.dataframe(df_consolidado.head(200), use_container_width=True)
-            st.success("✅ Base pronta para Estatística, Gráficos e IA!")
+            st.success("✅ Base pronta para Análise Estatística!")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# FUNÇÕES DE ESTATÍSTICA
+# FUNÇÕES ESTATÍSTICAS AVANÇADAS
 # =============================================================================
 
-def classificar_cv(cv):
-    if pd.isna(cv):
-        return "-"
-    if cv < 10:
-        return "Baixo"
-    elif cv < 20:
-        return "Médio"
-    elif cv < 30:
-        return "Alto"
-    else:
-        return "Muito Alto"
+def calcular_estatisticas_descritivas(df, coluna):
+    """Calcula estatísticas descritivas para uma coluna"""
+    dados = df[coluna].dropna()
+    if len(dados) == 0:
+        return None
+    
+    stats_dict = {
+        "N": len(dados),
+        "Média": dados.mean(),
+        "Mediana": dados.median(),
+        "Moda": dados.mode().iloc[0] if not dados.mode().empty else np.nan,
+        "Desvio Padrão": dados.std(),
+        "Variância": dados.var(),
+        "CV (%)": (dados.std() / dados.mean() * 100) if dados.mean() != 0 else np.nan,
+        "Mínimo": dados.min(),
+        "Máximo": dados.max(),
+        "Amplitude": dados.max() - dados.min(),
+        "Q1 (25%)": dados.quantile(0.25),
+        "Q3 (75%)": dados.quantile(0.75),
+        "IQR": dados.quantile(0.75) - dados.quantile(0.25),
+        "Assimetria": dados.skew(),
+        "Curtose": dados.kurtosis(),
+        "Erro Padrão": dados.std() / np.sqrt(len(dados))
+    }
+    return stats_dict
 
-def gerar_estatisticas(df):
-    numericas = df.select_dtypes(include=[np.number])
-    resultados = []
-    for col in numericas.columns:
-        serie = numericas[col].dropna()
-        if len(serie) == 0:
-            continue
-        media = serie.mean()
-        desvio = serie.std()
-        cv = (desvio / media * 100) if media != 0 else np.nan
+def calcular_anova(df, coluna, grupos):
+    """Calcula ANOVA para uma coluna agrupada"""
+    if grupos is None or len(grupos) < 2:
+        return None, "Selecione uma coluna para agrupar (ex: meses, anos)"
+    
+    # Criar grupos
+    grupos_dados = df.groupby(grupos)[coluna].apply(list).to_dict()
+    
+    # Filtrar grupos com dados
+    grupos_validos = {k: v for k, v in grupos_dados.items() if len(v) > 1}
+    
+    if len(grupos_validos) < 2:
+        return None, "É necessário pelo menos 2 grupos com dados para ANOVA"
+    
+    # Preparar dados para ANOVA
+    dados_grupos = list(grupos_validos.values())
+    nomes_grupos = list(grupos_validos.keys())
+    
+    # Realizar ANOVA
+    f_stat, p_valor = f_oneway(*dados_grupos)
+    
+    # Realizar Tukey HSD se significativo
+    tukey_result = None
+    if p_valor < 0.05:
         try:
-            moda = serie.mode().iloc[0]
+            # Combinar todos os dados com seus grupos
+            all_data = []
+            all_groups = []
+            for nome, dados in grupos_validos.items():
+                all_data.extend(dados)
+                all_groups.extend([nome] * len(dados))
+            
+            tukey = tukey_hsd(*dados_grupos)
+            tukey_result = {
+                "statistic": tukey.statistic,
+                "pvalue": tukey.pvalue,
+                "grupos": nomes_grupos
+            }
         except:
-            moda = np.nan
-        resultados.append({
-            "Variável": col,
-            "N": len(serie),
-            "Média": round(media, 4),
-            "Mediana": round(serie.median(), 4),
-            "Moda": round(moda, 4) if pd.notna(moda) else np.nan,
-            "Mínimo": round(serie.min(), 4),
-            "Máximo": round(serie.max(), 4),
-            "Amplitude": round(serie.max() - serie.min(), 4),
-            "Variância": round(serie.var(), 4),
-            "Desvio Padrão": round(desvio, 4),
-            "CV (%)": round(cv, 2),
-            "Classificação CV": classificar_cv(cv),
-            "Assimetria": round(serie.skew(), 4),
-            "Curtose": round(serie.kurtosis(), 4),
-            "P5": round(serie.quantile(0.05), 4),
-            "P25": round(serie.quantile(0.25), 4),
-            "P75": round(serie.quantile(0.75), 4),
-            "P95": round(serie.quantile(0.95), 4)
-        })
-    return pd.DataFrame(resultados)
+            tukey_result = None
+    
+    resultado = {
+        "f_statistic": f_stat,
+        "p_value": p_valor,
+        "significativo": p_valor < 0.05,
+        "grupos": nomes_grupos,
+        "tukey": tukey_result
+    }
+    
+    return resultado, None
 
-def detectar_extremos(df):
-    extremos = []
-    numericas = df.select_dtypes(include=[np.number])
-    for col in numericas.columns:
-        try:
-            maior = numericas[col].max()
-            menor = numericas[col].min()
-            extremos.append({"Variável": col, "Tipo": "Máximo", "Valor": maior})
-            extremos.append({"Variável": col, "Tipo": "Mínimo", "Valor": menor})
-        except:
-            pass
-    return pd.DataFrame(extremos)
-
-def calcular_media_mensal(df):
-    """Calcula a média mensal de TODAS as colunas numéricas ORIGINAIS"""
-    df2 = df.copy()
+def calcular_correlacao(df, coluna1, coluna2):
+    """Calcula correlação entre duas colunas"""
+    dados1 = df[coluna1].dropna()
+    dados2 = df[coluna2].dropna()
     
-    # Identificar coluna de data
-    col_data = identificar_coluna_data(df2)
+    # Alinhar dados
+    df_temp = pd.DataFrame({coluna1: dados1, coluna2: dados2}).dropna()
     
-    if col_data is None:
-        return None, "Nenhuma coluna de data encontrada."
+    if len(df_temp) < 2:
+        return None
     
-    # Garantir que a coluna de data é datetime
-    df2[col_data] = pd.to_datetime(df2[col_data], errors='coerce')
-    
-    # Extrair mês e ano
-    df2['Ano'] = df2[col_data].dt.year
-    df2['Mes'] = df2[col_data].dt.month
-    df2['Ano_Mes'] = df2[col_data].dt.strftime('%Y-%m')
-    
-    # Pegar TODAS as colunas numéricas
-    numericas = df2.select_dtypes(include=[np.number]).columns.tolist()
-    
-    # Remover colunas auxiliares que criamos
-    numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
-    
-    # REMOVER apenas colunas que são claramente acumuladas
-    palavras_remover = ['gdd', 'soma', 'acum', 'acumulada', 'GDD', 'Soma', 'Acum', 'Acumulada']
-    numericas = [c for c in numericas if not any(palavra in str(c) for palavra in palavras_remover)]
-    
-    # Remover colunas de hora
-    palavras_excluir = ['hora', 'horario']
-    numericas = [c for c in numericas if not any(palavra in str(c).lower() for palavra in palavras_excluir)]
-    
-    # Se não encontrou nenhuma, pegar todas (sem filtro)
-    if not numericas:
-        numericas = df2.select_dtypes(include=[np.number]).columns.tolist()
-        numericas = [c for c in numericas if c not in ['Ano', 'Mes']]
-    
-    if not numericas:
-        return None, "Nenhuma coluna numérica encontrada para calcular médias mensais."
-    
-    # Calcular média mensal
-    media_mensal = df2.groupby('Ano_Mes')[numericas].mean().reset_index()
-    
-    # Adicionar Ano e Mes
-    media_mensal['Ano'] = media_mensal['Ano_Mes'].str.split('-').str[0].astype(int)
-    media_mensal['Mes'] = media_mensal['Ano_Mes'].str.split('-').str[1].astype(int)
-    
-    # Ordenar
-    media_mensal = media_mensal.sort_values('Ano_Mes').reset_index(drop=True)
-    
-    return media_mensal, None
+    corr = df_temp[coluna1].corr(df_temp[coluna2])
+    return corr
 
 # =============================================================================
-# ABA 4 - ESTATÍSTICA
+# ABA 4 - ESTATÍSTICA (COMPLETA)
 # =============================================================================
 
 with tab4:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📈 Estatística Descritiva</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📈 Análise Estatística</div>', unsafe_allow_html=True)
     
     if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Primeiro consolide os dados na aba 'Consolidação'.")
     else:
-        df_base = st.session_state["df_consolidado"]
+        df = st.session_state["df_consolidado"]
+        numericas = df.select_dtypes(include=[np.number]).columns.tolist()
         
-        st.markdown("### 📊 Estatística Completa")
-        estatisticas = gerar_estatisticas(df_base)
-        if estatisticas.empty:
-            st.warning("Nenhuma coluna numérica encontrada para estatísticas.")
+        if not numericas:
+            st.warning("Nenhuma coluna numérica encontrada para análise.")
         else:
-            st.dataframe(estatisticas, use_container_width=True)
-        
-        st.markdown("---")
-        
-        st.markdown("### 📌 Valores Extremos")
-        extremos = detectar_extremos(df_base)
-        if extremos.empty:
-            st.warning("Nenhum valor extremo encontrado.")
-        else:
-            st.dataframe(extremos, use_container_width=True)
-        
-        st.markdown("---")
-        
-        st.markdown("### 📋 Métricas Rápidas")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("📊 Variáveis", len(estatisticas) if not estatisticas.empty else 0)
-        with col2:
-            st.metric("📌 Extremos", len(extremos) if not extremos.empty else 0)
-        with col3:
-            st.metric("📋 Registros", len(df_base))
-        
-        st.markdown("---")
-        
-        numericas = df_base.select_dtypes(include=[np.number]).columns.tolist()
-        
-        if numericas:
-            st.markdown('<div class="section-title">📊 Distribuição das Variáveis</div>', unsafe_allow_html=True)
+            # ============================================================
+            # SELEÇÃO DE MÉTRICA
+            # ============================================================
+            st.markdown("### 📊 Selecione o tipo de análise")
             
-            var_selecionada = st.selectbox(
-                "Selecione uma variável para análise gráfica",
-                numericas,
-                key="var_dist_estat"
+            tipo_analise = st.selectbox(
+                "Escolha a análise estatística",
+                [
+                    "📊 Estatísticas Descritivas",
+                    "📈 ANOVA (Análise de Variância)",
+                    "📉 Correlação",
+                    "📋 Estatísticas Completas"
+                ]
             )
             
-            if var_selecionada:
-                col1, col2 = st.columns(2)
+            # ============================================================
+            # ESTATÍSTICAS DESCRITIVAS
+            # ============================================================
+            if tipo_analise == "📊 Estatísticas Descritivas":
+                st.markdown("#### Estatísticas Descritivas")
                 
-                with col1:
-                    st.markdown(f"**📊 Histograma - {var_selecionada}**")
-                    hist_data = df_base[var_selecionada].dropna()
-                    if len(hist_data) > 0:
-                        bins = np.histogram_bin_edges(hist_data, bins='auto')
-                        hist_counts = np.histogram(hist_data, bins=bins)[0]
-                        hist_df = pd.DataFrame({
-                            'Intervalo': [f'{bins[i]:.2f}-{bins[i+1]:.2f}' for i in range(len(bins)-1)],
-                            'Frequência': hist_counts
+                coluna_desc = st.selectbox(
+                    "Selecione a variável",
+                    numericas,
+                    key="desc_var"
+                )
+                
+                if coluna_desc:
+                    stats_dict = calcular_estatisticas_descritivas(df, coluna_desc)
+                    if stats_dict:
+                        # Criar DataFrame para exibição
+                        df_stats = pd.DataFrame({
+                            "Métrica": list(stats_dict.keys()),
+                            "Valor": [round(v, 4) if isinstance(v, (int, float)) else v for v in stats_dict.values()]
                         })
-                        st.bar_chart(hist_df.set_index('Intervalo')['Frequência'], use_container_width=True)
+                        st.dataframe(df_stats, use_container_width=True)
+                        
+                        # Gráfico da distribuição
+                        st.markdown("#### 📊 Distribuição da Variável")
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("**Histograma**")
+                            hist_data = df[coluna_desc].dropna()
+                            if len(hist_data) > 0:
+                                bins = np.histogram_bin_edges(hist_data, bins='auto')
+                                hist_counts = np.histogram(hist_data, bins=bins)[0]
+                                hist_df = pd.DataFrame({
+                                    'Intervalo': [f'{bins[i]:.2f}-{bins[i+1]:.2f}' for i in range(len(bins)-1)],
+                                    'Frequência': hist_counts
+                                })
+                                st.bar_chart(hist_df.set_index('Intervalo')['Frequência'], use_container_width=True)
+                        
+                        with col2:
+                            st.markdown("**Boxplot (Resumo)**")
+                            stats = df[coluna_desc].describe()
+                            st.metric("📉 Mínimo", round(stats['min'], 2))
+                            st.metric("📊 Q1 (25%)", round(stats['25%'], 2))
+                            st.metric("📈 Mediana", round(stats['50%'], 2))
+                            st.metric("📊 Q3 (75%)", round(stats['75%'], 2))
+                            st.metric("📈 Máximo", round(stats['max'], 2))
+            
+            # ============================================================
+            # ANOVA
+            # ============================================================
+            elif tipo_analise == "📈 ANOVA (Análise de Variância)":
+                st.markdown("#### ANOVA - Análise de Variância")
+                st.markdown("Compara as médias entre diferentes grupos")
                 
-                with col2:
-                    st.markdown(f"**📦 Estatísticas - {var_selecionada}**")
-                    stats = df_base[var_selecionada].describe()
-                    st.metric("📉 Mínimo", round(stats['min'], 2))
-                    st.metric("📊 Q1 (25%)", round(stats['25%'], 2))
-                    st.metric("📈 Mediana", round(stats['50%'], 2))
-                    st.metric("📊 Q3 (75%)", round(stats['75%'], 2))
-                    st.metric("📈 Máximo", round(stats['max'], 2))
-        
-        st.markdown("---")
-        if not estatisticas.empty:
-            st.session_state["estatisticas"] = estatisticas
-            csv_estatisticas = estatisticas.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "📥 Baixar Estatísticas",
-                csv_estatisticas,
-                file_name="estatisticas_descritivas.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+                coluna_anova = st.selectbox(
+                    "Selecione a variável resposta (numérica)",
+                    numericas,
+                    key="anova_var"
+                )
+                
+                # Identificar colunas categóricas para agrupar
+                colunas_categoricas = df.select_dtypes(include=['object', 'category']).columns.tolist()
+                colunas_categoricas.extend(['Ano', 'Mes'] if 'Ano' in df.columns else [])
+                
+                if not colunas_categoricas:
+                    st.warning("Nenhuma coluna categórica encontrada para agrupamento.")
+                else:
+                    grupo_anova = st.selectbox(
+                        "Selecione a coluna para agrupar (fator)",
+                        colunas_categoricas,
+                        key="anova_grupo"
+                    )
+                    
+                    if coluna_anova and grupo_anova:
+                        if st.button("🔬 Executar ANOVA", use_container_width=True):
+                            with st.spinner("Calculando ANOVA..."):
+                                resultado, erro = calcular_anova(df, coluna_anova, grupo_anova)
+                                
+                                if erro:
+                                    st.error(f"❌ {erro}")
+                                else:
+                                    st.success("✅ ANOVA calculada com sucesso!")
+                                    
+                                    # Exibir resultados
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.metric("📊 F-Statistic", round(resultado['f_statistic'], 4))
+                                    with col2:
+                                        st.metric("📈 P-Value", round(resultado['p_value'], 4))
+                                    
+                                    if resultado['significativo']:
+                                        st.success(f"✅ Resultado SIGNIFICATIVO (p < 0.05) - Há diferença entre os grupos")
+                                    else:
+                                        st.info(f"ℹ️ Resultado NÃO SIGNIFICATIVO (p >= 0.05) - Não há diferença entre os grupos")
+                                    
+                                    # Mostrar grupos
+                                    st.markdown("#### Grupos Analisados")
+                                    st.write(f"**{len(resultado['grupos'])} grupos:** {', '.join(map(str, resultado['grupos']))}")
+                                    
+                                    # Tukey HSD
+                                    if resultado['tukey'] is not None:
+                                        st.markdown("#### 📊 Tukey HSD - Comparações Múltiplas")
+                                        tukey = resultado['tukey']
+                                        st.write("Teste de Tukey para comparações entre pares de grupos")
+                                        
+                                        # Criar tabela de comparações
+                                        comparacoes = []
+                                        for i in range(len(tukey['grupos'])):
+                                            for j in range(i+1, len(tukey['grupos'])):
+                                                comparacoes.append({
+                                                    "Grupo 1": tukey['grupos'][i],
+                                                    "Grupo 2": tukey['grupos'][j],
+                                                    "Diferença": round(tukey['statistic'][i][j], 4),
+                                                    "p-value": round(tukey['pvalue'][i][j], 4),
+                                                    "Significativo": tukey['pvalue'][i][j] < 0.05
+                                                })
+                                        
+                                        if comparacoes:
+                                            df_tukey = pd.DataFrame(comparacoes)
+                                            st.dataframe(df_tukey, use_container_width=True)
+            
+            # ============================================================
+            # CORRELAÇÃO
+            # ============================================================
+            elif tipo_analise == "📉 Correlação":
+                st.markdown("#### Análise de Correlação")
+                
+                if len(numericas) >= 2:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        var1_corr = st.selectbox("Variável 1", numericas, key="corr1")
+                    with col2:
+                        var2_corr = st.selectbox("Variável 2", [v for v in numericas if v != var1_corr], key="corr2")
+                    
+                    if var1_corr and var2_corr:
+                        if st.button("📊 Calcular Correlação", use_container_width=True):
+                            corr = calcular_correlacao(df, var1_corr, var2_corr)
+                            if corr is not None:
+                                st.metric(
+                                    f"Correlação entre {var1_corr} e {var2_corr}",
+                                    round(corr, 4),
+                                    delta=f"{'Positiva' if corr > 0 else 'Negativa' if corr < 0 else 'Neutra'}"
+                                )
+                                
+                                # Interpretação
+                                if abs(corr) >= 0.8:
+                                    st.success("💪 Correlação Forte")
+                                elif abs(corr) >= 0.5:
+                                    st.info("📊 Correlação Moderada")
+                                elif abs(corr) >= 0.3:
+                                    st.warning("📉 Correlação Fraca")
+                                else:
+                                    st.info("🔍 Correlação Muito Fraca ou Inexistente")
+                                
+                                # Gráfico de dispersão
+                                st.markdown("#### 📊 Gráfico de Dispersão")
+                                df_scatter = df[[var1_corr, var2_corr]].dropna()
+                                if len(df_scatter) > 0:
+                                    st.scatter_chart(df_scatter, x=var1_corr, y=var2_corr, use_container_width=True)
+                                
+                                # Matriz de correlação
+                                st.markdown("#### 📊 Matriz de Correlação (todas as variáveis)")
+                                corr_matrix = df[numericas].corr()
+                                st.dataframe(corr_matrix, use_container_width=True)
+                else:
+                    st.warning("Precisa de pelo menos 2 variáveis numéricas para correlação.")
+            
+            # ============================================================
+            # ESTATÍSTICAS COMPLETAS
+            # ============================================================
+            else:
+                st.markdown("#### 📋 Estatísticas Completas")
+                st.markdown("Estatísticas descritivas para todas as variáveis numéricas")
+                
+                # Calcular estatísticas para todas as colunas
+                todas_estatisticas = []
+                for col in numericas:
+                    stats = calcular_estatisticas_descritivas(df, col)
+                    if stats:
+                        stats['Variável'] = col
+                        todas_estatisticas.append(stats)
+                
+                if todas_estatisticas:
+                    df_completo = pd.DataFrame(todas_estatisticas)
+                    # Reordenar colunas para ter Variável primeiro
+                    cols = ['Variável'] + [c for c in df_completo.columns if c != 'Variável']
+                    df_completo = df_completo[cols]
+                    st.dataframe(df_completo, use_container_width=True)
+                    
+                    # Download
+                    csv_completo = df_completo.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Baixar Estatísticas Completas",
+                        data=csv_completo,
+                        file_name="estatisticas_completas.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                    
+                    st.session_state["estatisticas"] = df_completo
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -1230,97 +1342,6 @@ with tab5:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# ABA 6 - MÉDIA MENSAL
-# =============================================================================
-
-with tab6:
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📅 Média Mensal dos Dados</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="info-box">
-        <strong>📊 Média Mensal de TODAS as Colunas Originais</strong><br>
-        Esta ferramenta calcula a média mensal de <strong>TODAS</strong> as colunas numéricas ORIGINAIS da sua planilha.
-    </div>
-    """, unsafe_allow_html=True)
-    
-    if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
-        st.warning("⚠️ Primeiro consolide os dados na aba 'Consolidação'.")
-    else:
-        df_base = st.session_state["df_consolidado"]
-        
-        col_data = identificar_coluna_data(df_base)
-        
-        if col_data is None:
-            st.warning("⚠️ Nenhuma coluna de data encontrada.")
-        else:
-            # Mostrar colunas numéricas encontradas
-            numericas = df_base.select_dtypes(include=[np.number]).columns.tolist()
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("📊 Total de Linhas", len(df_base))
-            with col2:
-                st.metric("📋 Colunas Numéricas", len(numericas))
-            with col3:
-                st.metric("📅 Coluna de Data", col_data)
-            
-            # Mostrar quais colunas serão calculadas
-            if numericas:
-                st.markdown("**Colunas que serão calculadas:**")
-                st.write(", ".join(numericas[:10]) + ("..." if len(numericas) > 10 else ""))
-            
-            st.markdown("---")
-            
-            if st.button("📊 Calcular Média Mensal", use_container_width=True):
-                with st.spinner("Calculando médias mensais..."):
-                    media_mensal, erro = calcular_media_mensal(df_base)
-                    if erro:
-                        st.error(f"❌ {erro}")
-                    else:
-                        st.session_state["df_mensal"] = media_mensal
-                        num_colunas = len(media_mensal.columns) - 3
-                        st.success(f"✅ Média mensal calculada com sucesso!")
-                        st.info(f"📊 Foram calculadas médias para **{num_colunas}** colunas numéricas.")
-            
-            st.markdown("---")
-            
-            if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
-                df_mensal = st.session_state["df_mensal"]
-                
-                st.markdown("### 📋 Tabela de Médias Mensais")
-                st.dataframe(df_mensal, use_container_width=True)
-                
-                csv_mensal = df_mensal.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Baixar Médias Mensais (CSV)",
-                    data=csv_mensal,
-                    file_name="medias_mensais.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-                
-                st.markdown("---")
-                
-                st.markdown("### 📊 Análise Gráfica")
-                
-                colunas_para_grafico = df_mensal.select_dtypes(include=[np.number]).columns.tolist()
-                colunas_para_grafico = [c for c in colunas_para_grafico if c not in ['Ano', 'Mes']]
-                
-                if colunas_para_grafico:
-                    vars_selecionadas = st.multiselect(
-                        "Selecione as variáveis",
-                        colunas_para_grafico,
-                        default=[colunas_para_grafico[0]] if colunas_para_grafico else []
-                    )
-                    
-                    if vars_selecionadas:
-                        st.markdown(f"**📈 Evolução Mensal**")
-                        df_plot = df_mensal.set_index('Ano_Mes')[vars_selecionadas]
-                        st.line_chart(df_plot, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# =============================================================================
 # IA - PREPARAÇÃO DE CONTEXTO
 # =============================================================================
 
@@ -1347,9 +1368,31 @@ Desvio padrão: {numericas[col].std():.2f}
     return contexto
 
 PROMPTS = {
-    "📊 Relatório Científico": "Produza um relatório científico completo...",
-    "🌡️ Relatório Meteorológico": "Produza uma análise meteorológica detalhada...",
-    "📋 Resumo Executivo": "Produza um resumo executivo simples e objetivo..."
+    "📊 Relatório Científico": """
+Produza um relatório científico completo.
+Inclua:
+- Introdução dos dados
+- Interpretação estatística
+- Tendências observadas
+- Variabilidade
+- Eventos extremos
+- Conclusões técnicas
+Utilize linguagem científica.
+""",
+    "🌡️ Relatório Meteorológico": """
+Produza uma análise meteorológica detalhada.
+Avalie:
+- Temperatura
+- Precipitação
+- Umidade
+- Vento
+- Eventos extremos
+- Tendências climáticas
+""",
+    "📋 Resumo Executivo": """
+Produza um resumo executivo simples e objetivo.
+Explique os resultados em linguagem acessível.
+"""
 }
 
 def consultar_ia(prompt_usuario, contexto):
@@ -1368,10 +1411,10 @@ def consultar_ia(prompt_usuario, contexto):
         return f"❌ Erro: {erro}"
 
 # =============================================================================
-# ABA 7 - IA
+# ABA 6 - IA
 # =============================================================================
 
-with tab7:
+with tab6:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">🤖 Inteligência Artificial</div>', unsafe_allow_html=True)
     
@@ -1420,18 +1463,16 @@ def gerar_zip_completo():
             zipf.writestr("dados_consolidados.csv", st.session_state["df_consolidado"].to_csv(index=False))
         if "estatisticas" in st.session_state and st.session_state["estatisticas"] is not None:
             zipf.writestr("estatisticas.csv", st.session_state["estatisticas"].to_csv(index=False))
-        if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
-            zipf.writestr("media_mensal.csv", st.session_state["df_mensal"].to_csv(index=False))
         if "relatorio_ia" in st.session_state and st.session_state["relatorio_ia"] is not None:
             zipf.writestr("relatorio_ia.txt", st.session_state["relatorio_ia"])
     memoria.seek(0)
     return memoria
 
 # =============================================================================
-# ABA 8 - EXPORTAÇÃO
+# ABA 7 - EXPORTAÇÃO
 # =============================================================================
 
-with tab8:
+with tab7:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📥 Exportação</div>', unsafe_allow_html=True)
     
@@ -1447,25 +1488,15 @@ with tab8:
             use_container_width=True
         )
         
-        if "df_mensal" in st.session_state and st.session_state["df_mensal"] is not None:
-            csv_mensal = st.session_state["df_mensal"].to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "📄 Média Mensal (CSV)",
-                data=csv_mensal,
-                file_name="media_mensal.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# =============================================================================
-# ABA 9 - INDICADORES (OPCIONAL)
-# =============================================================================
-
-with tab9:
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">🌡️ Indicadores</div>', unsafe_allow_html=True)
-    st.info("Indicadores agrometeorológicos opcionais (GDD, ETo, etc.)")
+        # Exportar CSV dos dados consolidados
+        csv_consolidado = st.session_state["df_consolidado"].to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📄 Dados Consolidados (CSV)",
+            data=csv_consolidado,
+            file_name="dados_consolidados.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================

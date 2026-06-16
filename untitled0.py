@@ -1,15 +1,23 @@
 # =============================================================================
 # IMPORTS
 # =============================================================================
+import sys
+
+st.write(sys.version)
 
 import streamlit as st
 import pandas as pd
 import numpy as np
+
+import plotly.graph_objects as go
 try:
+    import plotly
+    print("Plotly carregado:", plotly.__version__)
+
     import plotly.express as px
-    import plotly.graph_objects as go
+
 except Exception as e:
-    print("ERRO PLOTLY:", e)
+    st.error(f"Erro Plotly: {e}")
     raise
 import requests
 import zipfile

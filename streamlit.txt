@@ -1,10 +1,10 @@
 streamlit
 pandas
 numpy
-plotly>=5.0.0
-matplotlib
-scikit-learn
+plotly
 scipy
 openpyxl
 python-docx
 requests
+matplotlib
+scikit-learn

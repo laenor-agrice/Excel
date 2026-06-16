@@ -1766,76 +1766,60 @@ def main():
             ])
             
                         # Tab 1: Dados Consolidados
-            with tab1:
-                st.markdown("### 📊 Tabela de Dados Mensais Consolidados")
-                
-                # Formatar para exibição
-                df_exibicao = df_mensal.copy()
-                
-                # Verificar quais colunas existem
-                colunas_originais = df_exibicao.columns.tolist()
-                
-                # Criar dicionário de renomeação sem duplicatas
-                renomear = {}
-                
-                # Mapear colunas existentes
-                if 'Mes' in colunas_originais:
-                    renomear['Mes'] = 'Mês'
-                if 'Temp_Inst' in colunas_originais:
-                    renomear['Temp_Inst'] = 'Temp Média'
-                if 'Tmax' in colunas_originais:
-                    renomear['Tmax'] = 'T Max'
-                if 'Tmin' in colunas_originais:
-                    renomear['Tmin'] = 'T Min'
-                if 'Precipitacao' in colunas_originais:
-                    renomear['Precipitacao'] = 'Precipitação'
-                if 'UR_Inst' in colunas_originais:
-                    renomear['UR_Inst'] = 'UR Média'
-                if 'U2' in colunas_originais:
-                    renomear['U2'] = 'Vento'
-                
-                # Aplicar renomeação
-                df_exibicao = df_exibicao.rename(columns=renomear)
-                
-                # Selecionar apenas colunas que existem e não são duplicadas
-                colunas_para_exibir = [v for k, v in renomear.items() if k in colunas_originais]
-                
-                if colunas_para_exibir:
-                    st.dataframe(df_exibicao[colunas_para_exibir], use_container_width=True)
-                else:
-                    st.dataframe(df_exibicao, use_container_width=True)
-                
-                # Estatísticas descritivas
-                st.markdown("### 📈 Estatísticas Descritivas do Período")
-                col_est1, col_est2, col_est3, col_est4 = st.columns(4)
-                
-                with col_est1:
-                    if 'Temp_Inst' in df_mensal.columns:
-                        st.metric("🌡️ Temperatura Média", f"{df_mensal['Temp_Inst'].mean():.1f}°C")
-                        st.caption(f"Min: {df_mensal['Temp_Inst'].min():.1f}°C | Max: {df_mensal['Temp_Inst'].max():.1f}°C")
-                    else:
-                        st.info("Dados de temperatura não disponíveis")
-                
-                with col_est2:
-                    if 'Precipitacao' in df_mensal.columns:
-                        st.metric("☔ Precipitação Total", f"{df_mensal['Precipitacao'].sum():.0f} mm")
-                        st.caption(f"Média mensal: {df_mensal['Precipitacao'].mean():.1f} mm")
-                    else:
-                        st.info("Dados de precipitação não disponíveis")
-                
-                with col_est3:
-                    if 'UR_Inst' in df_mensal.columns:
-                        st.metric("💧 Umidade Média", f"{df_mensal['UR_Inst'].mean():.1f}%")
-                        st.caption(f"Min: {df_mensal['UR_Inst'].min():.1f}% | Max: {df_mensal['UR_Inst'].max():.1f}%")
-                    else:
-                        st.info("Dados de umidade não disponíveis")
-                
-                with col_est4:
-                    if 'U2' in df_mensal.columns:
-                        st.metric("💨 Velocidade do Vento", f"{df_mensal['U2'].mean():.1f} m/s")
-                        st.caption(f"Máxima: {df_mensal['U2'].max():.1f} m/s")
-                    else:
-                        st.info("Dados de vento não disponíveis")
+with tab1:
+    st.markdown("### 📊 Tabela de Dados Mensais Consolidados")
+    
+    # Formatar para exibição
+    df_exibicao = df_mensal.copy()
+    
+    # Verificar quais colunas existem
+    colunas_originais = df_exibicao.columns.tolist()
+    
+    # Criar dicionário de renomeação sem duplicatas
+    renomear = {}
+    
+    # Mapear colunas existentes (APENAS UMA VEZ para cada nome final)
+    if 'Mes' in colunas_originais:
+        renomear['Mes'] = 'Mês'
+    if 'Temp_Inst' in colunas_originais:
+        renomear['Temp_Inst'] = 'Temp Média'
+    if 'Tmax' in colunas_originais:
+        renomear['Tmax'] = 'T Max'
+    if 'Tmin' in colunas_originais:
+        renomear['Tmin'] = 'T Min'
+    if 'Precipitacao' in colunas_originais:
+        renomear['Precipitacao'] = 'Precipitação'
+    if 'UR_Inst' in colunas_originais:
+        renomear['UR_Inst'] = 'UR Média'
+    if 'U2' in colunas_originais:
+        renomear['U2'] = 'Vento'
+    
+    # CORREÇÃO: Aplicar renomeação apenas nas colunas que existem
+    # E garantir que não haja duplicatas
+    df_exibicao = df_exibicao.rename(columns=renomear)
+    
+    # CORREÇÃO: Selecionar colunas para exibição evitando duplicatas
+    # Criar uma lista de colunas únicas para exibição
+    colunas_para_exibir = []
+    colunas_vistas = set()
+    
+    for col in df_exibicao.columns:
+        if col not in colunas_vistas:
+            colunas_para_exibir.append(col)
+            colunas_vistas.add(col)
+    
+    # Verificar se há colunas suficientes
+    if len(colunas_para_exibir) > 0:
+        # Garantir que não há duplicatas no DataFrame final
+        df_exibicao = df_exibicao.loc[:, ~df_exibicao.columns.duplicated()]
+        
+        # Exibir apenas as colunas que foram renomeadas com sucesso e são únicas
+        colunas_final = [col for col in colunas_para_exibir if col in df_exibicao.columns]
+        st.dataframe(df_exibicao[colunas_final], use_container_width=True)
+    else:
+        # Se não encontrar colunas específicas, mostrar todas (sem duplicatas)
+        df_exibicao = df_exibicao.loc[:, ~df_exibicao.columns.duplicated()]
+        st.dataframe(df_exibicao, use_container_width=True)
             
             # Tab 2: Indicadores Agrícolas
             with tab2:

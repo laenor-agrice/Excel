@@ -7,4 +7,5 @@ scipy
 openpyxl
 requests
 scikit-learn
+pip install plotly
 plotly>=5.0.0

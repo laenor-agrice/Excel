@@ -25,25 +25,20 @@ def zscore_simples(serie):
     return (serie - media) / desvio
 
 # =============================================================================
-# FUNÇÕES ESTATÍSTICAS MANUAIS (SEM SCIPY)
+# FUNÇÕES ESTATÍSTICAS MANUAIS
 # =============================================================================
 
 def calcular_anova_manual(df, coluna, grupos):
     """Calcula ANOVA manualmente sem scipy"""
-    # Criar grupos
     grupos_dados = df.groupby(grupos)[coluna].apply(list).to_dict()
-    
-    # Filtrar grupos com dados
     grupos_validos = {k: v for k, v in grupos_dados.items() if len(v) > 1}
     
     if len(grupos_validos) < 2:
         return None, "É necessário pelo menos 2 grupos com dados para ANOVA"
     
-    # Calcular médias e variâncias
     dados_grupos = list(grupos_validos.values())
     nomes_grupos = list(grupos_validos.keys())
     
-    # Média geral
     todos_dados = []
     for grupo in dados_grupos:
         todos_dados.extend(grupo)
@@ -51,39 +46,28 @@ def calcular_anova_manual(df, coluna, grupos):
     n_total = len(todos_dados)
     k = len(dados_grupos)
     
-    # Soma dos quadrados entre grupos (SSB)
     ssb = 0
     for grupo in dados_grupos:
         n_g = len(grupo)
         media_g = np.mean(grupo)
         ssb += n_g * (media_g - media_geral) ** 2
     
-    # Soma dos quadrados dentro dos grupos (SSW)
     ssw = 0
     for grupo in dados_grupos:
         media_g = np.mean(grupo)
         for valor in grupo:
             ssw += (valor - media_g) ** 2
     
-    # Graus de liberdade
     df_between = k - 1
     df_within = n_total - k
-    
-    # Quadrados médios
     msb = ssb / df_between if df_between > 0 else 0
     msw = ssw / df_within if df_within > 0 else 0
-    
-    # Estatística F
     f_stat = msb / msw if msw > 0 else 0
     
-    # Calcular p-value usando distribuição F (aproximação)
-    # Usando scipy se disponível, senão aproximação
     try:
         from scipy.stats import f
         p_valor = 1 - f.cdf(f_stat, df_between, df_within)
     except:
-        # Aproximação simples do p-value
-        # Se F > 4, geralmente é significativo (para amostras grandes)
         if f_stat > 4:
             p_valor = 0.01
         elif f_stat > 3:
@@ -93,16 +77,11 @@ def calcular_anova_manual(df, coluna, grupos):
         else:
             p_valor = 0.5
     
-    # Tukey HSD (comparações múltiplas)
     tukey_result = None
     if p_valor < 0.05:
         try:
-            # Calcular diferenças entre médias
             medias = [np.mean(g) for g in dados_grupos]
             n_grupos = [len(g) for g in dados_grupos]
-            
-            # Calcular o erro padrão da diferença
-            # Usando a média dos tamanhos dos grupos para simplificar
             n_medio = np.mean(n_grupos)
             erro_padrao = np.sqrt(msw * (1/n_medio + 1/n_medio))
             
@@ -110,10 +89,7 @@ def calcular_anova_manual(df, coluna, grupos):
             for i in range(len(nomes_grupos)):
                 for j in range(i+1, len(nomes_grupos)):
                     diff = medias[i] - medias[j]
-                    # Estatística Q (studentized range)
                     q_stat = abs(diff) / erro_padrao if erro_padrao > 0 else 0
-                    # Aproximação do p-value para Tukey
-                    # Usando distribuição t como aproximação
                     try:
                         from scipy.stats import t
                         p_tukey = 2 * (1 - t.cdf(abs(q_stat), df_within))
@@ -127,7 +103,6 @@ def calcular_anova_manual(df, coluna, grupos):
                         "p-value": round(p_tukey, 4),
                         "Significativo": p_tukey < 0.05
                     })
-            
             tukey_result = comparacoes
         except:
             tukey_result = None
@@ -141,13 +116,10 @@ def calcular_anova_manual(df, coluna, grupos):
         "df_within": df_within,
         "tukey": tukey_result
     }
-    
     return resultado, None
 
 def calcular_teste_t_manual(df, coluna, grupos):
-    """Calcula teste t para duas amostras"""
     dados_grupos = df.groupby(grupos)[coluna].apply(list).to_dict()
-    
     if len(dados_grupos) != 2:
         return None, "O teste t requer exatamente 2 grupos"
     
@@ -159,21 +131,17 @@ def calcular_teste_t_manual(df, coluna, grupos):
     grupo1 = grupos_validos[nomes[0]]
     grupo2 = grupos_validos[nomes[1]]
     
-    # Estatísticas
     n1, n2 = len(grupo1), len(grupo2)
     media1, media2 = np.mean(grupo1), np.mean(grupo2)
     var1, var2 = np.var(grupo1, ddof=1), np.var(grupo2, ddof=1)
     
-    # Teste t para variâncias desiguais (Welch)
     t_stat = (media1 - media2) / np.sqrt(var1/n1 + var2/n2)
     df = ((var1/n1 + var2/n2)**2) / ((var1/n1)**2/(n1-1) + (var2/n2)**2/(n2-1))
     
-    # Calcular p-value
     try:
         from scipy.stats import t
         p_valor = 2 * (1 - t.cdf(abs(t_stat), df))
     except:
-        # Aproximação
         if abs(t_stat) > 2.5:
             p_valor = 0.01
         elif abs(t_stat) > 2:
@@ -193,11 +161,43 @@ def calcular_teste_t_manual(df, coluna, grupos):
         "media1": media1,
         "media2": media2
     }
-    
     return resultado, None
 
+def calcular_estatisticas_descritivas(df, coluna):
+    dados = df[coluna].dropna()
+    if len(dados) == 0:
+        return None
+    
+    stats_dict = {
+        "N": len(dados),
+        "Média": dados.mean(),
+        "Mediana": dados.median(),
+        "Moda": dados.mode().iloc[0] if not dados.mode().empty else np.nan,
+        "Desvio Padrão": dados.std(),
+        "Variância": dados.var(),
+        "CV (%)": (dados.std() / dados.mean() * 100) if dados.mean() != 0 else np.nan,
+        "Mínimo": dados.min(),
+        "Máximo": dados.max(),
+        "Amplitude": dados.max() - dados.min(),
+        "Q1 (25%)": dados.quantile(0.25),
+        "Q3 (75%)": dados.quantile(0.75),
+        "IQR": dados.quantile(0.75) - dados.quantile(0.25),
+        "Assimetria": dados.skew(),
+        "Curtose": dados.kurtosis(),
+        "Erro Padrão": dados.std() / np.sqrt(len(dados))
+    }
+    return stats_dict
+
+def calcular_correlacao(df, coluna1, coluna2):
+    dados1 = df[coluna1].dropna()
+    dados2 = df[coluna2].dropna()
+    df_temp = pd.DataFrame({coluna1: dados1, coluna2: dados2}).dropna()
+    if len(df_temp) < 2:
+        return None
+    return df_temp[coluna1].corr(df_temp[coluna2])
+
 # =============================================================================
-# CONFIGURAÇÃO DA PÁGINA - TELA CHEIA
+# CONFIGURAÇÃO DA PÁGINA
 # =============================================================================
 
 st.set_page_config(
@@ -208,7 +208,7 @@ st.set_page_config(
 )
 
 # =============================================================================
-# CSS GLOBAL - DESIGN VERDE ÁGUA LAMINADO
+# CSS GLOBAL
 # =============================================================================
 
 st.markdown(
@@ -219,13 +219,11 @@ st.markdown(
         background: linear-gradient(135deg, #b8e6d6 0%, #a8d8c8 50%, #98cabc 100%);
         min-height: 100vh;
     }
-    
     .block-container {
         padding-top: 0.5rem;
         padding-bottom: 0.5rem;
         max-width: 100%;
     }
-    
     .custom-card {
         background: rgba(255, 255, 255, 0.92);
         border-radius: 20px;
@@ -235,7 +233,6 @@ st.markdown(
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255,255,255,0.3);
     }
-    
     .main-header {
         background: linear-gradient(135deg, #2d8a6e 0%, #3da88a 50%, #4dc0a0 100%);
         padding: 2.5rem 3rem;
@@ -245,20 +242,17 @@ st.markdown(
         box-shadow: 0 8px 32px rgba(45, 138, 110, 0.3);
         text-align: center;
     }
-    
     .main-header h1 {
         margin: 0;
         font-size: 3rem;
         font-weight: 800;
         letter-spacing: -1px;
     }
-    
     .main-header p {
         margin: 0.8rem 0 0 0;
         opacity: 0.95;
         font-size: 1.3rem;
     }
-    
     .stButton > button {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
@@ -271,13 +265,11 @@ st.markdown(
         width: 100%;
         box-shadow: 0 4px 20px rgba(45, 138, 110, 0.3);
     }
-    
     .stButton > button:hover {
         transform: translateY(-3px) scale(1.02);
         box-shadow: 0 8px 30px rgba(45, 138, 110, 0.4);
         background: linear-gradient(135deg, #3da88a, #2d8a6e);
     }
-    
     .stFileUploader > div {
         border: 3px dashed #3da88a;
         border-radius: 20px;
@@ -289,14 +281,12 @@ st.markdown(
         align-items: center;
         justify-content: center;
     }
-    
     .stFileUploader > div:hover {
         border-color: #2d8a6e;
         background: linear-gradient(135deg, #e8f8f2, #ddf2ea);
         transform: scale(1.01);
         box-shadow: 0 4px 20px rgba(45, 138, 110, 0.15);
     }
-    
     .stMetric {
         background: rgba(255, 255, 255, 0.9);
         border-radius: 16px;
@@ -306,29 +296,24 @@ st.markdown(
         transition: all 0.3s ease;
         backdrop-filter: blur(5px);
     }
-    
     .stMetric:hover {
         transform: translateY(-5px);
         box-shadow: 0 8px 30px rgba(0,0,0,0.1);
         background: rgba(255, 255, 255, 1);
     }
-    
     .stMetric > div {
         background-color: transparent !important;
     }
-    
     .stMetric label {
         font-size: 1.1rem !important;
         font-weight: 600 !important;
         color: #1a4a3a !important;
     }
-    
     .stMetric div[data-testid="stMetricValue"] {
         font-size: 2.2rem !important;
         font-weight: 700 !important;
         color: #2d8a6e !important;
     }
-    
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background: rgba(255, 255, 255, 0.9);
@@ -338,7 +323,6 @@ st.markdown(
         backdrop-filter: blur(5px);
         margin-bottom: 1.5rem;
     }
-    
     .stTabs [data-baseweb="tab"] {
         border-radius: 12px;
         padding: 1rem 2rem;
@@ -347,19 +331,16 @@ st.markdown(
         transition: all 0.3s ease;
         color: #1a4a3a;
     }
-    
     .stTabs [data-baseweb="tab"]:hover {
         background-color: rgba(45, 138, 110, 0.1);
         color: #2d8a6e;
     }
-    
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
         font-weight: 700;
         box-shadow: 0 4px 20px rgba(45, 138, 110, 0.25);
     }
-    
     .info-box {
         background: linear-gradient(135deg, #e6f5ef, #d4ede4);
         border-left: 6px solid #3da88a;
@@ -370,7 +351,6 @@ st.markdown(
         font-size: 1.1rem;
         box-shadow: 0 4px 15px rgba(45, 138, 110, 0.08);
     }
-    
     .config-box {
         background: rgba(255, 255, 255, 0.85);
         border: 2px solid #d4ede4;
@@ -379,14 +359,12 @@ st.markdown(
         margin: 1.5rem 0;
         box-shadow: 0 4px 15px rgba(0,0,0,0.04);
     }
-    
     .config-title {
         font-weight: 700;
         color: #1a4a3a;
         margin-bottom: 0.8rem;
         font-size: 1.3rem;
     }
-    
     .section-title {
         font-size: 1.8rem;
         font-weight: 700;
@@ -396,7 +374,6 @@ st.markdown(
         border-bottom: 4px solid #3da88a;
         display: inline-block;
     }
-    
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stNumberInput > div > div > input {
@@ -408,7 +385,6 @@ st.markdown(
         background: white;
         color: #1a4a3a !important;
     }
-    
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus,
     .stNumberInput > div > div > input:focus {
@@ -416,16 +392,13 @@ st.markdown(
         box-shadow: 0 0 0 4px rgba(45, 138, 110, 0.15);
         color: #1a4a3a !important;
     }
-    
     .stSelectbox {
         margin-bottom: 1.5rem;
         min-height: 70px;
     }
-    
     .stSelectbox > div {
         min-height: 60px;
     }
-    
     .stSelectbox > div > div {
         border-radius: 12px;
         border: 2px solid #d4ede4;
@@ -436,39 +409,32 @@ st.markdown(
         color: #1a4a3a !important;
         min-height: 50px;
     }
-    
     .stSelectbox > div > div > div {
         color: #1a4a3a !important;
         font-size: 1.05rem !important;
     }
-    
     .stSelectbox > div > div:focus {
         border-color: #3da88a;
         box-shadow: 0 0 0 4px rgba(45, 138, 110, 0.15);
     }
-    
     .stSelectbox > div > div > div > div {
         color: #1a4a3a !important;
         font-size: 1rem !important;
         padding: 8px 12px !important;
     }
-    
     .stSelectbox > div > div > div > div:hover {
         background-color: #e6f5ef !important;
     }
-    
     .stSelectbox > div > div > div:first-child {
         min-height: 40px;
         display: flex;
         align-items: center;
     }
-    
     .stCheckbox > label {
         font-weight: 600;
         color: #1a4a3a;
         font-size: 1.05rem;
     }
-    
     .stDataFrame {
         border-radius: 16px;
         border: 1px solid #d4ede4;
@@ -476,15 +442,12 @@ st.markdown(
         background: white;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
     }
-    
     .stDataFrame > div {
         border-radius: 16px;
     }
-    
     footer {
         visibility: hidden;
     }
-    
     .footer {
         text-align: center;
         font-size: 14px;
@@ -494,11 +457,9 @@ st.markdown(
         border-top: 2px solid rgba(255,255,255,0.2);
         margin-top: 2rem;
     }
-    
     .footer b {
         color: white;
     }
-    
     .file-info {
         background: linear-gradient(135deg, #2d8a6e, #3da88a);
         color: white;
@@ -512,20 +473,11 @@ st.markdown(
         justify-content: space-between;
         align-items: center;
     }
-    
     .file-info span {
         background: rgba(255,255,255,0.2);
         padding: 0.3rem 1rem;
         border-radius: 20px;
         font-weight: 400;
-    }
-    
-    .chart-container {
-        margin-top: 1rem;
-        padding: 1rem;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
     }
     </style>
     """,
@@ -683,8 +635,8 @@ def converter_colunas_numericas(df):
     df2 = df.copy()
     for col in df2.columns:
         try:
-            df2[col] = df2[col].astype(str).str.replace(",", ".", regex=False)
-            df2[col] = pd.to_numeric(df2[col], errors="ignore")
+            # Tenta converter para numérico
+            df2[col] = pd.to_numeric(df2[col], errors="coerce")
         except:
             pass
     return df2
@@ -736,6 +688,14 @@ def ler_planilha_universal(arquivo):
     df = converter_colunas_numericas(df)
     df = converter_datas(df)
     return df
+
+def identificar_coluna_data(df):
+    palavras = ["data", "date", "datetime", "tempo", "timestamp"]
+    for col in df.columns:
+        nome = str(col).lower()
+        if any(p in nome for p in palavras):
+            return col
+    return None
 
 # =============================================================================
 # ABA 1 - IMPORTAÇÃO
@@ -823,7 +783,7 @@ with tab1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# FUNÇÕES DE TRATAMENTO DE DADOS
+# FUNÇÕES DE TRATAMENTO
 # =============================================================================
 
 def obter_colunas_numericas(df):
@@ -1041,14 +1001,6 @@ with tab2:
 # FUNÇÕES DE CONSOLIDAÇÃO
 # =============================================================================
 
-def identificar_coluna_data(df):
-    palavras = ["data", "date", "datetime", "tempo", "timestamp"]
-    for col in df.columns:
-        nome = str(col).lower()
-        if any(p in nome for p in palavras):
-            return col
-    return None
-
 def consolidar_dataframe(df):
     df2 = df.copy()
     coluna_data = identificar_coluna_data(df2)
@@ -1112,52 +1064,18 @@ with tab3:
             st.markdown("---")
             st.markdown('<div class="section-title">👁 Pré-visualização</div>', unsafe_allow_html=True)
             st.dataframe(df_consolidado.head(200), use_container_width=True)
+            
+            # Mostrar informações de diagnóstico
+            st.markdown("---")
+            st.markdown("### 🔍 Diagnóstico dos Dados")
+            colunas_num = df_consolidado.select_dtypes(include=[np.number]).columns.tolist()
+            if colunas_num:
+                st.success(f"✅ Encontradas {len(colunas_num)} colunas numéricas: {', '.join(colunas_num[:10])}")
+            else:
+                st.warning("⚠️ Nenhuma coluna numérica encontrada. Verifique se os dados foram carregados corretamente.")
+            
             st.success("✅ Base pronta para Análise Estatística!")
     st.markdown('</div>', unsafe_allow_html=True)
-
-# =============================================================================
-# FUNÇÕES ESTATÍSTICAS
-# =============================================================================
-
-def calcular_estatisticas_descritivas(df, coluna):
-    """Calcula estatísticas descritivas para uma coluna"""
-    dados = df[coluna].dropna()
-    if len(dados) == 0:
-        return None
-    
-    stats_dict = {
-        "N": len(dados),
-        "Média": dados.mean(),
-        "Mediana": dados.median(),
-        "Moda": dados.mode().iloc[0] if not dados.mode().empty else np.nan,
-        "Desvio Padrão": dados.std(),
-        "Variância": dados.var(),
-        "CV (%)": (dados.std() / dados.mean() * 100) if dados.mean() != 0 else np.nan,
-        "Mínimo": dados.min(),
-        "Máximo": dados.max(),
-        "Amplitude": dados.max() - dados.min(),
-        "Q1 (25%)": dados.quantile(0.25),
-        "Q3 (75%)": dados.quantile(0.75),
-        "IQR": dados.quantile(0.75) - dados.quantile(0.25),
-        "Assimetria": dados.skew(),
-        "Curtose": dados.kurtosis(),
-        "Erro Padrão": dados.std() / np.sqrt(len(dados))
-    }
-    return stats_dict
-
-def calcular_correlacao(df, coluna1, coluna2):
-    """Calcula correlação entre duas colunas"""
-    dados1 = df[coluna1].dropna()
-    dados2 = df[coluna2].dropna()
-    
-    # Alinhar dados
-    df_temp = pd.DataFrame({coluna1: dados1, coluna2: dados2}).dropna()
-    
-    if len(df_temp) < 2:
-        return None
-    
-    corr = df_temp[coluna1].corr(df_temp[coluna2])
-    return corr
 
 # =============================================================================
 # ABA 4 - ESTATÍSTICA
@@ -1167,15 +1085,30 @@ with tab4:
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📈 Análise Estatística</div>', unsafe_allow_html=True)
     
+    # VERIFICAR SE HÁ DADOS
     if "df_consolidado" not in st.session_state or st.session_state["df_consolidado"] is None:
         st.warning("⚠️ Primeiro consolide os dados na aba 'Consolidação'.")
     else:
         df = st.session_state["df_consolidado"]
+        
+        # VERIFICAR SE HÁ COLUNAS NUMÉRICAS
         numericas = df.select_dtypes(include=[np.number]).columns.tolist()
         
         if not numericas:
-            st.warning("Nenhuma coluna numérica encontrada para análise.")
+            st.error("❌ Nenhuma coluna numérica encontrada para análise.")
+            st.info("💡 Dica: Verifique se os dados foram carregados corretamente e se as colunas numéricas estão no formato correto.")
+            
+            # Mostrar estrutura do DataFrame para diagnóstico
+            st.markdown("### 📋 Estrutura do DataFrame")
+            st.write(f"**Total de colunas:** {len(df.columns)}")
+            st.write(f"**Total de linhas:** {len(df)}")
+            st.markdown("**Colunas disponíveis:**")
+            st.write(df.columns.tolist())
+            st.markdown("**Tipos das colunas:**")
+            st.dataframe(pd.DataFrame({"Coluna": df.columns, "Tipo": df.dtypes.astype(str)}))
         else:
+            st.success(f"✅ Encontradas {len(numericas)} colunas numéricas para análise.")
+            
             # ============================================================
             # SELEÇÃO DE MÉTRICA
             # ============================================================
@@ -1207,14 +1140,12 @@ with tab4:
                 if coluna_desc:
                     stats_dict = calcular_estatisticas_descritivas(df, coluna_desc)
                     if stats_dict:
-                        # Criar DataFrame para exibição
                         df_stats = pd.DataFrame({
                             "Métrica": list(stats_dict.keys()),
                             "Valor": [round(v, 4) if isinstance(v, (int, float)) else v for v in stats_dict.values()]
                         })
                         st.dataframe(df_stats, use_container_width=True)
                         
-                        # Gráfico da distribuição
                         st.markdown("#### 📊 Distribuição da Variável")
                         col1, col2 = st.columns(2)
                         
@@ -1252,10 +1183,7 @@ with tab4:
                     key="anova_var"
                 )
                 
-                # Identificar colunas categóricas para agrupar
                 colunas_categoricas = df.select_dtypes(include=['object', 'category']).columns.tolist()
-                
-                # Adicionar Ano e Mes se existirem
                 if 'Ano' in df.columns:
                     colunas_categoricas.append('Ano')
                 if 'Mes' in df.columns:
@@ -1280,7 +1208,6 @@ with tab4:
                                 else:
                                     st.success("✅ ANOVA calculada com sucesso!")
                                     
-                                    # Exibir resultados
                                     col1, col2, col3 = st.columns(3)
                                     with col1:
                                         st.metric("📊 F-Statistic", round(resultado['f_statistic'], 4))
@@ -1294,11 +1221,9 @@ with tab4:
                                     else:
                                         st.info(f"ℹ️ Resultado NÃO SIGNIFICATIVO (p >= 0.05) - Não há diferença entre os grupos")
                                     
-                                    # Mostrar grupos
                                     st.markdown("#### Grupos Analisados")
                                     st.write(f"**{len(resultado['grupos'])} grupos:** {', '.join(map(str, resultado['grupos']))}")
                                     
-                                    # Tukey HSD
                                     if resultado['tukey'] is not None:
                                         st.markdown("#### 📊 Tukey HSD - Comparações Múltiplas")
                                         df_tukey = pd.DataFrame(resultado['tukey'])
@@ -1316,14 +1241,12 @@ with tab4:
                     key="t_var"
                 )
                 
-                # Identificar colunas categóricas com apenas 2 categorias
                 colunas_categoricas = df.select_dtypes(include=['object', 'category']).columns.tolist()
                 if 'Ano' in df.columns:
                     colunas_categoricas.append('Ano')
                 if 'Mes' in df.columns:
                     colunas_categoricas.append('Mes')
                 
-                # Filtrar colunas com exatamente 2 categorias
                 colunas_2_grupos = []
                 for col in colunas_categoricas:
                     if len(df[col].dropna().unique()) == 2:
@@ -1386,7 +1309,6 @@ with tab4:
                                     delta=f"{'Positiva' if corr > 0 else 'Negativa' if corr < 0 else 'Neutra'}"
                                 )
                                 
-                                # Interpretação
                                 if abs(corr) >= 0.8:
                                     st.success("💪 Correlação Forte")
                                 elif abs(corr) >= 0.5:
@@ -1396,13 +1318,11 @@ with tab4:
                                 else:
                                     st.info("🔍 Correlação Muito Fraca ou Inexistente")
                                 
-                                # Gráfico de dispersão
                                 st.markdown("#### 📊 Gráfico de Dispersão")
                                 df_scatter = df[[var1_corr, var2_corr]].dropna()
                                 if len(df_scatter) > 0:
                                     st.scatter_chart(df_scatter, x=var1_corr, y=var2_corr, use_container_width=True)
                                 
-                                # Matriz de correlação
                                 st.markdown("#### 📊 Matriz de Correlação (todas as variáveis)")
                                 corr_matrix = df[numericas].corr()
                                 st.dataframe(corr_matrix, use_container_width=True)
@@ -1416,7 +1336,6 @@ with tab4:
                 st.markdown("#### 📋 Estatísticas Completas")
                 st.markdown("Estatísticas descritivas para todas as variáveis numéricas")
                 
-                # Calcular estatísticas para todas as colunas
                 todas_estatisticas = []
                 for col in numericas:
                     stats = calcular_estatisticas_descritivas(df, col)
@@ -1426,12 +1345,10 @@ with tab4:
                 
                 if todas_estatisticas:
                     df_completo = pd.DataFrame(todas_estatisticas)
-                    # Reordenar colunas para ter Variável primeiro
                     cols = ['Variável'] + [c for c in df_completo.columns if c != 'Variável']
                     df_completo = df_completo[cols]
                     st.dataframe(df_completo, use_container_width=True)
                     
-                    # Download
                     csv_completo = df_completo.to_csv(index=False).encode('utf-8')
                     st.download_button(
                         "📥 Baixar Estatísticas Completas",
@@ -1460,6 +1377,7 @@ with tab5:
         
         if not numericas:
             st.warning("Sem colunas numéricas para visualizar.")
+            st.write("**Colunas disponíveis:**", df.columns.tolist())
         else:
             st.markdown("#### Selecione o tipo de gráfico")
             tipo_grafico = st.selectbox(
@@ -1658,7 +1576,6 @@ with tab7:
             use_container_width=True
         )
         
-        # Exportar CSV dos dados consolidados
         csv_consolidado = st.session_state["df_consolidado"].to_csv(index=False).encode('utf-8')
         st.download_button(
             "📄 Dados Consolidados (CSV)",

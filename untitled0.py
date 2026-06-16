@@ -1195,7 +1195,9 @@ with tab4:
                 st.markdown("### 📊 Média Mensal (Todos os anos combinados)")
                 st.markdown("Média de cada variável para cada mês do ano (ex: média de todos os janeiros, todos os fevereiros, etc.)")
                 
+                # Criar coluna de mês no DataFrame
                 df[col_data] = pd.to_datetime(df[col_data], errors='coerce')
+                df['Mes'] = df[col_data].dt.month
                 
                 # Seletor de variável
                 var_mensal = st.selectbox(
@@ -1209,42 +1211,43 @@ with tab4:
                 meses_disponiveis = sorted([int(m) for m in meses_disponiveis if not np.isnan(m)])
                 nomes_meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
                                'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-                opcoes_meses = [{'label': nomes_meses[m-1], 'value': m} for m in meses_disponiveis]
-                opcoes_meses = [{'label': 'Todos os meses', 'value': 0}] + opcoes_meses
                 
-                mes_selecionado = st.selectbox(
-                    "Selecione o mês para filtrar",
-                    options=[0] + meses_disponiveis,
-                    format_func=lambda x: 'Todos os meses' if x == 0 else nomes_meses[x-1] if 1 <= x <= 12 else str(x)
-                )
-                
-                if var_mensal:
-                    if mes_selecionado == 0:
-                        media_mensal = calcular_media_por_mes(df, col_data, var_mensal)
-                        st.markdown(f"**📈 Média Mensal - {var_mensal} (Todos os meses)**")
-                    else:
-                        media_mensal = calcular_media_por_mes(df, col_data, var_mensal, mes_selecionado)
-                        st.markdown(f"**📈 Média Mensal - {var_mensal} ({nomes_meses[mes_selecionado-1]})**")
+                if len(meses_disponiveis) > 0:
+                    mes_selecionado = st.selectbox(
+                        "Selecione o mês para filtrar",
+                        options=[0] + meses_disponiveis,
+                        format_func=lambda x: 'Todos os meses' if x == 0 else nomes_meses[x-1] if 1 <= x <= 12 else str(x)
+                    )
                     
-                    if not media_mensal.empty:
-                        st.dataframe(media_mensal, use_container_width=True)
+                    if var_mensal:
+                        if mes_selecionado == 0:
+                            media_mensal = calcular_media_por_mes(df, col_data, var_mensal)
+                            st.markdown(f"**📈 Média Mensal - {var_mensal} (Todos os meses)**")
+                        else:
+                            media_mensal = calcular_media_por_mes(df, col_data, var_mensal, mes_selecionado)
+                            st.markdown(f"**📈 Média Mensal - {var_mensal} ({nomes_meses[mes_selecionado-1]})**")
                         
-                        # Gráfico da média mensal
-                        if 'Media' in media_mensal.columns:
-                            st.bar_chart(media_mensal.set_index('Mes_Nome')['Media'], use_container_width=True)
-                        
-                        # Estatísticas descritivas da média mensal
-                        st.markdown("**📋 Estatísticas da Média Mensal**")
-                        stats = media_mensal['Media'].describe()
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("Mínimo", round(stats['min'], 2))
-                        with col2:
-                            st.metric("Máximo", round(stats['max'], 2))
-                        with col3:
-                            st.metric("Média", round(stats['mean'], 2))
-                        with col4:
-                            st.metric("Desvio Padrão", round(stats['std'], 2))
+                        if not media_mensal.empty:
+                            st.dataframe(media_mensal, use_container_width=True)
+                            
+                            # Gráfico da média mensal
+                            if 'Media' in media_mensal.columns:
+                                st.bar_chart(media_mensal.set_index('Mes_Nome')['Media'], use_container_width=True)
+                            
+                            # Estatísticas descritivas da média mensal
+                            st.markdown("**📋 Estatísticas da Média Mensal**")
+                            stats = media_mensal['Media'].describe()
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("Mínimo", round(stats['min'], 2))
+                            with col2:
+                                st.metric("Máximo", round(stats['max'], 2))
+                            with col3:
+                                st.metric("Média", round(stats['mean'], 2))
+                            with col4:
+                                st.metric("Desvio Padrão", round(stats['std'], 2))
+                else:
+                    st.warning("Nenhum mês disponível nos dados.")
             else:
                 st.info("ℹ️ Nenhuma coluna de data encontrada para calcular médias mensais.")
             
@@ -1618,7 +1621,7 @@ with tab5:
     st.markdown("### 📊 Cálculo da ETp para uma Cultura Específica")
     
     if "df_consolidado" in st.session_state and st.session_state["df_consolidado"] is not None:
-        if 'ET0' in locals() or 'ET0' in globals():
+        if 'ET0' in locals() or 'et0_mensal' in locals():
             cultura_selecionada = st.selectbox(
                 "Selecione a cultura para cálculo da ETp",
                 list(CULTURAS_Kc.keys())

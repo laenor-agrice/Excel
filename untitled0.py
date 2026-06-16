@@ -1821,8 +1821,8 @@ def grafico_tendencia(
 # ABA 5 - GRÁFICOS CIENTÍFICOS
 # =============================================================================
 
-import matplotlib.pyplot as plt
-import seaborn as sns
+st.line_chart(df)
+st.bar_chart(df)
 
 def grafico_temporal(df, variavel, data_col):
     fig, ax = plt.subplots(figsize=(10, 5))

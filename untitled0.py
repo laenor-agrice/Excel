@@ -1821,8 +1821,15 @@ def grafico_tendencia(
 # ABA 5 - GRÁFICOS CIENTÍFICOS
 # =============================================================================
 
-st.line_chart(df)
-st.bar_chart(df)
+if "df_tratado" in st.session_state:
+    df_plot = st.session_state["df_tratado"]
+
+    num = df_plot.select_dtypes(include=np.number)
+
+    if not num.empty:
+        st.line_chart(num)
+    else:
+        st.warning("Sem colunas numéricas para plotar.")
 
 def grafico_temporal(df, variavel, data_col):
     fig, ax = plt.subplots(figsize=(10, 5))

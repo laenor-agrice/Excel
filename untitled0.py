@@ -1,1291 +1,2408 @@
+# =============================================================================
+# IMPORTS
+# =============================================================================
+
 import streamlit as st
+
 import pandas as pd
 import numpy as np
-from io import BytesIO
-from datetime import datetime
-import base64
-import warnings
-import requests
-import re
-import plotly.graph_objs as go
-import plotly.express as px
-warnings.filterwarnings('ignore')
 
-# ============================================================================
-# CONFIGURAÇÃO DA PÁGINA E ESTILO
-# ============================================================================
+import plotly.express as px
+import plotly.graph_objects as go
+
+import requests
+import json
+import os
+import io
+import csv
+import zipfile
+
+from io import BytesIO
+
+from scipy.stats import zscore
+
+from docx import Document
+
+from openpyxl import Workbook
+
+# =============================================================================
+# CONFIGURAÇÃO DA PÁGINA
+# =============================================================================
 
 st.set_page_config(
-    page_title="Smart Meteorological Processor - Sistema Completo de Análise Meteorológica",
-    page_icon="🌾",
+    page_title="AgroClimate AI",
+    page_icon="🌱",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# CSS Personalizado Avançado
-st.markdown("""
-<style>
-    .stApp {
-        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-    }
-    
-    .main-header {
-        background: linear-gradient(135deg, rgba(27, 94, 87, 0.95), rgba(15, 55, 70, 0.95));
-        backdrop-filter: blur(10px);
-        padding: 2rem;
-        border-radius: 25px;
-        margin-bottom: 2rem;
-        text-align: center;
-        border: 1px solid rgba(255,255,255,0.2);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-    }
-    
-    .main-header h1 {
-        background: linear-gradient(135deg, #e8f4f8, #a0c4d6);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-size: 2.5rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    .metric-card {
-        background: linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05));
-        border-radius: 20px;
-        padding: 1.2rem;
-        text-align: center;
-        border: 1px solid rgba(255,255,255,0.1);
-        transition: all 0.3s ease;
-        backdrop-filter: blur(5px);
-    }
-    
-    .metric-card:hover {
-        transform: translateY(-5px);
-        border-color: rgba(76, 175, 80, 0.5);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
-    }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background: rgba(255,255,255,0.05);
-        padding: 8px;
-        border-radius: 50px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background: rgba(255,255,255,0.08);
-        border-radius: 40px;
-        padding: 10px 24px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #2e7d32, #1b5e20);
-        color: white !important;
-        box-shadow: 0 2px 10px rgba(46,125,50,0.3);
-    }
-    
-    .footer {
-        text-align: center;
-        padding: 20px;
-        font-size: 12px;
-        color: #999;
-        border-top: 1px solid rgba(255,255,255,0.1);
-        margin-top: 30px;
-    }
-    
-    .stDataFrame {
-        background: rgba(255,255,255,0.05);
-        border-radius: 15px;
-        overflow: hidden;
-    }
-    
-    .stButton button {
-        background: linear-gradient(135deg, #2e7d32, #1b5e20);
-        border: none;
-        border-radius: 30px;
-        padding: 10px 25px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-    
-    .stButton button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 20px rgba(46,125,50,0.4);
-    }
-</style>
-""", unsafe_allow_html=True)
+# =============================================================================
+# CSS GLOBAL
+# =============================================================================
 
-# ============================================================================
-# CONFIGURAÇÃO DA IA GEMINI
-# ============================================================================
+st.markdown(
+    """
+    <style>
 
-GEMINI_API_KEY = "AQ.Ab8RN6J5uzUogvavjQyfFr3wGWEaJbdrW3oByqhWo2bm_mMxmQ"
-
-def consultar_gemini(prompt, contexto=""):
-    """Consulta a API Gemini para análises climáticas"""
-    try:
-        if not GEMINI_API_KEY:
-            return "⚠️ API Key do Gemini não configurada."
-        
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
-        
-        prompt_completo = f"""Você é um meteorologista especialista. Analise os dados climáticos.
-
-        CONTEXTO:
-        {contexto}
-
-        PERGUNTA:
-        {prompt}
-
-        RESPOSTA:
-        """
-        
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "contents": [{"parts": [{"text": prompt_completo}]}],
-            "generationConfig": {
-                "temperature": 0.7,
-                "topK": 40,
-                "topP": 0.95,
-                "maxOutputTokens": 2048,
-            }
-        }
-        
-        response = requests.post(url, headers=headers, json=data, timeout=30)
-        
-        if response.status_code == 200:
-            resultado = response.json()
-            if "candidates" in resultado and resultado["candidates"]:
-                return resultado["candidates"][0]["content"]["parts"][0]["text"]
-            else:
-                return "Não foi possível obter uma análise detalhada."
-        else:
-            return f"⚠️ Erro na consulta: Status {response.status_code}"
-            
-    except Exception as e:
-        return f"⚠️ Erro: {str(e)}"
-
-# ============================================================================
-# FUNÇÕES DE LEITURA E PROCESSAMENTO
-# ============================================================================
-
-def detectar_formato_arquivo(arquivo_bytes):
-    """Detecção avançada de formato de arquivo"""
-    try:
-        conteudo = arquivo_bytes.getvalue().decode('utf-8', errors='ignore')[:5000]
-        linhas = conteudo.split('\n')
-    except:
-        conteudo = ""
-        linhas = []
-    
-    info = {
-        'delimiter': None,
-        'decimal_separator': ',',
-        'skiprows': 0,
-        'station_name': None,
-        'latitude': None,
-        'longitude': None
+    .main {
+        padding-top: 1rem;
     }
-    
-    if linhas:
-        delimiters = [';', ',', '\t', '|']
-        for delim in delimiters:
-            if linhas[0] and delim in linhas[0]:
-                info['delimiter'] = delim
-                break
-    
-    if not info['delimiter']:
-        info['delimiter'] = ';'
-    
-    if conteudo:
-        if ',' in conteudo and '.' not in conteudo:
-            info['decimal_separator'] = ','
-        elif '.' in conteudo and ',' not in conteudo:
-            info['decimal_separator'] = '.'
-        else:
-            info['decimal_separator'] = ',' if re.search(r'\d+,\d+', conteudo) else '.'
-    
-    if linhas:
-        for i, linha in enumerate(linhas[:20]):
-            if 'ESTACAO' in linha.upper() or 'ESTAÇÃO' in linha.upper():
-                partes = linha.split(info['delimiter'])
-                if len(partes) > 1:
-                    info['station_name'] = partes[1].strip()
-            if 'LATITUDE' in linha.upper():
-                partes = linha.split(info['delimiter'])
-                if len(partes) > 1:
-                    try:
-                        info['latitude'] = float(partes[1].replace(',', '.'))
-                    except:
-                        pass
-            if 'LONGITUDE' in linha.upper():
-                partes = linha.split(info['delimiter'])
-                if len(partes) > 1:
-                    try:
-                        info['longitude'] = float(partes[1].replace(',', '.'))
-                    except:
-                        pass
-    
-    return info
 
-def ler_arquivo_inteligente(arquivo_bytes):
-    """Leitura inteligente com auto-detecção"""
-    info = detectar_formato_arquivo(arquivo_bytes)
-    
-    estrategias = [
-        {'skiprows': 0, 'header': 0},
-        {'skiprows': 1, 'header': 0},
-        {'skiprows': 0, 'header': 'infer'},
-        {'skiprows': 8, 'header': 0},
-        {'skiprows': 9, 'header': 0}
+    .stMetric {
+        border-radius: 12px;
+        padding: 10px;
+    }
+
+    .block-container {
+        padding-top: 1rem;
+    }
+
+    footer {
+        visibility: hidden;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# =============================================================================
+# SESSION STATE
+# =============================================================================
+
+if "usuario" not in st.session_state:
+    st.session_state["usuario"] = {}
+
+if "dados_salvos" not in st.session_state:
+    st.session_state["dados_salvos"] = False
+
+# =============================================================================
+# TÍTULO PRINCIPAL
+# =============================================================================
+
+st.title("🌱 AgroClimate AI")
+st.caption(
+    "Sistema Inteligente para Processamento, Análise e Interpretação de Dados Climáticos e Agrícolas"
+)
+
+st.markdown("---")
+
+# =============================================================================
+# CRIAÇÃO DAS ABAS
+# =============================================================================
+
+tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+    [
+        "🏠 Início",
+        "📂 Importação",
+        "🧹 Tratamento",
+        "📅 Consolidação",
+        "📈 Estatística",
+        "📊 Gráficos",
+        "🤖 IA",
+        "📥 Exportação",
+        "🌱 Indicadores"
     ]
-    
-    df = None
-    for estrategia in estrategias:
-        try:
-            arquivo_bytes.seek(0)
-            df_temp = pd.read_csv(
-                arquivo_bytes,
-                sep=info['delimiter'],
-                encoding='utf-8',
-                skiprows=estrategia['skiprows'],
-                header=estrategia['header'] if isinstance(estrategia['header'], int) else 'infer',
-                on_bad_lines='skip'
+)
+
+# =============================================================================
+# ABA 0 - INÍCIO
+# =============================================================================
+
+with tab0:
+
+    st.subheader("🏠 Cadastro do Projeto")
+
+    st.markdown(
+        """
+        Preencha os dados abaixo para identificação do projeto,
+        pesquisador e instituição.
+        """
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        nome_projeto = st.text_input(
+            "Nome do Projeto"
+        )
+
+        pesquisador = st.text_input(
+            "Pesquisador Responsável"
+        )
+
+        instituicao = st.text_input(
+            "Instituição"
+        )
+
+    with col2:
+
+        email = st.text_input(
+            "E-mail"
+        )
+
+        cidade = st.text_input(
+            "Cidade"
+        )
+
+        estado = st.text_input(
+            "Estado"
+        )
+
+    observacoes = st.text_area(
+        "Observações"
+    )
+
+    if st.button(
+        "💾 Salvar Cadastro",
+        use_container_width=True
+    ):
+
+        st.session_state["usuario"] = {
+
+            "Projeto": nome_projeto,
+            "Pesquisador": pesquisador,
+            "Instituição": instituicao,
+            "Email": email,
+            "Cidade": cidade,
+            "Estado": estado,
+            "Observações": observacoes
+
+        }
+
+        st.session_state["dados_salvos"] = True
+
+        st.success(
+            "Cadastro salvo com sucesso."
+        )
+
+    st.markdown("---")
+
+    if st.session_state["dados_salvos"]:
+
+        st.subheader("📋 Informações Salvas")
+
+        st.json(
+            st.session_state["usuario"]
+        )
+
+    st.markdown("---")
+
+    st.info(
+        """
+        Fluxo recomendado:
+
+        1️⃣ Importar dados
+
+        2️⃣ Tratar dados
+
+        3️⃣ Consolidar dados
+
+        4️⃣ Gerar estatísticas
+
+        5️⃣ Criar gráficos
+
+        6️⃣ Gerar relatório com IA
+
+        7️⃣ Exportar resultados
+
+        8️⃣ Avaliar indicadores agrometeorológicos
+        """
+    )
+# =============================================================================
+# FUNÇÕES DE IMPORTAÇÃO E DIAGNÓSTICO
+# =============================================================================
+
+def detectar_delimitador(arquivo):
+    """
+    Detecta automaticamente o delimitador do arquivo.
+    """
+
+    try:
+
+        arquivo.seek(0)
+
+        amostra = arquivo.read(5000)
+
+        if isinstance(amostra, bytes):
+            amostra = amostra.decode(
+                "utf-8",
+                errors="ignore"
             )
-            
-            if len(df_temp.columns) > 3 and len(df_temp) > 10:
-                df = df_temp
-                info['skiprows'] = estrategia['skiprows']
-                break
+
+        delimitadores = [
+            ",",
+            ";",
+            "\t",
+            "|"
+        ]
+
+        contagem = {}
+
+        for d in delimitadores:
+            contagem[d] = amostra.count(d)
+
+        return max(
+            contagem,
+            key=contagem.get
+        )
+
+    except:
+
+        return ";"
+
+
+# =============================================================================
+# DETECÇÃO DE ENCODING
+# =============================================================================
+
+def detectar_encoding(arquivo):
+
+    encodings = [
+        "utf-8",
+        "latin1",
+        "ISO-8859-1",
+        "cp1252"
+    ]
+
+    for enc in encodings:
+
+        try:
+
+            arquivo.seek(0)
+
+            conteudo = arquivo.read(3000)
+
+            if isinstance(conteudo, bytes):
+                conteudo.decode(enc)
+
+            return enc
+
         except:
             continue
-    
-    if df is None:
-        raise ValueError("Não foi possível ler o arquivo. Verifique o formato.")
-    
-    if info['decimal_separator'] == ',':
-        for col in df.select_dtypes(include=['object']).columns:
-            df[col] = df[col].astype(str).str.replace(',', '.')
-            try:
-                df[col] = pd.to_numeric(df[col])
-            except:
-                pass
-    
-    return df, info
+
+    return "latin1"
+
+
+# =============================================================================
+# REMOVER COLUNAS DUPLICADAS
+# =============================================================================
+
+def remover_colunas_duplicadas(df):
+
+    df = df.loc[
+        :,
+        ~df.columns.duplicated()
+    ]
+
+    return df
+
+
+# =============================================================================
+# CONVERTER COLUNAS NUMÉRICAS
+# =============================================================================
+
+def converter_colunas_numericas(df):
+
+    df2 = df.copy()
+
+    for col in df2.columns:
+
+        try:
+
+            df2[col] = (
+                df2[col]
+                .astype(str)
+                .str.replace(",", ".", regex=False)
+            )
+
+            df2[col] = pd.to_numeric(
+                df2[col],
+                errors="ignore"
+            )
+
+        except:
+            pass
+
+    return df2
+
+
+# =============================================================================
+# DETECTAR COLUNAS DE DATA
+# =============================================================================
+
+def detectar_colunas_data(df):
+
+    candidatas = []
+
+    palavras = [
+        "data",
+        "date",
+        "datetime",
+        "tempo",
+        "hora",
+        "timestamp"
+    ]
+
+    for col in df.columns:
+
+        nome = str(col).lower()
+
+        if any(
+            p in nome
+            for p in palavras
+        ):
+
+            candidatas.append(col)
+
+    return candidatas
+
+
+# =============================================================================
+# CONVERTER DATAS
+# =============================================================================
+
+def converter_datas(df):
+
+    df2 = df.copy()
+
+    datas = detectar_colunas_data(df2)
+
+    for col in datas:
+
+        try:
+
+            df2[col] = pd.to_datetime(
+                df2[col],
+                errors="coerce",
+                dayfirst=True
+            )
+
+        except:
+            pass
+
+    return df2
+
+
+# =============================================================================
+# IDENTIFICAÇÃO DO TIPO DA PLANILHA
+# =============================================================================
+
+def identificar_tipo_planilha(df):
+
+    nomes = " ".join(
+        df.columns.astype(str)
+    ).lower()
+
+    termos_climaticos = [
+
+        "temp",
+        "temperatura",
+        "umidade",
+        "vento",
+        "rad",
+        "radiação",
+        "radiacao",
+        "chuva",
+        "precip",
+        "eto",
+        "evap"
+
+    ]
+
+    score = sum(
+        termo in nomes
+        for termo in termos_climaticos
+    )
+
+    if score >= 2:
+        return "Climática"
+
+    return "Genérica"
+
+
+# =============================================================================
+# LEITOR UNIVERSAL
+# =============================================================================
+
+def ler_planilha_universal(arquivo):
+
+    nome = arquivo.name.lower()
+
+    # Excel
+    if nome.endswith(
+        (".xlsx", ".xls")
+    ):
+
+        df = pd.read_excel(
+            arquivo
+        )
+
+    # Texto
+    else:
+
+        delimitador = detectar_delimitador(
+            arquivo
+        )
+
+        encoding = detectar_encoding(
+            arquivo
+        )
+
+        arquivo.seek(0)
+
+        df = pd.read_csv(
+            arquivo,
+            sep=delimitador,
+            encoding=encoding,
+            on_bad_lines="skip"
+        )
+
+    df = remover_colunas_duplicadas(df)
+
+    df = converter_colunas_numericas(df)
+
+    df = converter_datas(df)
+
+    return df
+
+
+# =============================================================================
+# ABA 1 - IMPORTAÇÃO E DIAGNÓSTICO
+# =============================================================================
+
+with tab1:
+
+    st.subheader(
+        "📂 Importação Inteligente"
+    )
+
+    st.success(
+        """
+        Compatível com:
+
+        CSV • TXT • DAT • XLS • XLSX
+        """
+    )
+
+    uploaded_file = st.file_uploader(
+
+        "Selecione a planilha",
+
+        type=[
+            "csv",
+            "txt",
+            "dat",
+            "xls",
+            "xlsx"
+        ]
+    )
+
+    if uploaded_file is not None:
+
+        try:
+
+            df = ler_planilha_universal(
+                uploaded_file
+            )
+
+            st.session_state[
+                "df_original"
+            ] = df
+
+            tipo_planilha = (
+                identificar_tipo_planilha(df)
+            )
+
+            st.markdown("---")
+
+            col1, col2, col3, col4 = (
+                st.columns(4)
+            )
+
+            with col1:
+
+                st.metric(
+                    "Linhas",
+                    f"{len(df):,}"
+                )
+
+            with col2:
+
+                st.metric(
+                    "Colunas",
+                    len(df.columns)
+                )
+
+            with col3:
+
+                st.metric(
+                    "Valores Ausentes",
+                    int(
+                        df.isna()
+                        .sum()
+                        .sum()
+                    )
+                )
+
+            with col4:
+
+                st.metric(
+                    "Tipo",
+                    tipo_planilha
+                )
+
+            st.markdown("---")
+
+            st.subheader(
+                "👁 Pré-visualização"
+            )
+
+            st.dataframe(
+                df.head(100),
+                use_container_width=True
+            )
+
+            st.markdown("---")
+
+            st.subheader(
+                "📋 Estrutura das Colunas"
+            )
+
+            tipos = pd.DataFrame({
+
+                "Coluna":
+                    df.columns,
+
+                "Tipo":
+                    df.dtypes.astype(str)
+
+            })
+
+            st.dataframe(
+                tipos,
+                use_container_width=True
+            )
+
+            st.markdown("---")
+
+            st.subheader(
+                "⚠ Valores Ausentes"
+            )
+
+            faltantes = pd.DataFrame({
+
+                "Coluna":
+                    df.columns,
+
+                "Faltantes":
+                    df.isna().sum(),
+
+                "Percentual (%)":
+                    (
+                        df.isna().sum()
+                        / len(df)
+                        * 100
+                    ).round(2)
+
+            })
+
+            st.dataframe(
+                faltantes,
+                use_container_width=True
+            )
+
+            st.success(
+                "Arquivo carregado com sucesso."
+            )
+
+        except Exception as erro:
+
+            st.error(
+                f"Erro ao carregar arquivo: {erro}"
+            )
+# =============================================================================
+# FUNÇÕES DE TRATAMENTO DE DADOS
+# =============================================================================
+
+def obter_colunas_numericas(df):
+
+    return df.select_dtypes(
+        include=np.number
+    ).columns.tolist()
+
+
+# =============================================================================
+# PREENCHIMENTO DE FALHAS
+# =============================================================================
+
+def preencher_media(df):
+
+    df2 = df.copy()
+
+    for col in obter_colunas_numericas(df2):
+
+        media = df2[col].mean()
+
+        df2[col] = df2[col].fillna(media)
+
+    return df2
+
+
+def preencher_mediana(df):
+
+    df2 = df.copy()
+
+    for col in obter_colunas_numericas(df2):
+
+        mediana = df2[col].median()
+
+        df2[col] = df2[col].fillna(mediana)
+
+    return df2
+
+
+def preencher_moda(df):
+
+    df2 = df.copy()
+
+    for col in df2.columns:
+
+        try:
+
+            moda = df2[col].mode()[0]
+
+            df2[col] = df2[col].fillna(moda)
+
+        except:
+            pass
+
+    return df2
+
+
+def preencher_interpolacao(df):
+
+    df2 = df.copy()
+
+    for col in obter_colunas_numericas(df2):
+
+        try:
+
+            df2[col] = df2[col].interpolate(
+                method="linear",
+                limit_direction="both"
+            )
+
+        except:
+            pass
+
+    return df2
+
+
+def preencher_polinomial(df):
+
+    df2 = df.copy()
+
+    for col in obter_colunas_numericas(df2):
+
+        try:
+
+            df2[col] = df2[col].interpolate(
+                method="polynomial",
+                order=2
+            )
+
+        except:
+            pass
+
+    return df2
+
+
+# =============================================================================
+# REMOVER DUPLICADOS
+# =============================================================================
+
+def remover_duplicados(df):
+
+    return df.drop_duplicates()
+
+
+# =============================================================================
+# PADRONIZAR NOMES DAS COLUNAS
+# =============================================================================
 
 def padronizar_colunas(df):
-    """Padronização de nomes de colunas"""
-    mapeamento = {
-        'data': 'Date', 'DATA': 'Date', 'Data': 'Date', 'dt_data': 'Date',
-        'hora': 'Time', 'HORA': 'Time', 'Hora': 'Time', 'hr_data': 'Time',
-        'temp_ins': 'Temp_Inst', 'temperatura_ins': 'Temp_Inst', 'temp_inst': 'Temp_Inst',
-        'temp_max': 'Tmax', 'temperatura_maxima': 'Tmax', 'temp_maxima': 'Tmax',
-        'temp_min': 'Tmin', 'temperatura_minima': 'Tmin', 'temp_minima': 'Tmin',
-        'umid_ins': 'UR_Inst', 'umidade_ins': 'UR_Inst', 'umid_inst': 'UR_Inst',
-        'umid_max': 'URmax', 'umidade_maxima': 'URmax',
-        'umid_min': 'URmin', 'umidade_minima': 'URmin',
-        'precip': 'Precipitacao', 'chuva': 'Precipitacao', 'precipitacao': 'Precipitacao',
-        'vel_vento': 'U2', 'velocidade_vento': 'U2', 'vento_medio': 'U2',
-        'pressao_ins': 'Press_Inst', 'pressao_atm': 'Press_Inst',
-        'radiacao': 'Rad_KJ', 'radiacao_solar': 'Rad_KJ'
-    }
-    
-    df_renomeado = df.copy()
-    for col in df_renomeado.columns:
-        col_lower = col.lower().strip()
-        if col_lower in mapeamento:
-            df_renomeado.rename(columns={col: mapeamento[col_lower]}, inplace=True)
-        else:
-            for chave, valor in mapeamento.items():
-                if chave in col_lower or col_lower in chave:
-                    df_renomeado.rename(columns={col: valor}, inplace=True)
-                    break
-    
-    return df_renomeado
 
-def corrigir_datas(df):
-    """Correção robusta de datas"""
-    df_corrigido = df.copy()
-    
-    col_data = None
-    for col in df_corrigido.columns:
-        if col.lower() in ['date', 'data', 'dt']:
-            col_data = col
-            break
-    
-    if not col_data:
-        for col in df_corrigido.columns:
-            try:
-                amostra = df_corrigido[col].dropna().iloc[0] if len(df_corrigido[col].dropna()) > 0 else ''
-                if isinstance(amostra, str) and ('/' in amostra or '-' in amostra):
-                    if len(amostra) > 6:
-                        col_data = col
-                        break
-            except:
-                continue
-    
-    if col_data:
-        formatos = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y']
-        for formato in formatos:
-            try:
-                df_corrigido['Date'] = pd.to_datetime(df_corrigido[col_data], format=formato, errors='coerce')
-                if df_corrigido['Date'].notna().sum() > len(df_corrigido) * 0.8:
-                    break
-            except:
-                continue
-        
-        if df_corrigido['Date'].isna().sum() > len(df_corrigido) * 0.5:
-            df_corrigido['Date'] = pd.to_datetime(df_corrigido[col_data], errors='coerce')
-    
-    col_hora = None
-    for col in df_corrigido.columns:
-        if col.lower() in ['time', 'hora', 'hr']:
-            col_hora = col
-            break
-    
-    if col_hora and 'Date' in df_corrigido.columns:
-        try:
-            df_corrigido['DateTime'] = pd.to_datetime(
-                df_corrigido['Date'].dt.strftime('%Y-%m-%d') + ' ' + 
-                df_corrigido[col_hora].astype(str).str.zfill(4).str[:2] + ':' + 
-                df_corrigido[col_hora].astype(str).str.zfill(4).str[2:4],
-                errors='coerce'
-            )
-        except:
-            df_corrigido['DateTime'] = df_corrigido['Date']
-    elif 'Date' in df_corrigido.columns:
-        df_corrigido['DateTime'] = df_corrigido['Date']
-    
-    if 'DateTime' in df_corrigido.columns:
-        df_corrigido['Year'] = df_corrigido['DateTime'].dt.year
-        df_corrigido['Month'] = df_corrigido['DateTime'].dt.month
-        df_corrigido['Day'] = df_corrigido['DateTime'].dt.day
-        df_corrigido['Hour'] = df_corrigido['DateTime'].dt.hour
-    
-    return df_corrigido
+    df2 = df.copy()
 
-def preenchimento_inteligente_falhas(df, limite_max_falhas=10):
-    """
-    Preenchimento de falhas - apenas se não houver mais de 10 falhas consecutivas
-    """
-    df_filled = df.copy()
-    substituicoes = []
-    
-    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
-                         'Precipitacao', 'U2', 'Press_Inst']
-    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
-    
-    for col in colunas_existentes:
-        try:
-            # Contar falhas consecutivas
-            mask_falhas = df_filled[col].isna()
-            max_consecutivas = 0
-            consecutivas = 0
-            for val in mask_falhas:
-                if val:
-                    consecutivas += 1
-                    max_consecutivas = max(max_consecutivas, consecutivas)
-                else:
-                    consecutivas = 0
-            
-            if max_consecutivas > limite_max_falhas:
-                substituicoes.append({
-                    'variavel': col,
-                    'status': 'NÃO PREENCHIDO',
-                    'motivo': f'{max_consecutivas} falhas consecutivas (> {limite_max_falhas})'
-                })
-                continue
-            
-            num_falhas_original = df_filled[col].isna().sum()
-            
-            # Interpolação linear
-            df_filled[col] = df_filled[col].interpolate(method='linear', limit_direction='both', limit=limite_max_falhas)
-            
-            # Média móvel para remanescentes
-            mascara = df_filled[col].isna()
-            if mascara.any():
-                media_movel = df_filled[col].rolling(window=24, min_periods=6, center=True).mean()
-                df_filled.loc[mascara, col] = media_movel.loc[mascara]
-            
-            # Preenchimento sazonal
-            if 'Month' in df_filled.columns:
-                mascara = df_filled[col].isna()
-                if mascara.any():
-                    medias_mensais = df_filled.groupby('Month')[col].transform('mean')
-                    df_filled.loc[mascara, col] = medias_mensais.loc[mascara]
-            
-            # Último recurso: mediana
-            if df_filled[col].isna().any():
-                mediana = df_filled[col].median()
-                if pd.notna(mediana):
-                    df_filled[col].fillna(mediana, inplace=True)
-            
-            num_falhas_final = df_filled[col].isna().sum()
-            num_substituidos = num_falhas_original - num_falhas_final
-            
-            if num_substituidos > 0:
-                substituicoes.append({
-                    'variavel': col,
-                    'status': 'PREENCHIDO',
-                    'quantidade': num_substituidos,
-                    'motivo': f'{num_substituidos} valores substituídos'
-                })
-        except Exception as e:
-            substituicoes.append({'variavel': col, 'status': 'ERRO', 'motivo': str(e)})
-    
-    return df_filled, substituicoes
+    novas = []
 
-def detectar_outliers_tratar(df, limite_fator=3):
-    """Detecta e trata outliers usando IQR"""
-    df_tratado = df.copy()
-    outliers_info = {}
-    
-    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
-                         'Precipitacao', 'U2', 'Press_Inst']
-    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
-    
-    for col in colunas_existentes:
-        try:
-            dados_validos = df_tratado[col].dropna()
-            if len(dados_validos) > 0:
-                Q1 = dados_validos.quantile(0.25)
-                Q3 = dados_validos.quantile(0.75)
-                IQR = Q3 - Q1
-                
-                if IQR > 0:
-                    limite_inferior = Q1 - limite_fator * IQR
-                    limite_superior = Q3 + limite_fator * IQR
-                    
-                    mask_outliers = (df_tratado[col] < limite_inferior) | (df_tratado[col] > limite_superior)
-                    num_outliers = mask_outliers.sum()
-                    
-                    if num_outliers > 0:
-                        mediana = dados_validos.median()
-                        df_tratado.loc[mask_outliers, col] = mediana
-                        
-                        outliers_info[col] = {
-                            'num_outliers': int(num_outliers),
-                            'percentual': round((num_outliers / len(dados_validos)) * 100, 2),
-                            'limites': f'[{limite_inferior:.2f}, {limite_superior:.2f}]'
-                        }
-        except Exception as e:
-            pass
-    
-    return df_tratado, outliers_info
+    for col in df2.columns:
 
-def consolidar_medias_mensais(df):
-    """
-    CRIA UM DATAFRAME SEPARADO com médias mensais.
-    NÃO altera os dados originais.
-    """
-    df_temp = df.copy()
-    
-    if 'DateTime' not in df_temp.columns:
-        if 'Date' in df_temp.columns:
-            df_temp['DateTime'] = pd.to_datetime(df_temp['Date'], errors='coerce')
-        else:
-            return pd.DataFrame()
-    
-    df_temp['AnoMes'] = df_temp['DateTime'].dt.to_period('M')
-    
-    agregacoes = {
-        'Tmax': 'max',
-        'Tmin': 'min',
-        'Temp_Inst': 'mean',
-        'UR_Inst': 'mean',
-        'URmax': 'max',
-        'URmin': 'min',
-        'Precipitacao': 'sum',
-        'U2': 'mean',
-        'Press_Inst': 'mean'
-    }
-    
-    agregacoes_filtradas = {k: v for k, v in agregacoes.items() if k in df_temp.columns}
-    
-    if not agregacoes_filtradas:
-        return pd.DataFrame()
-    
-    df_mensal = df_temp.groupby('AnoMes').agg(agregacoes_filtradas).reset_index()
-    df_mensal['Mês'] = df_mensal['AnoMes'].astype(str)
-    df_mensal['Ano'] = df_mensal['AnoMes'].dt.year
-    df_mensal['Número_Mês'] = df_mensal['AnoMes'].dt.month
-    
-    df_mensal = df_mensal.sort_values('AnoMes').reset_index(drop=True)
-    
-    return df_mensal
+        nome = str(col)
 
-def analise_completa_qualidade(df):
-    """Análise da qualidade dos dados"""
-    qualidade = {}
-    
-    colunas_numericas = ['Tmax', 'Tmin', 'Temp_Inst', 'UR_Inst', 'URmax', 'URmin', 
-                         'Precipitacao', 'U2', 'Press_Inst']
-    colunas_existentes = [c for c in colunas_numericas if c in df.columns]
-    
-    for col in colunas_existentes:
-        total = len(df)
-        presentes = df[col].notna().sum()
-        percentual = (presentes / total) * 100 if total > 0 else 0
-        
-        classificacao = 'Boa' if percentual >= 95 else 'Regular' if percentual >= 80 else 'Crítica'
-        
-        qualidade[col] = {
-            'percentual_completo': round(percentual, 2),
-            'classificacao': classificacao,
-            'dados_faltantes': total - presentes
-        }
-    
-    if 'DateTime' in df.columns:
-        qualidade['periodo'] = {
-            'inicio': df['DateTime'].min(),
-            'fim': df['DateTime'].max(),
-            'total_registros': len(df)
-        }
-    
-    return qualidade
+        nome = nome.strip()
 
-def detectar_eventos_extremos(df):
-    """Detecta eventos climáticos extremos"""
-    eventos = []
-    
-    if 'Temp_Inst' in df.columns:
-        media_temp = df['Temp_Inst'].mean()
-        std_temp = df['Temp_Inst'].std()
-        if pd.notna(std_temp) and std_temp > 0:
-            limite_calor = media_temp + 2 * std_temp
-            mask_calor = df['Temp_Inst'] > limite_calor
-            if mask_calor.sum() > 0:
-                eventos.append({
-                    'tipo': 'Onda de Calor',
-                    'gravidade': 'Alta',
-                    'descricao': f'{mask_calor.sum()} ocorrências acima de {limite_calor:.1f}°C',
-                    'quantidade': int(mask_calor.sum())
-                })
-    
-    if 'Precipitacao' in df.columns:
-        media_precip = df['Precipitacao'].mean()
-        std_precip = df['Precipitacao'].std()
-        if pd.notna(std_precip) and std_precip > 0:
-            limite_chuva = media_precip + 2 * std_precip
-            mask_chuva = df['Precipitacao'] > limite_chuva
-            if mask_chuva.sum() > 0:
-                eventos.append({
-                    'tipo': 'Chuva Intensa',
-                    'gravidade': 'Alta',
-                    'descricao': f'{mask_chuva.sum()} ocorrências acima de {limite_chuva:.1f} mm',
-                    'quantidade': int(mask_chuva.sum())
-                })
-    
-    if 'U2' in df.columns:
-        mask_vento = df['U2'] > 15
-        if mask_vento.sum() > 0:
-            eventos.append({
-                'tipo': 'Ventos Fortes',
-                'gravidade': 'Moderada',
-                'descricao': f'{mask_vento.sum()} ocorrências acima de 15 m/s',
-                'quantidade': int(mask_vento.sum())
-            })
-    
-    return eventos
+        nome = nome.replace(" ", "_")
+        nome = nome.replace("-", "_")
+        nome = nome.replace("/", "_")
+        nome = nome.replace("(", "")
+        nome = nome.replace(")", "")
 
-# ============================================================================
-# FUNÇÕES DE GRÁFICOS INTERATIVOS (APENAS PLOTLY)
-# ============================================================================
+        novas.append(nome)
 
-def criar_grafico_temperatura(df, tipo='linha'):
-    """Cria gráfico de temperatura interativo"""
-    if 'DateTime' not in df.columns or 'Temp_Inst' not in df.columns:
-        return None
-    
-    df_plot = df.dropna(subset=['Temp_Inst']).copy()
-    
-    if len(df_plot) == 0:
-        return None
-    
-    if tipo == 'linha':
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=df_plot['DateTime'],
-            y=df_plot['Temp_Inst'],
-            mode='lines',
-            name='Temperatura',
-            line=dict(color='#e74c3c', width=2),
-            fill='tozeroy',
-            fillcolor='rgba(231, 76, 60, 0.1)'
-        ))
-        
-        fig.update_layout(
-            title='🌡️ Temperatura ao Longo do Tempo',
-            xaxis_title='Data/Hora',
-            yaxis_title='Temperatura (°C)',
-            template='plotly_dark',
-            height=400,
-            hovermode='x unified'
+    df2.columns = novas
+
+    return df2
+
+
+# =============================================================================
+# DETECÇÃO DE OUTLIERS - IQR
+# =============================================================================
+
+def detectar_outliers_iqr(
+    df,
+    fator=1.5
+):
+
+    resultado = {}
+
+    for col in obter_colunas_numericas(df):
+
+        q1 = df[col].quantile(0.25)
+
+        q3 = df[col].quantile(0.75)
+
+        iqr = q3 - q1
+
+        limite_inferior = (
+            q1 - fator * iqr
         )
-        
-        return fig
-    
-    elif tipo == 'box':
-        df_plot['Hora'] = df_plot['DateTime'].dt.hour
-        fig = px.box(df_plot, x='Hora', y='Temp_Inst', 
-                     title='📊 Distribuição da Temperatura por Hora',
-                     labels={'Hora': 'Hora do Dia', 'Temp_Inst': 'Temperatura (°C)'},
-                     color_discrete_sequence=['#e74c3c'])
-        fig.update_layout(template='plotly_dark', height=400)
-        return fig
-    
+
+        limite_superior = (
+            q3 + fator * iqr
+        )
+
+        mascara = (
+
+            (df[col] < limite_inferior)
+
+            |
+
+            (df[col] > limite_superior)
+
+        )
+
+        resultado[col] = mascara
+
+    return resultado
+
+
+# =============================================================================
+# DETECÇÃO DE OUTLIERS - Z SCORE
+# =============================================================================
+
+def detectar_outliers_zscore(
+    df,
+    limite=3
+):
+
+    resultado = {}
+
+    for col in obter_colunas_numericas(df):
+
+        try:
+
+            z = np.abs(
+                zscore(
+                    df[col],
+                    nan_policy="omit"
+                )
+            )
+
+            resultado[col] = z > limite
+
+        except:
+
+            resultado[col] = np.zeros(
+                len(df),
+                dtype=bool
+            )
+
+    return resultado
+
+
+# =============================================================================
+# APLICAÇÃO DA AÇÃO NOS OUTLIERS
+# =============================================================================
+
+def aplicar_acao_outlier(
+    df,
+    mascaras,
+    acao="remover"
+):
+
+    df2 = df.copy()
+
+    mascara_total = np.zeros(
+        len(df2),
+        dtype=bool
+    )
+
+    for col in mascaras:
+
+        mascara_total |= mascaras[col]
+
+    if acao == "remover":
+
+        df2 = df2[
+            ~mascara_total
+        ]
+
+    elif acao == "media":
+
+        for col in mascaras:
+
+            media = df2[col].mean()
+
+            df2.loc[
+                mascaras[col],
+                col
+            ] = media
+
+    elif acao == "mediana":
+
+        for col in mascaras:
+
+            mediana = df2[col].median()
+
+            df2.loc[
+                mascaras[col],
+                col
+            ] = mediana
+
+    return df2
+
+
+# =============================================================================
+# ABA 2 - TRATAMENTO DE DADOS
+# =============================================================================
+
+with tab2:
+
+    st.subheader(
+        "🧹 Tratamento Inteligente dos Dados"
+    )
+
+    if "df_original" not in st.session_state:
+
+        st.warning(
+            "Importe uma planilha primeiro."
+        )
+
+    else:
+
+        df_base = (
+            st.session_state[
+                "df_original"
+            ].copy()
+        )
+
+        st.markdown(
+            "### Valores Ausentes"
+        )
+
+        metodo_falhas = st.selectbox(
+
+            "Método de preenchimento",
+
+            [
+                "Nenhum",
+                "Média",
+                "Mediana",
+                "Moda",
+                "Interpolação Linear",
+                "Interpolação Polinomial"
+            ]
+        )
+
+        st.markdown(
+            "### Outliers"
+        )
+
+        metodo_outlier = st.selectbox(
+
+            "Método de detecção",
+
+            [
+                "Nenhum",
+                "IQR",
+                "Z-Score"
+            ]
+        )
+
+        acao_outlier = st.selectbox(
+
+            "Ação para os outliers",
+
+            [
+                "remover",
+                "media",
+                "mediana"
+            ]
+        )
+
+        remover_dup = st.checkbox(
+            "Remover linhas duplicadas",
+            value=True
+        )
+
+        padronizar = st.checkbox(
+            "Padronizar nomes das colunas",
+            value=True
+        )
+
+        st.markdown("---")
+
+        if st.button(
+            "🚀 Executar Tratamento",
+            use_container_width=True
+        ):
+
+            df_tratado = df_base.copy()
+
+            # ----------------------------------------------------
+            # PADRONIZAÇÃO
+            # ----------------------------------------------------
+
+            if padronizar:
+
+                df_tratado = (
+                    padronizar_colunas(
+                        df_tratado
+                    )
+                )
+
+            # ----------------------------------------------------
+            # DUPLICADOS
+            # ----------------------------------------------------
+
+            if remover_dup:
+
+                antes = len(
+                    df_tratado
+                )
+
+                df_tratado = (
+                    remover_duplicados(
+                        df_tratado
+                    )
+                )
+
+                depois = len(
+                    df_tratado
+                )
+
+                removidos = (
+                    antes - depois
+                )
+
+                st.success(
+                    f"{removidos} linhas duplicadas removidas."
+                )
+
+            # ----------------------------------------------------
+            # FALHAS
+            # ----------------------------------------------------
+
+            if metodo_falhas == "Média":
+
+                df_tratado = (
+                    preencher_media(
+                        df_tratado
+                    )
+                )
+
+            elif metodo_falhas == "Mediana":
+
+                df_tratado = (
+                    preencher_mediana(
+                        df_tratado
+                    )
+                )
+
+            elif metodo_falhas == "Moda":
+
+                df_tratado = (
+                    preencher_moda(
+                        df_tratado
+                    )
+                )
+
+            elif metodo_falhas == "Interpolação Linear":
+
+                df_tratado = (
+                    preencher_interpolacao(
+                        df_tratado
+                    )
+                )
+
+            elif metodo_falhas == "Interpolação Polinomial":
+
+                df_tratado = (
+                    preencher_polinomial(
+                        df_tratado
+                    )
+                )
+
+            # ----------------------------------------------------
+            # OUTLIERS
+            # ----------------------------------------------------
+
+            if metodo_outlier == "IQR":
+
+                mascaras = (
+                    detectar_outliers_iqr(
+                        df_tratado
+                    )
+                )
+
+                df_tratado = (
+                    aplicar_acao_outlier(
+                        df_tratado,
+                        mascaras,
+                        acao_outlier
+                    )
+                )
+
+            elif metodo_outlier == "Z-Score":
+
+                mascaras = (
+                    detectar_outliers_zscore(
+                        df_tratado
+                    )
+                )
+
+                df_tratado = (
+                    aplicar_acao_outlier(
+                        df_tratado,
+                        mascaras,
+                        acao_outlier
+                    )
+                )
+
+            st.session_state[
+                "df_tratado"
+            ] = df_tratado
+
+            st.success(
+                "Tratamento concluído com sucesso."
+            )
+
+        # ======================================================
+        # RESULTADO
+        # ======================================================
+
+        if "df_tratado" in st.session_state:
+
+            df_resultado = (
+                st.session_state[
+                    "df_tratado"
+                ]
+            )
+
+            st.markdown("---")
+
+            st.subheader(
+                "📊 Resultado do Tratamento"
+            )
+
+            st.dataframe(
+                df_resultado.head(100),
+                use_container_width=True
+            )
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+
+                st.metric(
+                    "Linhas",
+                    len(df_resultado)
+                )
+
+            with col2:
+
+                st.metric(
+                    "Colunas",
+                    len(
+                        df_resultado.columns
+                    )
+                )
+
+            with col3:
+
+                st.metric(
+                    "Valores Nulos",
+                    int(
+                        df_resultado
+                        .isna()
+                        .sum()
+                        .sum()
+                    )
+                )
+
+            st.success(
+                "Base pronta para Consolidação."
+            )
+# =============================================================================
+# ESTATÍSTICA DESCRITIVA
+# =============================================================================
+
+def classificar_cv(cv):
+
+    if pd.isna(cv):
+        return "-"
+
+    if cv < 10:
+        return "Baixo"
+
+    elif cv < 20:
+        return "Médio"
+
+    elif cv < 30:
+        return "Alto"
+
+    else:
+        return "Muito Alto"
+
+
+def gerar_estatisticas(df):
+
+    numericas = df.select_dtypes(
+        include=np.number
+    )
+
+    resultados = []
+
+    for col in numericas.columns:
+
+        serie = numericas[col].dropna()
+
+        if len(serie) == 0:
+            continue
+
+        media = serie.mean()
+
+        desvio = serie.std()
+
+        cv = (
+            desvio / media * 100
+            if media != 0
+            else np.nan
+        )
+
+        try:
+            moda = serie.mode().iloc[0]
+        except:
+            moda = np.nan
+
+        resultados.append({
+
+            "Variável": col,
+
+            "N": len(serie),
+
+            "Média": round(media, 4),
+
+            "Mediana": round(
+                serie.median(),
+                4
+            ),
+
+            "Moda": round(
+                moda,
+                4
+            ) if pd.notna(moda) else np.nan,
+
+            "Mínimo": round(
+                serie.min(),
+                4
+            ),
+
+            "Máximo": round(
+                serie.max(),
+                4
+            ),
+
+            "Amplitude": round(
+                serie.max() - serie.min(),
+                4
+            ),
+
+            "Variância": round(
+                serie.var(),
+                4
+            ),
+
+            "Desvio Padrão": round(
+                desvio,
+                4
+            ),
+
+            "CV (%)": round(
+                cv,
+                2
+            ),
+
+            "Classificação CV":
+                classificar_cv(cv),
+
+            "Assimetria": round(
+                serie.skew(),
+                4
+            ),
+
+            "Curtose": round(
+                serie.kurtosis(),
+                4
+            ),
+
+            "P5": round(
+                serie.quantile(0.05),
+                4
+            ),
+
+            "P25": round(
+                serie.quantile(0.25),
+                4
+            ),
+
+            "P75": round(
+                serie.quantile(0.75),
+                4
+            ),
+
+            "P95": round(
+                serie.quantile(0.95),
+                4
+            )
+
+        })
+
+    return pd.DataFrame(resultados)
+
+
+# =============================================================================
+# EVENTOS EXTREMOS
+# =============================================================================
+
+def detectar_extremos(df):
+
+    extremos = []
+
+    numericas = df.select_dtypes(
+        include=np.number
+    )
+
+    for col in numericas.columns:
+
+        try:
+
+            maior = numericas[col].max()
+
+            menor = numericas[col].min()
+
+            extremos.append({
+
+                "Variável": col,
+                "Tipo": "Máximo",
+                "Valor": maior
+
+            })
+
+            extremos.append({
+
+                "Variável": col,
+                "Tipo": "Mínimo",
+                "Valor": menor
+
+            })
+
+        except:
+            pass
+
+    return pd.DataFrame(extremos)
+
+
+# =============================================================================
+# ABA 4 - ESTATÍSTICA DESCRITIVA
+# =============================================================================
+
+with tab4:
+
+    st.subheader(
+        "📈 Estatística Descritiva"
+    )
+
+    if (
+        "df_consolidado"
+        not in st.session_state
+    ):
+
+        st.warning(
+            "Primeiro consolide os dados."
+        )
+
+    else:
+
+        df_base = st.session_state[
+            "df_consolidado"
+        ]
+
+        estatisticas = gerar_estatisticas(
+            df_base
+        )
+
+        extremos = detectar_extremos(
+            df_base
+        )
+
+        st.markdown(
+            "### Estatística Completa"
+        )
+
+        st.dataframe(
+            estatisticas,
+            use_container_width=True
+        )
+
+        st.markdown(
+            "### Valores Extremos"
+        )
+
+        st.dataframe(
+            extremos,
+            use_container_width=True
+        )
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+
+            st.metric(
+                "Variáveis",
+                len(estatisticas)
+            )
+
+        with col2:
+
+            st.metric(
+                "Extremos",
+                len(extremos)
+            )
+
+        with col3:
+
+            st.metric(
+                "Registros",
+                len(df_base)
+            )
+
+        st.session_state[
+            "estatisticas"
+        ] = estatisticas
+
+        csv_estatisticas = (
+            estatisticas
+            .to_csv(index=False)
+            .encode("utf-8")
+        )
+
+        st.download_button(
+            "📥 Baixar Estatísticas",
+            csv_estatisticas,
+            file_name="estatisticas_descritivas.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+# =============================================================================
+# GRÁFICOS CIENTÍFICOS
+# =============================================================================
+
+def obter_numericas(df):
+
+    return df.select_dtypes(
+        include=np.number
+    ).columns.tolist()
+
+
+def obter_data(df):
+
+    for col in df.columns:
+
+        nome = str(col).lower()
+
+        if any(
+            termo in nome
+            for termo in [
+                "data",
+                "date",
+                "datetime",
+                "tempo"
+            ]
+        ):
+            return col
+
     return None
 
-def criar_grafico_precipitacao(df):
-    """Cria gráfico de precipitação"""
-    if 'DateTime' not in df.columns or 'Precipitacao' not in df.columns:
+
+def grafico_temporal(
+    df,
+    variavel
+):
+
+    data_col = obter_data(df)
+
+    if data_col is None:
         return None
-    
-    df_plot = df.dropna(subset=['Precipitacao']).copy()
-    
-    if len(df_plot) == 0:
-        return None
-    
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=df_plot['DateTime'],
-        y=df_plot['Precipitacao'],
-        name='Precipitação',
-        marker_color='#3498db',
-        marker_line_color='#2980b9',
-        marker_line_width=1
-    ))
-    
-    fig.update_layout(
-        title='☔ Precipitação ao Longo do Tempo',
-        xaxis_title='Data/Hora',
-        yaxis_title='Precipitação (mm)',
-        template='plotly_dark',
-        height=400,
-        bargap=0.1
+
+    fig = px.line(
+        df,
+        x=data_col,
+        y=variavel,
+        markers=True,
+        title=f"Série Temporal - {variavel}"
     )
-    
+
+    fig.update_layout(
+        height=600
+    )
+
     return fig
 
-def criar_grafico_umidade(df):
-    """Cria gráfico de umidade"""
-    if 'DateTime' not in df.columns or 'UR_Inst' not in df.columns:
-        return None
-    
-    df_plot = df.dropna(subset=['UR_Inst']).copy()
-    
-    if len(df_plot) == 0:
-        return None
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=df_plot['DateTime'],
-        y=df_plot['UR_Inst'],
-        mode='lines',
-        name='Umidade',
-        line=dict(color='#2ecc71', width=2),
-        fill='tozeroy',
-        fillcolor='rgba(46, 204, 113, 0.1)'
-    ))
-    
-    fig.update_layout(
-        title='💧 Umidade Relativa ao Longo do Tempo',
-        xaxis_title='Data/Hora',
-        yaxis_title='Umidade (%)',
-        template='plotly_dark',
-        height=400,
-        yaxis_range=[0, 100]
+
+def grafico_histograma(
+    df,
+    variavel
+):
+
+    fig = px.histogram(
+        df,
+        x=variavel,
+        nbins=30,
+        marginal="box",
+        title=f"Histograma - {variavel}"
     )
-    
+
+    fig.update_layout(
+        height=600
+    )
+
     return fig
 
-def criar_grafico_vento(df):
-    """Cria gráfico de velocidade do vento"""
-    if 'DateTime' not in df.columns or 'U2' not in df.columns:
-        return None
-    
-    df_plot = df.dropna(subset=['U2']).copy()
-    
-    if len(df_plot) == 0:
-        return None
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=df_plot['DateTime'],
-        y=df_plot['U2'],
-        mode='lines',
-        name='Vento',
-        line=dict(color='#f39c12', width=2)
-    ))
-    
-    fig.update_layout(
-        title='💨 Velocidade do Vento ao Longo do Tempo',
-        xaxis_title='Data/Hora',
-        yaxis_title='Velocidade (m/s)',
-        template='plotly_dark',
-        height=400
+
+def grafico_boxplot(
+    df,
+    variavel
+):
+
+    fig = px.box(
+        df,
+        y=variavel,
+        points="outliers",
+        title=f"Boxplot - {variavel}"
     )
-    
+
+    fig.update_layout(
+        height=600
+    )
+
     return fig
 
-def criar_grafico_comparativo_mensal(df_mensal):
-    """Cria gráfico comparativo mensal"""
-    if df_mensal is None or df_mensal.empty:
-        return None
-    
-    fig = go.Figure()
-    
-    if 'Temp_Inst' in df_mensal.columns:
-        fig.add_trace(go.Bar(
-            x=df_mensal['Mês'],
-            y=df_mensal['Temp_Inst'],
-            name='Temperatura Média',
-            marker_color='#e74c3c',
-            yaxis='y'
-        ))
-    
-    if 'Precipitacao' in df_mensal.columns:
-        fig.add_trace(go.Scatter(
-            x=df_mensal['Mês'],
-            y=df_mensal['Precipitacao'],
-            name='Precipitação Total',
-            marker_color='#3498db',
-            line=dict(width=3),
-            yaxis='y2'
-        ))
-    
-    fig.update_layout(
-        title='📊 Comparativo Mensal',
-        template='plotly_dark',
-        height=450,
-        xaxis_title='Mês',
-        yaxis=dict(title='Temperatura (°C)', side='left', color='#e74c3c'),
-        yaxis2=dict(title='Precipitação (mm)', overlaying='y', side='right', color='#3498db'),
-        hovermode='x unified'
+
+def grafico_violin(
+    df,
+    variavel
+):
+
+    fig = px.violin(
+        df,
+        y=variavel,
+        box=True,
+        points="all",
+        title=f"Gráfico Violino - {variavel}"
     )
-    
+
+    fig.update_layout(
+        height=600
+    )
+
     return fig
 
-def criar_heatmap_correlacao(df):
-    """Cria heatmap de correlação entre variáveis"""
-    colunas_correlacao = ['Temp_Inst', 'UR_Inst', 'U2', 'Press_Inst']
-    colunas_existentes = [c for c in colunas_correlacao if c in df.columns]
-    
-    if len(colunas_existentes) < 2:
-        return None
-    
-    corr_matrix = df[colunas_existentes].corr()
-    
-    fig = go.Figure(data=go.Heatmap(
-        z=corr_matrix.values,
-        x=corr_matrix.columns,
-        y=corr_matrix.columns,
-        colorscale='RdBu',
-        zmin=-1, zmax=1,
-        text=corr_matrix.values.round(2),
-        texttemplate='%{text}',
-        textfont={"size": 12}
-    ))
-    
-    fig.update_layout(
-        title='📈 Matriz de Correlação entre Variáveis',
-        template='plotly_dark',
-        height=450,
-        width=550
+
+def grafico_dispersao(
+    df,
+    x_var,
+    y_var
+):
+
+    fig = px.scatter(
+        df,
+        x=x_var,
+        y=y_var,
+        trendline="ols",
+        title=f"{x_var} × {y_var}"
     )
-    
+
+    fig.update_layout(
+        height=650
+    )
+
     return fig
 
-# ============================================================================
-# RELATÓRIO HTML
-# ============================================================================
 
-def gerar_relatorio_html(df_original, df_mensal, qualidade, eventos, substituicoes, outliers, nome_estacao):
-    """Gera relatório HTML completo"""
-    
-    data_geracao = datetime.now().strftime('%d/%m/%Y às %H:%M')
-    
-    # Preparar tabela mensal
-    tabela_mensal = ""
-    if df_mensal is not None and not df_mensal.empty:
-        tabela_mensal = df_mensal.to_html(index=False)
-    
-    # Preparar tabela de qualidade
-    tabela_qualidade = ""
-    for var, info in qualidade.items():
-        if var != 'periodo' and isinstance(info, dict):
-            tabela_qualidade += f"""
-            <tr>
-                <td>{var}</td>
-                <td>{info.get('percentual_completo', 0)}%</td>
-                <td>{info.get('classificacao', 'N/A')}</td>
-                <td>{info.get('dados_faltantes', 0)}</td>
-            </tr>
-            """
-    
-    # Preparar substituições
-    html_substituicoes = ""
-    for s in substituicoes:
-        if s['status'] == 'PREENCHIDO':
-            html_substituicoes += f"<div class='success'>✅ {s['variavel']}: {s.get('motivo', '')}</div>"
-        elif s['status'] == 'NÃO PREENCHIDO':
-            html_substituicoes += f"<div class='warning'>⚠️ {s['variavel']}: {s.get('motivo', '')}</div>"
-    
-    # Preparar outliers
-    html_outliers = ""
-    for var, info in outliers.items():
-        html_outliers += f"<div class='warning'>🔍 {var}: {info['num_outliers']} outliers ({info['percentual']}%) - Limites: {info['limites']}</div>"
-    
-    if not html_outliers:
-        html_outliers = "<p>✅ Nenhum outlier detectado</p>"
-    
-    # Preparar eventos
-    html_eventos = ""
-    for e in eventos:
-        html_eventos += f"<div class='warning'><strong>{e['tipo']}</strong>: {e['descricao']}</div>"
-    
-    if not html_eventos:
-        html_eventos = "<p>✅ Nenhum evento extremo detectado</p>"
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <title>Relatório Meteorológico - {nome_estacao}</title>
-        <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
-            .container {{ max-width: 1200px; margin: 0 auto; background: white; border-radius: 10px; overflow: hidden; }}
-            .header {{ background: linear-gradient(135deg, #1a5f7a, #0d3b4f); color: white; padding: 30px; text-align: center; }}
-            .section {{ padding: 20px; border-bottom: 1px solid #eee; }}
-            .section h2 {{ color: #1a5f7a; border-left: 4px solid #4caf50; padding-left: 15px; }}
-            table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
-            th, td {{ border: 1px solid #ddd; padding: 10px; text-align: center; }}
-            th {{ background: #1a5f7a; color: white; }}
-            .metric {{ display: inline-block; background: #e8f4f8; padding: 15px; margin: 10px; border-radius: 10px; min-width: 150px; text-align: center; }}
-            .metric-value {{ font-size: 24px; font-weight: bold; color: #1a5f7a; }}
-            .warning {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0; border-radius: 5px; }}
-            .success {{ background: #d4edda; border-left: 4px solid #28a745; padding: 10px; margin: 10px 0; border-radius: 5px; }}
-            .footer {{ text-align: center; padding: 20px; font-size: 12px; color: #999; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🌾 RELATÓRIO METEOROLÓGICO</h1>
-                <h2>{nome_estacao}</h2>
-                <p>Gerado em: {data_geracao}</p>
-            </div>
-            
-            <div class="section">
-                <h2>📊 Resumo do Processamento</h2>
-                <div class="metric">
-                    <div class="metric-value">{len(df_original):,}</div>
-                    <div>Registros Originais</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-value">{len(df_mensal) if df_mensal is not None else 0}</div>
-                    <div>Meses Consolidados</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-value">{len(eventos)}</div>
-                    <div>Eventos Extremos</div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <h2>📅 Dados Mensais Consolidados</h2>
-                {tabela_mensal if tabela_mensal else "<p>Não disponível</p>"}
-            </div>
-            
-            <div class="section">
-                <h2>📈 Qualidade dos Dados</h2>
-                <table>
-                    <thead>
-                        <tr><th>Variável</th><th>Completude</th><th>Classificação</th><th>Faltantes</th></tr>
-                    </thead>
-                    <tbody>
-                        {tabela_qualidade if tabela_qualidade else "<tr><td colspan='4'>Nenhum dado disponível</td></tr>"}
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="section">
-                <h2>🔄 Substituições Realizadas</h2>
-                {html_substituicoes if html_substituicoes else "<p>✅ Nenhuma substituição necessária</p>"}
-            </div>
-            
-            <div class="section">
-                <h2>⚠️ Outliers Tratados</h2>
-                {html_outliers}
-            </div>
-            
-            <div class="section">
-                <h2>🌡️ Eventos Climáticos Extremos</h2>
-                {html_eventos}
-            </div>
-            
-            <div class="footer">
-                <p>Smart Meteorological Processor - Aplicativo para fins acadêmicos</p>
-                <p>⚠️ Este aplicativo não pertence ao INMET</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    return html_content
+def heatmap_correlacao(df):
 
-# ============================================================================
-# PIPELINE PRINCIPAL
-# ============================================================================
+    numericas = df.select_dtypes(
+        include=np.number
+    )
 
-def pipeline_completo(arquivo_bytes, config):
-    """Pipeline completo de processamento"""
-    
-    resultados = {}
-    
-    try:
-        # Leitura
-        df, info_estacao = ler_arquivo_inteligente(arquivo_bytes)
-        resultados['info_estacao'] = info_estacao
-        resultados['dados_originais'] = df.copy()  # PRESERVA OS DADOS ORIGINAIS
-        
-        # Processamento
-        df = padronizar_colunas(df)
-        df = corrigir_datas(df)
-        
-        # Qualidade
-        qualidade = analise_completa_qualidade(df)
-        resultados['qualidade'] = qualidade
-        
-        # Preenchimento de falhas
-        df, substituicoes = preenchimento_inteligente_falhas(df, limite_max_falhas=10)
-        resultados['substituicoes'] = substituicoes
-        
-        # Tratamento de outliers
-        df, outliers = detectar_outliers_tratar(df)
-        resultados['outliers'] = outliers
-        
-        # Eventos extremos
-        eventos = detectar_eventos_extremos(df)
-        resultados['eventos'] = eventos
-        
-        # Dados consolidados (TABELA SEPARADA - NÃO ALTERA OS ORIGINAIS)
-        df_mensal = consolidar_medias_mensais(df)
-        resultados['dados_mensais'] = df_mensal
-        resultados['dados_processados'] = df
-        
-        # Estatísticas
-        resultados['total_registros_original'] = len(resultados['dados_originais'])
-        resultados['total_registros_processados'] = len(df)
-        resultados['total_meses'] = len(df_mensal) if df_mensal is not None else 0
-        
-        return resultados
-        
-    except Exception as e:
-        st.error(f"❌ Erro no processamento: {str(e)}")
+    if numericas.empty:
         return None
 
-# ============================================================================
-# INTERFACE PRINCIPAL
-# ============================================================================
+    corr = numericas.corr()
 
-def main():
-    # Cabeçalho
-    st.markdown("""
-    <div class="main-header">
-        <h1>🌾 Smart Meteorological Processor</h1>
-        <p style="color: #a0c4d6; font-size: 1.1rem;">
-            Sistema Profissional de Tratamento, Análise e Visualização de Dados Meteorológicos
-        </p>
-        <p style="color: #81c784; font-size: 0.9rem;">
-            🔬 Preserva dados originais | 📊 Médias mensais separadas | 🌡️ Tratamento inteligente | 📈 Gráficos interativos
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Sidebar
-    with st.sidebar:
-        st.markdown("## ⚙️ Configurações")
-        
-        uploaded_file = st.file_uploader(
-            "📂 **Upload do Arquivo**",
-            type=['csv', 'txt', 'dat', 'xlsx', 'xls'],
-            help="Arquivos de dados meteorológicos"
+    fig = px.imshow(
+        corr,
+        text_auto=".2f",
+        aspect="auto",
+        color_continuous_scale="RdBu_r"
+    )
+
+    fig.update_layout(
+        title="Matriz de Correlação",
+        height=700
+    )
+
+    return fig
+
+
+def grafico_tendencia(
+    df,
+    variavel
+):
+
+    data_col = obter_data(df)
+
+    if data_col is None:
+        return None
+
+    fig = px.scatter(
+        df,
+        x=data_col,
+        y=variavel,
+        trendline="ols",
+        title=f"Tendência Temporal - {variavel}"
+    )
+
+    fig.update_layout(
+        height=650
+    )
+
+    return fig
+
+
+# =============================================================================
+# ABA 5 - GRÁFICOS CIENTÍFICOS
+# =============================================================================
+
+with tab5:
+
+    st.subheader(
+        "📊 Gráficos Científicos"
+    )
+
+    if (
+        "df_consolidado"
+        not in st.session_state
+    ):
+
+        st.warning(
+            "Primeiro consolide os dados."
         )
-        
-        st.markdown("---")
-        
-        st.markdown("### 🔧 Configurações de Processamento")
-        limite_falhas = st.slider("Limite máximo de falhas consecutivas", 5, 30, 10)
-        fator_outliers = st.slider("Fator para detecção de outliers (IQR)", 2.0, 5.0, 3.0, 0.5)
-        
-        st.markdown("---")
-        
-        st.markdown("### 🤖 IA Gemini")
-        usar_ia = st.checkbox("Ativar análise com IA", value=True)
-        
-        st.markdown("---")
-        st.caption("🔬 Desenvolvido para análise profissional")
-        st.caption("⚠️ Aplicativo para fins acadêmicos")
-    
-    # Área principal
-    if uploaded_file is not None:
-        
-        config = {
-            'limite_falhas': limite_falhas,
-            'fator_outliers': fator_outliers,
-            'usar_ia': usar_ia
-        }
-        
-        with st.spinner("🔄 Processando dados..."):
-            resultados = pipeline_completo(uploaded_file, config)
-        
-        if resultados:
-            df_original = resultados['dados_originais']
-            df_processado = resultados['dados_processados']
-            df_mensal = resultados['dados_mensais']
-            qualidade = resultados.get('qualidade', {})
-            eventos = resultados.get('eventos', [])
-            substituicoes = resultados.get('substituicoes', [])
-            outliers = resultados.get('outliers', {})
-            info_estacao = resultados.get('info_estacao', {})
-            
-            nome_estacao = info_estacao.get('station_name', 'Estação Meteorológica')
-            
-            # Cards de resumo
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("📊 Registros Originais", f"{resultados['total_registros_original']:,}")
-            with col2:
-                st.metric("✅ Registros Processados", f"{resultados['total_registros_processados']:,}")
-            with col3:
-                st.metric("📅 Meses Consolidados", resultados['total_meses'])
-            with col4:
-                st.metric("⚠️ Eventos Extremos", len(eventos))
-            
-            # Exibir alertas
-            if substituicoes:
-                with st.expander("📋 **Dados substituídos no preenchimento de falhas**", expanded=False):
-                    for sub in substituicoes:
-                        if sub['status'] == 'PREENCHIDO':
-                            st.success(f"✅ {sub['variavel']}: {sub.get('quantidade', 0)} valores preenchidos")
-                        elif sub['status'] == 'NÃO PREENCHIDO':
-                            st.warning(f"⚠️ {sub['variavel']}: {sub.get('motivo', '')}")
-            
-            if outliers:
-                with st.expander("📊 **Outliers detectados e tratados**", expanded=False):
-                    for var, info in outliers.items():
-                        st.info(f"🔍 {var}: {info['num_outliers']} outliers ({info['percentual']}%) - Limites: {info['limites']}")
-            
-            # TABS
-            tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-                "📊 Dados Originais",
-                "📅 Médias Mensais",
-                "📈 Gráficos",
-                "🔬 Análise de Qualidade",
-                "🤖 IA Gemini",
-                "📥 Downloads"
-            ])
-            
-            # TAB 1: DADOS ORIGINAIS
-            with tab1:
-                st.markdown("### 📊 Dados Originais (Preservados na Íntegra)")
-                st.caption(f"Total de registros: {len(df_original):,} linhas")
-                
-                # Amostra dos dados
-                st.dataframe(df_original.head(100), use_container_width=True)
-                
-                # Estatísticas descritivas
-                st.markdown("### 📈 Estatísticas Descritivas")
-                colunas_stats = ['Temp_Inst', 'UR_Inst', 'Precipitacao', 'U2']
-                colunas_existentes = [c for c in colunas_stats if c in df_original.columns]
-                if colunas_existentes:
-                    st.dataframe(df_original[colunas_existentes].describe(), use_container_width=True)
-            
-            # TAB 2: MÉDIAS MENSAIS
-            with tab2:
-                st.markdown("### 📅 Dados Consolidados por Mês")
-                st.caption("Médias mensais calculadas a partir dos dados horários")
-                
-                if df_mensal is not None and not df_mensal.empty:
-                    st.dataframe(df_mensal, use_container_width=True)
-                    
-                    # Gráfico comparativo mensal
-                    fig = criar_grafico_comparativo_mensal(df_mensal)
-                    if fig:
-                        st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("Dados mensais não disponíveis para este arquivo")
-            
-            # TAB 3: GRÁFICOS
-            with tab3:
-                st.markdown("### 📈 Visualizações Interativas")
-                
-                tipo_grafico = st.radio("Selecione o tipo de visualização:", 
-                                        ["Série Temporal", "Boxplot por Hora", "Heatmap de Correlação"],
-                                        horizontal=True)
-                
-                if tipo_grafico == "Série Temporal":
-                    col_graf1, col_graf2 = st.columns(2)
-                    
-                    with col_graf1:
-                        fig_temp = criar_grafico_temperatura(df_processado, 'linha')
-                        if fig_temp:
-                            st.plotly_chart(fig_temp, use_container_width=True)
-                        else:
-                            st.info("Dados de temperatura não disponíveis")
-                    
-                    with col_graf2:
-                        fig_umid = criar_grafico_umidade(df_processado)
-                        if fig_umid:
-                            st.plotly_chart(fig_umid, use_container_width=True)
-                        else:
-                            st.info("Dados de umidade não disponíveis")
-                    
-                    fig_precip = criar_grafico_precipitacao(df_processado)
-                    if fig_precip:
-                        st.plotly_chart(fig_precip, use_container_width=True)
-                    else:
-                        st.info("Dados de precipitação não disponíveis")
-                    
-                    fig_vento = criar_grafico_vento(df_processado)
-                    if fig_vento:
-                        st.plotly_chart(fig_vento, use_container_width=True)
-                    else:
-                        st.info("Dados de vento não disponíveis")
-                
-                elif tipo_grafico == "Boxplot por Hora":
-                    fig_box = criar_grafico_temperatura(df_processado, 'box')
-                    if fig_box:
-                        st.plotly_chart(fig_box, use_container_width=True)
-                    else:
-                        st.info("Dados insuficientes para boxplot")
-                
-                else:  # Heatmap
-                    fig_heat = criar_heatmap_correlacao(df_processado)
-                    if fig_heat:
-                        st.plotly_chart(fig_heat, use_container_width=True)
-                    else:
-                        st.info("Dados insuficientes para matriz de correlação")
-            
-            # TAB 4: ANÁLISE DE QUALIDADE
-            with tab4:
-                st.markdown("### 📋 Análise de Qualidade dos Dados")
-                
-                if qualidade:
-                    for var, info in qualidade.items():
-                        if var != 'periodo' and isinstance(info, dict):
-                            percentual = info.get('percentual_completo', 0)
-                            if percentual >= 95:
-                                st.success(f"**{var}**: {percentual:.1f}% completo ✅")
-                            elif percentual >= 80:
-                                st.warning(f"**{var}**: {percentual:.1f}% completo ⚠️")
-                            else:
-                                st.error(f"**{var}**: {percentual:.1f}% completo ❌")
-                    
-                    if 'periodo' in qualidade and isinstance(qualidade['periodo'], dict):
-                        st.markdown("#### 📅 Período Analisado")
-                        st.write(f"Início: {qualidade['periodo'].get('inicio', 'N/A')}")
-                        st.write(f"Fim: {qualidade['periodo'].get('fim', 'N/A')}")
-                        st.write(f"Total de registros: {qualidade['periodo'].get('total_registros', 0):,}")
-            
-            # TAB 5: IA GEMINI
-            with tab5:
-                st.markdown("### 🤖 Análise com IA Gemini")
-                
-                if usar_ia:
-                    tipo_analise = st.selectbox(
-                        "Tipo de análise:",
-                        ["Análise Climática Geral", "Identificação de Fenômenos", "Impactos na Agricultura"]
+
+    else:
+
+        df_base = st.session_state[
+            "df_consolidado"
+        ]
+
+        numericas = obter_numericas(
+            df_base
+        )
+
+        if len(numericas) == 0:
+
+            st.error(
+                "Nenhuma variável numérica encontrada."
+            )
+
+        else:
+
+            tipo = st.selectbox(
+                "Tipo de gráfico",
+                [
+                    "Série Temporal",
+                    "Histograma",
+                    "Boxplot",
+                    "Violino",
+                    "Dispersão",
+                    "Heatmap",
+                    "Tendência"
+                ]
+            )
+
+            if tipo == "Heatmap":
+
+                fig = heatmap_correlacao(
+                    df_base
+                )
+
+                if fig is not None:
+
+                    st.plotly_chart(
+                        fig,
+                        use_container_width=True
                     )
-                    
-                    if st.button("🚀 Executar Análise", use_container_width=True):
-                        with st.spinner("Consultando IA..."):
-                            contexto = f"""
-                            Estação: {nome_estacao}
-                            Registros processados: {resultados['total_registros_processados']:,}
-                            Meses analisados: {resultados['total_meses']}
-                            """
-                            
-                            if 'Temp_Inst' in df_processado.columns:
-                                contexto += f"Temperatura média: {df_processado['Temp_Inst'].mean():.1f}°C\n"
-                            if 'Precipitacao' in df_processado.columns:
-                                contexto += f"Precipitação total: {df_processado['Precipitacao'].sum():.1f} mm\n"
-                            if 'UR_Inst' in df_processado.columns:
-                                contexto += f"Umidade média: {df_processado['UR_Inst'].mean():.1f}%\n"
-                            
-                            prompt = f"Faça uma {tipo_analise.lower()} baseada nos dados fornecidos."
-                            resposta = consultar_gemini(prompt, contexto)
-                            
-                            st.markdown("### 🧠 Resposta da IA")
-                            st.markdown(resposta)
-                else:
-                    st.info("ℹ️ Ative a IA Gemini na barra lateral")
-            
-            # TAB 6: DOWNLOADS
-            with tab6:
-                st.markdown("### 💾 Downloads")
-                
-                col_down1, col_down2 = st.columns(2)
-                
-                with col_down1:
-                    # CSV dos dados originais
-                    csv_original = df_original.to_csv(index=False, sep=';', decimal=',')
-                    st.download_button(
-                        label="📥 Dados Originais (CSV)",
-                        data=csv_original,
-                        file_name=f"{nome_estacao.replace(' ', '_')}_dados_originais.csv",
-                        mime="text/csv",
-                        key="download_original"
+
+            elif tipo == "Dispersão":
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    x_var = st.selectbox(
+                        "Variável X",
+                        numericas
                     )
-                    
-                    # CSV dos dados processados
-                    csv_processado = df_processado.to_csv(index=False, sep=';', decimal=',')
-                    st.download_button(
-                        label="📥 Dados Processados (CSV)",
-                        data=csv_processado,
-                        file_name=f"{nome_estacao.replace(' ', '_')}_dados_processados.csv",
-                        mime="text/csv",
-                        key="download_processado"
-                    )
-                
-                with col_down2:
-                    # CSV das médias mensais
-                    if df_mensal is not None and not df_mensal.empty:
-                        csv_mensal = df_mensal.to_csv(index=False, sep=';', decimal=',')
-                        st.download_button(
-                            label="📥 Médias Mensais (CSV)",
-                            data=csv_mensal,
-                            file_name=f"{nome_estacao.replace(' ', '_')}_medias_mensais.csv",
-                            mime="text/csv",
-                            key="download_mensal"
+
+                with col2:
+
+                    y_var = st.selectbox(
+                        "Variável Y",
+                        numericas,
+                        index=min(
+                            1,
+                            len(numericas) - 1
                         )
-                    
-                    # Relatório HTML
-                    relatorio_html = gerar_relatorio_html(
-                        df_original, df_mensal, qualidade, eventos, 
-                        substituicoes, outliers, nome_estacao
                     )
-                    b64 = base64.b64encode(relatorio_html.encode()).decode()
-                    href = f'<a href="data:text/html;base64,{b64}" download="{nome_estacao.replace(" ", "_")}_relatorio.html" style="text-decoration: none;">'
-                    href += '<button style="background: linear-gradient(135deg, #2e7d32, #1b5e20); border: none; border-radius: 30px; padding: 10px 25px; color: white; font-weight: 600; cursor: pointer; width: 100%; margin-top: 0px;">📑 Baixar Relatório HTML</button></a>'
-                    st.markdown(href, unsafe_allow_html=True)
-    
-    # Footer
-    st.markdown("""
-    <div class="footer">
-        <p>⚠️ Smart Meteorological Processor - Aplicativo para fins acadêmicos e de pesquisa</p>
-        <p>Este aplicativo não pertence ao INMET. Os dados processados devem ser validados antes de uso profissional.</p>
-        <p>Código acadêmico - v2.0</p>
-    </div>
-    """, unsafe_allow_html=True)
 
-# ============================================================================
-# EXECUÇÃO
-# ============================================================================
+                fig = grafico_dispersao(
+                    df_base,
+                    x_var,
+                    y_var
+                )
 
-if __name__ == "__main__":
-    main()
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+            else:
+
+                variavel = st.selectbox(
+                    "Variável",
+                    numericas
+                )
+
+                if tipo == "Série Temporal":
+
+                    fig = grafico_temporal(
+                        df_base,
+                        variavel
+                    )
+
+                elif tipo == "Histograma":
+
+                    fig = grafico_histograma(
+                        df_base,
+                        variavel
+                    )
+
+                elif tipo == "Boxplot":
+
+                    fig = grafico_boxplot(
+                        df_base,
+                        variavel
+                    )
+
+                elif tipo == "Violino":
+
+                    fig = grafico_violin(
+                        df_base,
+                        variavel
+                    )
+
+                elif tipo == "Tendência":
+
+                    fig = grafico_tendencia(
+                        df_base,
+                        variavel
+                    )
+
+                else:
+
+                    fig = None
+
+                if fig is None:
+
+                    st.warning(
+                        "Nenhuma coluna de data foi encontrada."
+                    )
+
+                else:
+
+                    st.plotly_chart(
+                        fig,
+                        use_container_width=True
+                    )
+import requests
+import json
+import os
+GEMINI_API_KEY = "SUA_CHAVE_AQUI"
+
+# =============================================================================
+# IA - PREPARAÇÃO DE CONTEXTO
+# =============================================================================
+
+def gerar_contexto_automatico(df):
+
+    numericas = df.select_dtypes(
+        include=np.number
+    )
+
+    contexto = f"""
+    Total de registros: {len(df)}
+    Total de variáveis: {len(df.columns)}
+    """
+
+    for col in numericas.columns:
+
+        try:
+
+            contexto += f"""
+
+Variável: {col}
+
+Média: {numericas[col].mean():.2f}
+
+Mediana: {numericas[col].median():.2f}
+
+Mínimo: {numericas[col].min():.2f}
+
+Máximo: {numericas[col].max():.2f}
+
+Desvio padrão: {numericas[col].std():.2f}
+
+Coeficiente de variação:
+{(numericas[col].std()/numericas[col].mean()*100):.2f} %
+
+"""
+
+        except:
+            pass
+
+    return contexto
+
+
+# =============================================================================
+# PROMPTS ESPECIALIZADOS
+# =============================================================================
+
+PROMPTS = {
+
+    "Relatório Científico":
+
+    """
+    Produza um relatório científico completo.
+
+    Inclua:
+
+    - Introdução dos dados
+    - Interpretação estatística
+    - Tendências observadas
+    - Variabilidade
+    - Eventos extremos
+    - Conclusões técnicas
+
+    Utilize linguagem científica.
+    """,
+
+    "Relatório Meteorológico":
+
+    """
+    Produza uma análise meteorológica detalhada.
+
+    Avalie:
+
+    - Temperatura
+    - Precipitação
+    - Umidade
+    - Vento
+    - Eventos extremos
+    - Tendências climáticas
+    """,
+
+    "Relatório Agrícola":
+
+    """
+    Interprete os dados sob o ponto de vista agronômico.
+
+    Avalie:
+
+    - Disponibilidade hídrica
+    - Riscos climáticos
+    - Potencial produtivo
+    - Conforto térmico
+    - Impactos agrícolas
+    """,
+
+    "Resumo Executivo":
+
+    """
+    Produza um resumo executivo simples e objetivo.
+
+    Explique os resultados em linguagem acessível.
+    """
+}
+
+
+# =============================================================================
+# CONSULTA GEMINI
+# =============================================================================
+
+def consultar_ia(
+    prompt_usuario,
+    contexto
+):
+
+    try:
+
+        api_key = st.secrets[
+            "GEMINI_API_KEY"
+        ]
+
+        url = (
+            "https://generativelanguage.googleapis.com/"
+            "v1beta/models/gemini-2.0-flash:generateContent"
+        )
+
+        payload = {
+
+            "contents": [
+
+                {
+
+                    "parts": [
+
+                        {
+
+                            "text":
+                            contexto
+                            + "\n\n"
+                            + prompt_usuario
+
+                        }
+
+                    ]
+
+                }
+
+            ]
+
+        }
+
+        resposta = requests.post(
+
+            f"{url}?key={api_key}",
+
+            headers={
+                "Content-Type":
+                "application/json"
+            },
+
+            json=payload,
+
+            timeout=120
+
+        )
+
+        if resposta.status_code == 200:
+
+            dados = resposta.json()
+
+            return (
+                dados["candidates"][0]
+                ["content"]["parts"][0]
+                ["text"]
+            )
+
+        return (
+            f"Erro na API Gemini: "
+            f"{resposta.status_code}"
+        )
+
+    except Exception as erro:
+
+        return f"Erro: {erro}"
+
+
+# =============================================================================
+# ABA 6 - INTELIGÊNCIA ARTIFICIAL
+# =============================================================================
+
+with tab6:
+
+    st.subheader(
+        "🤖 Inteligência Artificial"
+    )
+
+    if (
+        "df_consolidado"
+        not in st.session_state
+    ):
+
+        st.warning(
+            "Consolide os dados primeiro."
+        )
+
+    else:
+
+        df_base = st.session_state[
+            "df_consolidado"
+        ]
+
+        st.markdown(
+            "### Relatórios Inteligentes"
+        )
+
+        tipo_relatorio = st.selectbox(
+
+            "Tipo de Relatório",
+
+            list(
+                PROMPTS.keys()
+            )
+        )
+
+        pergunta = st.text_area(
+
+            "Pergunta adicional",
+
+            placeholder=
+            "Exemplo: Existe tendência de aumento da temperatura?"
+        )
+
+        if st.button(
+
+            "🚀 Gerar Relatório",
+
+            use_container_width=True
+
+        ):
+
+            with st.spinner(
+
+                "Analisando dados..."
+
+            ):
+
+                contexto = (
+                    gerar_contexto_automatico(
+                        df_base
+                    )
+                )
+
+                prompt = (
+
+                    PROMPTS[
+                        tipo_relatorio
+                    ]
+
+                    + "\n\n"
+
+                    + pergunta
+
+                )
+
+                resposta = consultar_ia(
+
+                    prompt,
+
+                    contexto
+
+                )
+
+                st.session_state[
+                    "relatorio_ia"
+                ] = resposta
+
+        if (
+
+            "relatorio_ia"
+
+            in st.session_state
+
+        ):
+
+            st.markdown("---")
+
+            st.markdown(
+                "### Relatório Gerado"
+            )
+
+            st.markdown(
+
+                st.session_state[
+                    "relatorio_ia"
+                ]
+
+            )
+
+            st.download_button(
+
+                "📥 Baixar Relatório TXT",
+
+                st.session_state[
+                    "relatorio_ia"
+                ],
+
+                file_name=
+                "relatorio_ia.txt",
+
+                mime="text/plain",
+
+                use_container_width=True
+
+            )
+from io import BytesIO
+import zipfile
+
+from docx import Document
+import pandas as pd
+# =============================================================================
+# EXPORTAÇÃO XLSX
+# =============================================================================
+
+def gerar_excel_completo():
+
+    buffer = BytesIO()
+
+    with pd.ExcelWriter(
+        buffer,
+        engine="openpyxl"
+    ) as writer:
+
+        if "df_tratado" in st.session_state:
+
+            st.session_state[
+                "df_tratado"
+            ].to_excel(
+                writer,
+                sheet_name="Tratado",
+                index=False
+            )
+
+        if "df_consolidado" in st.session_state:
+
+            st.session_state[
+                "df_consolidado"
+            ].to_excel(
+                writer,
+                sheet_name="Consolidado",
+                index=False
+            )
+
+        if "estatisticas" in st.session_state:
+
+            st.session_state[
+                "estatisticas"
+            ].to_excel(
+                writer,
+                sheet_name="Estatisticas",
+                index=False
+            )
+
+    buffer.seek(0)
+
+    return buffer
+
+
+# =============================================================================
+# RELATÓRIO DOCX
+# =============================================================================
+
+def gerar_docx():
+
+    doc = Document()
+
+    doc.add_heading(
+        "Relatório Técnico",
+        level=0
+    )
+
+    doc.add_paragraph(
+        "Documento gerado automaticamente pelo sistema."
+    )
+
+    if "relatorio_ia" in st.session_state:
+
+        doc.add_heading(
+            "Análise da Inteligência Artificial",
+            level=1
+        )
+
+        doc.add_paragraph(
+            st.session_state[
+                "relatorio_ia"
+            ]
+        )
+
+    arquivo = BytesIO()
+
+    doc.save(arquivo)
+
+    arquivo.seek(0)
+
+    return arquivo
+
+
+# =============================================================================
+# RELATÓRIO HTML
+# =============================================================================
+
+def gerar_html():
+
+    html = """
+
+    <html>
+
+    <head>
+
+        <meta charset="utf-8">
+
+        <title>
+            Relatório Técnico
+        </title>
+
+    </head>
+
+    <body>
+
+        <h1>
+            Relatório Técnico
+        </h1>
+
+    """
+
+    if "relatorio_ia" in st.session_state:
+
+        html += f"""
+
+        <h2>
+            Análise da IA
+        </h2>
+
+        <p>
+            {st.session_state['relatorio_ia']}
+        </p>
+
+        """
+
+    html += """
+
+    </body>
+
+    </html>
+
+    """
+
+    return html
+
+
+# =============================================================================
+# PACOTE ZIP
+# =============================================================================
+
+def gerar_zip():
+
+    memoria = BytesIO()
+
+    with zipfile.ZipFile(
+
+        memoria,
+
+        "w",
+
+        zipfile.ZIP_DEFLATED
+
+    ) as zipf:
+
+        if "df_tratado" in st.session_state:
+
+            zipf.writestr(
+
+                "dados_tratados.csv",
+
+                st.session_state[
+                    "df_tratado"
+                ].to_csv(
+                    index=False
+                )
+
+            )
+
+        if "df_consolidado" in st.session_state:
+
+            zipf.writestr(
+
+                "dados_consolidados.csv",
+
+                st.session_state[
+                    "df_consolidado"
+                ].to_csv(
+                    index=False
+                )
+
+            )
+
+        if "estatisticas" in st.session_state:
+
+            zipf.writestr(
+
+                "estatisticas.csv",
+
+                st.session_state[
+                    "estatisticas"
+                ].to_csv(
+                    index=False
+                )
+
+            )
+
+        if "relatorio_ia" in st.session_state:
+
+            zipf.writestr(
+
+                "relatorio_ia.txt",
+
+                st.session_state[
+                    "relatorio_ia"
+                ]
+
+            )
+
+    memoria.seek(0)
+
+    return memoria
+
+
+# =============================================================================
+# ABA 7 - EXPORTAÇÃO PROFISSIONAL
+# =============================================================================
+
+with tab7:
+
+    st.subheader(
+        "📥 Exportação Profissional"
+    )
+
+    st.info(
+        "Exporte seus resultados em Excel, DOCX, HTML ou ZIP."
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        excel = gerar_excel_completo()
+
+        st.download_button(
+
+            "📊 Excel Completo",
+
+            data=excel,
+
+            file_name="analise_completa.xlsx",
+
+            mime=(
+                "application/"
+                "vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+
+            use_container_width=True
+
+        )
+
+        docx = gerar_docx()
+
+        st.download_button(
+
+            "📝 Relatório DOCX",
+
+            data=docx,
+
+            file_name="relatorio.docx",
+
+            mime=(
+                "application/"
+                "vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
+
+            use_container_width=True
+
+        )
+
+    with col2:
+
+        html = gerar_html()
+
+        st.download_button(
+
+            "🌐 Relatório HTML",
+
+            data=html,
+
+            file_name="relatorio.html",
+
+            mime="text/html",
+
+            use_container_width=True
+
+        )
+
+        zip_file = gerar_zip()
+
+        st.download_button(
+
+            "📦 Pacote Completo",
+
+            data=zip_file,
+
+            file_name="projeto_completo.zip",
+
+            mime="application/zip",
+
+            use_container_width=True
+
+        )
+
+    st.markdown("---")
+
+    st.success(
+        "Exportação pronta para Excel, Word, HTML e Backup ZIP."
+    )

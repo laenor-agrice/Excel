@@ -816,90 +816,175 @@ def calcular_indicadores_agricolas_avancados(df_diario, df_mensal, latitude=-16.
         indicadores = indicadores.merge(amplitude_mensal[['Mes', 'Amplitude_Termica_Media']], on='Mes', how='left')
     
     return indicadores, df_diario
+# ============================================================================
+# FUNÇÃO DE DIAGNÓSTICO (ADICIONAR AQUI)
+# ============================================================================
 
+def diagnosticar_df(df, nome="DataFrame"):
+    """Função para diagnosticar o conteúdo do DataFrame"""
+    st.write(f"### 🔍 Diagnóstico: {nome}")
+    st.write(f"**Shape:** {df.shape}")
+    st.write(f"**Colunas:** {list(df.columns)}")
+    if len(df) > 0:
+        st.write(f"**Primeiras linhas:**")
+        st.dataframe(df.head(3))
+    st.markdown("---")
 # ============================================================================
 # FUNÇÕES DE VISUALIZAÇÃO AVANÇADA (SEM MATPLOTLIB/SEM PLOTLY)
 # ============================================================================
 
 def gerar_climograma_streamlit(df_mensal):
-    """Geração de climograma usando apenas streamlit nativo"""
+    """Geração de climograma usando apenas streamlit nativo (com verificação de colunas)"""
     
-    col1, col2 = st.columns(2)
+    # Verificar se o DataFrame está vazio
+    if df_mensal is None or df_mensal.empty:
+        st.warning("⚠️ Nenhum dado disponível para gerar o climograma.")
+        return
     
-    with col1:
-        st.markdown("**☔ Precipitação Mensal**")
-        if 'Precipitacao' in df_mensal.columns:
-            df_precip = df_mensal[['Mes', 'Precipitacao']].set_index('Mes')
-            st.bar_chart(df_precip, height=350, color='#3498db')
+    # Criar uma cópia segura
+    df = df_mensal.copy()
     
-    with col2:
-        st.markdown("**🌡️ Temperatura Média**")
-        if 'Temp_Inst' in df_mensal.columns:
-            df_temp = df_mensal[['Mes', 'Temp_Inst']].set_index('Mes')
-            st.line_chart(df_temp, height=350, color='#e74c3c')
+    # Verificar quais colunas existem
+    colunas_disponiveis = df.columns.tolist()
+    
+    # Mapear possíveis nomes de colunas
+    mapeamento_mes = ['Mes', 'Mês', 'mes', 'mês', 'Period', 'period', 'ANO_MES', 'ano_mes']
+    mapeamento_precip = ['Precipitacao', 'precipitacao', 'Precip', 'precip', 'CHUVA', 'chuva', 'PRECIPITACAO']
+    mapeamento_temp = ['Temp_Inst', 'temp_inst', 'Temperatura', 'temperatura', 'TEMP_MEDIA', 'temp_media']
+    
+    # Encontrar a coluna correta para Mês
+    col_mes = None
+    for col in mapeamento_mes:
+        if col in colunas_disponiveis:
+            col_mes = col
+            break
+    if col_mes is None and len(df) > 0:
+        # Usar o índice se não encontrar coluna de mês
+        df['Mes'] = df.index.astype(str)
+        col_mes = 'Mes'
+    
+    # Encontrar a coluna correta para Precipitação
+    col_precip = None
+    for col in mapeamento_precip:
+        if col in colunas_disponiveis:
+            col_precip = col
+            break
+    
+    # Encontrar a coluna correta para Temperatura
+    col_temp = None
+    for col in mapeamento_temp:
+        if col in colunas_disponiveis:
+            col_temp = col
+            break
+    
+    # Se não encontrar temperatura, tentar Tmax ou Tmin
+    if col_temp is None and 'Tmax' in colunas_disponiveis:
+        col_temp = 'Tmax'
+    if col_temp is None and 'Tmin' in colunas_disponiveis:
+        col_temp = 'Tmin'
+    
+    # Preparar DataFrame para exibição
+    df_exibicao = df[[col_mes]].copy()
+    df_exibicao.rename(columns={col_mes: 'Mes'}, inplace=True)
+    
+    # Adicionar precipitação se disponível
+    if col_precip:
+        df_exibicao['Precipitacao'] = df[col_precip]
+    else:
+        df_exibicao['Precipitacao'] = 0
+    
+    # Adicionar temperatura se disponível
+    if col_temp:
+        df_exibicao['Temp_Inst'] = df[col_temp]
+    else:
+        df_exibicao['Temp_Inst'] = 0
+    
+    # ===== GRÁFICO 1: Precipitação =====
+    st.markdown("### ☔ Precipitação Mensal")
+    if col_precip and df_exibicao['Precipitacao'].sum() > 0:
+        df_precip = df_exibicao[['Mes', 'Precipitacao']].set_index('Mes')
+        st.bar_chart(df_precip, height=350, color='#3498db')
+    else:
+        st.info("📌 Dados de precipitação não disponíveis para este arquivo")
+    
+    # ===== GRÁFICO 2: Temperatura =====
+    st.markdown("### 🌡️ Temperatura")
+    if col_temp and df_exibicao['Temp_Inst'].sum() != 0:
+        df_temp = df_exibicao[['Mes', 'Temp_Inst']].set_index('Mes')
+        st.line_chart(df_temp, height=350, color='#e74c3c')
+    else:
+        st.info("📌 Dados de temperatura não disponíveis para este arquivo")
     
     st.markdown("---")
     
-    # Gráfico combinado
-    st.markdown("**📊 Comparativo Mensal**")
+    # ===== GRÁFICO COMBINADO =====
+    st.markdown("### 📊 Dados Mensais Consolidados")
     
-    # Preparar dados para exibição combinada
-    df_combinado = df_mensal[['Mes', 'Precipitacao', 'Temp_Inst']].copy()
-    if 'GDD_Acumulado' in df_mensal.columns:
-        df_combinado['GDD_Acumulado'] = df_mensal['GDD_Acumulado']
-    if 'ETo_Total_mm' in df_mensal.columns:
-        df_combinado['ETo_Total_mm'] = df_mensal['ETo_Total_mm']
-    if 'Horas_Frio_10C' in df_mensal.columns:
-        df_combinado['Horas_Frio'] = df_mensal['Horas_Frio_10C']
+    # Mostrar apenas colunas que existem
+    colunas_para_mostrar = ['Mes']
+    if col_precip:
+        colunas_para_mostrar.append('Precipitacao')
+    if col_temp:
+        colunas_para_mostrar.append('Temp_Inst')
     
-    st.dataframe(df_combinado.set_index('Mes'), use_container_width=True)
+    # Adicionar outras colunas úteis se disponíveis
+    for col in ['GDD_Acumulado', 'ETo_Total_mm', 'Horas_Frio_10C', 'Tmax', 'Tmin', 'UR_Inst', 'U2']:
+        if col in df.columns:
+            colunas_para_mostrar.append(col)
+            df_exibicao[col] = df[col]
     
-    # Indicadores
+    st.dataframe(df_exibicao[colunas_para_mostrar].set_index('Mes'), use_container_width=True)
+    
+    # ===== INDICADORES ACUMULADOS =====
     st.markdown("---")
     st.markdown("### 🌱 Indicadores Acumulados")
     
     col_i1, col_i2, col_i3, col_i4 = st.columns(4)
     
     with col_i1:
-        if 'Precipitacao' in df_mensal.columns:
-            st.metric("☔ Precipitação Total", f"{df_mensal['Precipitacao'].sum():.0f} mm")
+        if col_precip and df_exibicao['Precipitacao'].sum() > 0:
+            st.metric("☔ Precipitação Total", f"{df_exibicao['Precipitacao'].sum():.0f} mm")
+        else:
+            st.metric("☔ Precipitação Total", "N/D")
     
     with col_i2:
-        if 'GDD_Acumulado' in df_mensal.columns:
-            st.metric("🌾 GDD Total", f"{df_mensal['GDD_Acumulado'].sum():.0f}")
+        if 'GDD_Acumulado' in df.columns and df['GDD_Acumulado'].sum() > 0:
+            st.metric("🌾 GDD Total", f"{df['GDD_Acumulado'].sum():.0f}")
+        else:
+            st.metric("🌾 GDD Total", "N/D")
     
     with col_i3:
-        if 'ETo_Total_mm' in df_mensal.columns:
-            st.metric("💧 ETo Total", f"{df_mensal['ETo_Total_mm'].sum():.0f} mm")
+        if 'ETo_Total_mm' in df.columns and df['ETo_Total_mm'].sum() > 0:
+            st.metric("💧 ETo Total", f"{df['ETo_Total_mm'].sum():.0f} mm")
+        else:
+            st.metric("💧 ETo Total", "N/D")
     
     with col_i4:
-        if 'Horas_Frio_10C' in df_mensal.columns:
-            st.metric("❄️ Horas de Frio", f"{df_mensal['Horas_Frio_10C'].sum():.0f} h")
+        if 'Horas_Frio_10C' in df.columns and df['Horas_Frio_10C'].sum() > 0:
+            st.metric("❄️ Horas de Frio", f"{df['Horas_Frio_10C'].sum():.0f} h")
+        else:
+            st.metric("❄️ Horas de Frio", "N/D")
     
-    # Gráfico de linha para GDD se disponível
-    if 'GDD_Acumulado' in df_mensal.columns:
+    # ===== GRÁFICO GDD =====
+    if 'GDD_Acumulado' in df.columns and df['GDD_Acumulado'].sum() > 0:
         st.markdown("---")
-        st.markdown("**📈 Evolução do GDD Acumulado**")
-        df_gdd = df_mensal[['Mes', 'GDD_Acumulado']].set_index('Mes')
+        st.markdown("### 📈 Evolução do GDD Acumulado")
+        df_gdd = df_exibicao[['Mes', 'GDD_Acumulado']].set_index('Mes')
         st.line_chart(df_gdd, height=300, color='#4caf50')
     
-    # Gráfico de linha para ETo se disponível
-    if 'ETo_Total_mm' in df_mensal.columns:
-        st.markdown("**💧 Evolução da ETo Mensal**")
-        df_eto = df_mensal[['Mes', 'ETo_Total_mm']].set_index('Mes')
+    # ===== GRÁFICO ETo =====
+    if 'ETo_Total_mm' in df.columns and df['ETo_Total_mm'].sum() > 0:
+        st.markdown("### 💧 Evolução da ETo Mensal")
+        df_eto = df_exibicao[['Mes', 'ETo_Total_mm']].set_index('Mes')
         st.line_chart(df_eto, height=300, color='#9c27b0')
-    
-    # Gráfico de horas de frio se disponível
-    if 'Horas_Frio_10C' in df_mensal.columns:
-        st.markdown("**❄️ Horas de Frio por Mês**")
-        df_frio = df_mensal[['Mes', 'Horas_Frio_10C']].set_index('Mes')
-        st.bar_chart(df_frio, height=300, color='#00bcd4')
+
 
 def gerar_relatorio_pdf_completo(df_mensal, df_indicadores, qualidade, eventos_extremos, nome_estacao, info_estacao):
     """Geração de relatório PDF completo e profissional"""
     
     data_geracao = datetime.now().strftime('%d/%m/%Y às %H:%M')
     
+  
     # Preparar tabela de dados mensais
     tabela_mensal = ""
     for _, row in df_mensal.iterrows():

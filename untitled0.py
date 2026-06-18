@@ -643,13 +643,12 @@ with aba5:
         
         csv_agg = df_agg.to_csv(index=False, encoding='utf-8')
         st.download_button(
-            f"📥 Baixar Resultados {tipo} (CSV)",
-            csv_agg,
-            file_name=f"resultados_{tipo.lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            "text/csv",
-            key="download_resultados"
-        )
-        
+    label=f"📥 Baixar Resultados {tipo} (CSV)",
+    data=csv_agg,
+    file_name=f"resultados_{tipo.lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+    mime="text/csv",
+    key="download_resultados"
+)
         # Também disponibilizar dados processados
         st.markdown("---")
         st.subheader("📥 Dados Processados (Opcional)")

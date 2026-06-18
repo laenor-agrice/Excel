@@ -757,10 +757,10 @@ with aba3:
                     corr = df[colunas_num].dropna(axis=1, how="all").corr()
                     
                     if not corr.empty:
-                        st.dataframe(
-                            corr.style.background_gradient(cmap='RdYlGn', vmin=-1, vmax=1).format("{:.3f}"),
-                            use_container_width=True
-                        )
+    st.dataframe(
+        corr.round(3),
+        use_container_width=True
+    )
                 
                 # Série temporal
                 date_cols = st.session_state.get('date_columns', [])

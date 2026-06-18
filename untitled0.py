@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 9.1 - Correção de Importação SciPy
+# Versão 9.2 - Correção de Agregação Temporal e SciPy
 # ============================================================
 
 import streamlit as st
@@ -225,22 +225,48 @@ def obter_df_limpo():
     return df
 
 # ============================================================
-# AGREGAÇÃO TEMPORAL
+# AGREGAÇÃO TEMPORAL (CORRIGIDA)
 # ============================================================
-def criar_agregacao_temporal(df, date_col, freq='M'):
-    """Cria agregação temporal (média mensal ou anual)"""
+def criar_agregacao_temporal(df, coluna_data, freq):
+    """
+    Cria agregação temporal (média mensal ou anual)
+    CORRIGIDO: Garante que o índice é datetime e usa frequências corretas
+    """
     df_temp = df.copy()
-    df_temp[date_col] = pd.to_datetime(df_temp[date_col], errors='coerce')
-    df_temp = df_temp.dropna(subset=[date_col])
-    df_temp = df_temp.set_index(date_col)
     
+    # Garantir que a coluna de data é datetime
+    df_temp[coluna_data] = pd.to_datetime(df_temp[coluna_data], errors='coerce')
+    
+    # Remover linhas sem data
+    df_temp = df_temp.dropna(subset=[coluna_data])
+    
+    # Verificar se há dados suficientes
+    if len(df_temp) == 0:
+        st.error("❌ Nenhuma data válida encontrada para agregação.")
+        return None
+    
+    # Definir índice como a coluna de data
+    df_temp = df_temp.set_index(coluna_data)
+    
+    # Selecionar apenas colunas numéricas
     colunas_num = df_temp.select_dtypes(include=[np.number]).columns
     
-    if freq == 'M':
-        df_agg = df_temp[colunas_num].resample('M').mean().round(2)
+    if len(colunas_num) == 0:
+        st.error("❌ Nenhuma coluna numérica para agregação.")
+        return None
+    
+    # Resample com a frequência correta
+    try:
+        df_agg = df_temp[colunas_num].resample(freq).mean().round(2)
+    except Exception as e:
+        st.error(f"❌ Erro no resample: {str(e)}")
+        st.code(f"Frequência usada: {freq}")
+        return None
+    
+    # Formatar o índice conforme a frequência
+    if freq in ['ME', 'M', 'MS']:
         df_agg.index = df_agg.index.strftime('%b/%Y')
-    elif freq == 'Y':
-        df_agg = df_temp[colunas_num].resample('Y').mean().round(2)
+    elif freq in ['YE', 'Y', 'YS']:
         df_agg.index = df_agg.index.strftime('%Y')
     
     return df_agg.reset_index()
@@ -249,11 +275,7 @@ def criar_agregacao_temporal(df, date_col, freq='M'):
 # ESTATÍSTICAS COMPLETAS (COM FALLBACK SEM SCIPY)
 # ============================================================
 def calcular_estatisticas_completas(df, coluna):
-    """
-    Calcula estatísticas descritivas completas.
-    Se SciPy disponível: inclui Shapiro-Wilk
-    Se SciPy indisponível: usa apenas pandas/numpy
-    """
+    """Calcula estatísticas descritivas completas"""
     dados = df[coluna].dropna()
     
     if len(dados) < 3:
@@ -335,14 +357,10 @@ def calcular_estatisticas_completas(df, coluna):
             resultado['Shapiro-Wilk W'] = 'Erro'
             resultado['Shapiro-Wilk p'] = 'Erro'
             resultado['Dist. Normal?'] = 'N/A'
-    elif SCIPY_DISPONIVEL:
-        resultado['Shapiro-Wilk W'] = 'N/A (n>5000)'
-        resultado['Shapiro-Wilk p'] = 'N/A (n>5000)'
-        resultado['Dist. Normal?'] = 'N/A (n>5000)'
     else:
-        resultado['Shapiro-Wilk W'] = 'SciPy não instalado'
-        resultado['Shapiro-Wilk p'] = 'SciPy não instalado'
-        resultado['Dist. Normal?'] = 'Indisponível'
+        resultado['Shapiro-Wilk W'] = 'N/A'
+        resultado['Shapiro-Wilk p'] = 'N/A'
+        resultado['Dist. Normal?'] = 'N/A'
     
     return resultado
 
@@ -370,7 +388,6 @@ def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
         return None
 
 def criar_histograma_aprimorado(df, coluna, bins=30):
-    """Histograma com média e mediana"""
     try:
         df = corrigir_nomes_duplicados(df)
         if coluna not in df.columns:
@@ -406,7 +423,6 @@ def criar_histograma_aprimorado(df, coluna, bins=30):
         return None
 
 def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
-    """Gráfico de barras para dados categóricos ou agregados"""
     try:
         df = corrigir_nomes_duplicados(df)
         if x_col not in df.columns or y_col not in df.columns:
@@ -459,13 +475,21 @@ def detectar_outliers(dados):
     return outliers, lim_inf, lim_sup
 
 # ============================================================
+# MAPA DE FREQUÊNCIAS (CORRIGIDO)
+# ============================================================
+FREQ_MAP = {
+    "Mensal": "ME",   # Month End (Pandas 2.x)
+    "Anual": "YE",    # Year End (Pandas 2.x)
+}
+
+# ============================================================
 # HEADER
 # ============================================================
 st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
     <p>Sistema Inteligente de Análise Meteorológica e Agronômica</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v9.1 - Estatísticas Avançadas</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v9.2 - Agregação Temporal Corrigida</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -475,11 +499,10 @@ st.markdown("""
 with st.sidebar:
     st.markdown("### 📊 Status")
     
-    # Status SciPy
     if SCIPY_DISPONIVEL:
         st.success("✅ SciPy disponível")
     else:
-        st.warning("⚠️ SciPy não instalado (testes de normalidade indisponíveis)")
+        st.warning("⚠️ SciPy não instalado")
     
     df_status = obter_df_limpo()
     if df_status is not None:
@@ -488,11 +511,11 @@ with st.sidebar:
         date_cols = len(st.session_state.get('date_columns', []))
         st.caption(f"📊 {num_cols} numéricas | 📅 {date_cols} datas")
         if st.session_state.get('df_mensal') is not None:
-            st.info("📆 Agregação temporal disponível")
+            st.info("📆 Agregação disponível")
     else:
         st.info("📤 Sem dados")
     st.markdown("---")
-    st.caption("AgroDataLab v9.1 | MIT License")
+    st.caption("AgroDataLab v9.2 | MIT License")
 
 # ============================================================
 # ABAS
@@ -541,7 +564,7 @@ with aba1:
                 st.dataframe(df.head(15), use_container_width=True)
 
 # ============================================================
-# ABA 2: TRATAMENTO
+# ABA 2: TRATAMENTO (COM AGREGAÇÃO CORRIGIDA)
 # ============================================================
 with aba2:
     st.header("🔧 Tratamento de Dados")
@@ -594,7 +617,7 @@ with aba2:
         else:
             st.markdown('<div class="success-box"><h3>✅ Nenhum valor ausente!</h3></div>', unsafe_allow_html=True)
         
-        # Agregação temporal
+        # AGREGAÇÃO TEMPORAL (CORRIGIDA)
         st.markdown("---")
         st.subheader("📆 Agregação Temporal")
         
@@ -603,20 +626,35 @@ with aba2:
         
         if date_cols and colunas_num:
             col_data_agg = st.selectbox("Coluna de data:", date_cols, key="agg_date")
-            freq_agg = st.radio("Período:", ['Mensal', 'Anual'], horizontal=True, key="agg_freq")
             
-            if st.button("📊 Gerar Média " + freq_agg, key="btn_agg"):
-                freq_code = 'M' if freq_agg == 'Mensal' else 'Y'
-                df_agg = criar_agregacao_temporal(df, col_data_agg, freq_code)
-                st.session_state['df_mensal'] = df_agg
-                st.success(f"✅ Média {freq_agg.lower()} gerada! ({len(df_agg)} registros)")
-                st.rerun()
+            # Seleção do período com mapeamento correto
+            periodo_nome = st.radio(
+                "Período:",
+                list(FREQ_MAP.keys()),
+                horizontal=True,
+                key="agg_freq"
+            )
             
+            if st.button("📊 Gerar Média " + periodo_nome, key="btn_agg"):
+                freq_code = FREQ_MAP[periodo_nome]
+                
+                with st.spinner(f"Calculando média {periodo_nome.lower()}..."):
+                    df_agg = criar_agregacao_temporal(df, col_data_agg, freq_code)
+                    
+                    if df_agg is not None:
+                        st.session_state['df_mensal'] = df_agg
+                        st.success(f"✅ Média {periodo_nome.lower()} gerada! ({len(df_agg)} registros)")
+                        st.rerun()
+            
+            # Mostrar tabela agregada se existir
             if st.session_state.get('df_mensal') is not None:
-                st.markdown(f"#### 📋 Média {freq_agg}")
+                st.markdown(f"#### 📋 Média {periodo_nome}")
                 st.dataframe(st.session_state['df_mensal'], use_container_width=True)
         else:
-            st.info("📅 Necessário coluna de data e variáveis numéricas.")
+            if not date_cols:
+                st.info("📅 Nenhuma coluna de data identificada.")
+            if not colunas_num:
+                st.info("📊 Nenhuma variável numérica disponível.")
         
         # Outliers
         st.markdown("---")
@@ -647,9 +685,8 @@ with aba3:
     st.header("📊 Análise Estatística Completa")
     st.markdown("---")
     
-    # Aviso SciPy
     if not SCIPY_DISPONIVEL:
-        st.warning("⚠️ SciPy não instalado. Teste de normalidade Shapiro-Wilk indisponível. As demais estatísticas funcionam normalmente.")
+        st.warning("⚠️ SciPy não instalado. Teste de normalidade Shapiro-Wilk indisponível.")
     
     fonte_dados = st.radio(
         "Fonte de dados:",
@@ -685,12 +722,12 @@ with aba3:
                 c3.metric("CV (%)", f"{stats['CV (%)']:.1f}%", stats['Classificação CV'])
                 c4.metric("Normalidade", stats.get('Dist. Normal?', 'N/A'))
                 
-                with st.expander("📋 Ver Todas as Estatísticas (22 métricas)"):
+                with st.expander("📋 Ver Todas as Estatísticas"):
                     stats_df = pd.DataFrame(list(stats.items()), columns=['Estatística', 'Valor'])
                     st.dataframe(stats_df, use_container_width=True, hide_index=True)
                 
                 st.markdown("---")
-                st.subheader("📊 Distribuição com Média e Mediana")
+                st.subheader("📊 Distribuição")
                 bins = st.slider("Bins:", 5, 100, 30, key="bins_stats")
                 df_plot = pd.DataFrame({col_analise: df[col_analise].dropna().values})
                 chart_h = criar_histograma_aprimorado(df_plot, col_analise, bins)
@@ -705,7 +742,7 @@ with aba3:
                 
                 if len(colunas_num) >= 2:
                     st.markdown("---")
-                    st.subheader("🔗 Matriz de Correlação de Pearson")
+                    st.subheader("🔗 Matriz de Correlação")
                     corr = df[colunas_num].dropna(axis=1, how="all").corr()
                     if not corr.empty:
                         st.dataframe(corr.round(3), use_container_width=True)
@@ -846,8 +883,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v9.1</h4>
-    <p>Análise Climática Avançada | Estatísticas Robustas</p>
+    <h4>🌱 AgroDataLab v9.2</h4>
+    <p>Análise Climática Avançada | Agregação Temporal Corrigida</p>
     <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

@@ -2,7 +2,19 @@
 # NOME DO APLICATIVO: AgroDataLab - Análise de Dados Meteorológicos
 # DESENVOLVIDO PARA: Tratamento de dados INMET e análise estatística
 # ============================================================
+import subprocess
+import sys
+import pkg_resources
 
+# Lista de pacotes necessários
+required = {'scipy', 'numpy', 'pandas', 'streamlit', 'altair', 'scikit-learn', 'openpyxl', 'google-generativeai'}
+installed = {pkg.key for pkg in pkg_resources.working_set}
+missing = required - installed
+
+# Instalar pacotes faltantes
+if missing:
+    python = sys.executable
+    subprocess.check_call([python, '-m', 'pip', 'install', *missing], stdout=subprocess.DEVNULL)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -17,15 +29,7 @@ import google.generativeai as genai
 from scipy.stats import pearsonr, spearmanr, f_oneway, levene
 import warnings
 warnings.filterwarnings('ignore')
-import subprocess
-import sys
 
-# Instalar scipy se necessário
-try:
-    from scipy import stats
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "scipy"])
-    from scipy import stats
 # ============================================================
 # CONFIGURAÇÃO DA PÁGINA E ESTILO
 # ============================================================

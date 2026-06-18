@@ -12,7 +12,7 @@ import io
 import csv
 import traceback
 import warnings
-warnings.filterWarnings('ignore')
+warnings.filterwarnings('ignore')
 
 # ============================================================
 # IMPORTAÇÃO SEGURA DO SCIPY

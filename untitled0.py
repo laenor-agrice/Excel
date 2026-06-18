@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 11.0 - Arquitetura Corrigida (Dicionário Único)
+# Versão 11.1 - Agregação Robusta (ME/YE) + Diagnóstico
 # ============================================================
 
 import streamlit as st
@@ -74,7 +74,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================================
-# SESSION STATE - ARQUITETURA CORRIGIDA
+# SESSION STATE
 # ============================================================
 if 'df_original' not in st.session_state:
     st.session_state['df_original'] = None
@@ -83,17 +83,17 @@ if 'df_processed' not in st.session_state:
 if 'upload_feito' not in st.session_state:
     st.session_state['upload_feito'] = False
 if 'agregacoes' not in st.session_state:
-    st.session_state['agregacoes'] = {}  # Dicionário único: {'Semanal': df, 'Mensal': df, 'Anual': df}
+    st.session_state['agregacoes'] = {}
 if 'date_columns' not in st.session_state:
     st.session_state['date_columns'] = []
 
 # ============================================================
-# FREQUÊNCIAS (COMPATÍVEIS)
+# FREQUÊNCIAS CORRETAS (Pandas 2.2+)
 # ============================================================
 FREQ_MAP = {
     "Semanal": "W",
-    "Mensal": "M",
-    "Anual": "Y"
+    "Mensal": "ME",
+    "Anual": "YE"
 }
 
 # ============================================================
@@ -203,7 +203,6 @@ def preencher_ausentes(df, metodo='media'):
     return df
 
 def obter_df_processado():
-    """Retorna o DataFrame processado atual"""
     if st.session_state['df_processed'] is None:
         return None
     df = st.session_state['df_processed'].copy()
@@ -211,30 +210,65 @@ def obter_df_processado():
     df = df.loc[:, ~df.columns.duplicated()]
     return df
 
+# ============================================================
+# AGREGAÇÃO TEMPORAL ROBUSTA (CORRIGIDA)
+# ============================================================
 def criar_agregacao_temporal(df, coluna_data, freq):
-    """Cria agregação temporal"""
+    """
+    Agregação temporal robusta.
+    Verifica tipo datetime antes de converter.
+    """
     try:
         df_temp = df.copy()
-        df_temp[coluna_data] = pd.to_datetime(df_temp[coluna_data], errors='coerce', dayfirst=True)
+        
+        # Verificar se já é datetime, senão converter
+        if not pd.api.types.is_datetime64_any_dtype(df_temp[coluna_data]):
+            df_temp[coluna_data] = pd.to_datetime(
+                df_temp[coluna_data],
+                dayfirst=True,
+                errors="coerce"
+            )
+        
+        # Remover nulos
         df_temp = df_temp.dropna(subset=[coluna_data])
         
-        if len(df_temp) == 0:
+        if df_temp.empty:
+            st.error("❌ Nenhuma data válida encontrada.")
             return None
         
-        df_temp = df_temp.set_index(coluna_data)
-        colunas_num = df_temp.select_dtypes(include=[np.number]).columns
+        # Ordenar por data
+        df_temp = df_temp.sort_values(coluna_data)
+        
+        # Selecionar colunas numéricas
+        colunas_num = df_temp.select_dtypes(include=[np.number]).columns.tolist()
         
         if len(colunas_num) == 0:
+            st.error("❌ Nenhuma coluna numérica encontrada.")
             return None
         
-        df_agg = df_temp[colunas_num].resample(freq).mean().round(2)
-        df_agg = df_agg.reset_index()
+        # Agregar
+        resultado = (
+            df_temp
+            .set_index(coluna_data)[colunas_num]
+            .resample(freq)
+            .mean()
+            .round(2)
+            .reset_index()
+        )
         
-        return df_agg
+        return resultado
+    
     except Exception as e:
         st.error(f"❌ Erro na agregação: {e}")
+        with st.expander("🔍 Diagnóstico"):
+            st.write(f"Frequência usada: {freq}")
+            st.write(f"Tipo da coluna: {df[coluna_data].dtype}")
+            st.write(f"Primeiros valores: {df[coluna_data].head(3).tolist()}")
         return None
 
+# ============================================================
+# ESTATÍSTICAS COMPLETAS
+# ============================================================
 def calcular_estatisticas_completas(df, coluna):
     dados = df[coluna].dropna()
     if len(dados) < 3:
@@ -247,6 +281,8 @@ def calcular_estatisticas_completas(df, coluna):
     desvio = np.std(dados, ddof=1)
     erro_padrao = desvio / np.sqrt(n)
     cv = (desvio / media * 100) if media != 0 else 0
+    minimo = np.min(dados)
+    maximo = np.max(dados)
     
     q1 = np.percentile(dados, 25)
     q3 = np.percentile(dados, 75)
@@ -266,6 +302,7 @@ def calcular_estatisticas_completas(df, coluna):
         'Moda': round(moda, 4) if not pd.isna(moda) else 'N/A',
         'Desvio Padrão': round(desvio, 4), 'Erro Padrão': round(erro_padrao, 4),
         'CV (%)': round(cv, 2), 'Classificação CV': cv_class,
+        'Mínimo': round(minimo, 4), 'Máximo': round(maximo, 4),
         'Q1': round(q1, 4), 'Q3': round(q3, 4), 'IQR': round(iqr, 4),
         'P5': round(p5, 4), 'P95': round(p95, 4),
         'Assimetria': round(assimetria, 4), 'Curtose': round(curtose, 4),
@@ -284,7 +321,7 @@ def calcular_estatisticas_completas(df, coluna):
     return resultado
 
 def detectar_dataframe_colunas_data(df):
-    """Detecta colunas de data em qualquer DataFrame"""
+    """Detecta colunas datetime em qualquer DataFrame"""
     if df is None:
         return []
     return [c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])]
@@ -326,7 +363,7 @@ st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
     <p>Sistema Inteligente de Análise Meteorológica e Agronômica</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v11.0 - Arquitetura Corrigida</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v11.1 - Agregação Robusta (ME/YE)</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -342,11 +379,11 @@ with st.sidebar:
     if st.session_state['upload_feito']:
         st.success(f"✅ Dados carregados")
         
-        # Mostrar agregações disponíveis
         agregacoes = st.session_state['agregacoes']
         if agregacoes:
             st.markdown("**📆 Agregações:**")
-            for nome, df_agg in agregacoes.items():
+            for nome in ["Semanal", "Mensal", "Anual"]:
+                df_agg = agregacoes.get(nome)
                 if df_agg is not None:
                     st.caption(f"• {nome}: {len(df_agg)} registros")
         else:
@@ -355,7 +392,7 @@ with st.sidebar:
         st.info("📤 Aguardando upload")
     
     st.markdown("---")
-    st.caption("AgroDataLab v11.0 | MIT License")
+    st.caption("AgroDataLab v11.1 | MIT License")
 
 # ============================================================
 # ABAS
@@ -376,7 +413,7 @@ with aba1:
     st.markdown("---")
     
     if st.session_state['upload_feito']:
-        st.success("✅ Arquivo já carregado! Vá para a Aba 2 (Tratamento).")
+        st.success("✅ Arquivo já carregado!")
         st.dataframe(st.session_state['df_original'].head(10), use_container_width=True)
     else:
         arquivo = st.file_uploader("Selecione CSV ou Excel", type=['csv', 'xlsx', 'xls'])
@@ -411,7 +448,7 @@ with aba1:
                     st.rerun()
 
 # ============================================================
-# ABA 2: TRATAMENTO (USA DICIONÁRIO ÚNICO)
+# ABA 2: TRATAMENTO
 # ============================================================
 with aba2:
     st.header("🔧 Tratamento de Dados")
@@ -422,7 +459,7 @@ with aba2:
     else:
         df = obter_df_processado()
         if df is None:
-            st.warning("⚠️ Erro ao carregar dados processados.")
+            st.warning("⚠️ Erro ao carregar dados.")
         else:
             # Valores ausentes
             missing_total = df.isnull().sum().sum()
@@ -461,7 +498,7 @@ with aba2:
                         st.success(f"✅ {antes - len(st.session_state['df_processed'])} removidas!")
                         st.rerun()
                 with c5:
-                    if st.button("🔙 Restaurar Original", key="m5"):
+                    if st.button("🔙 Restaurar", key="m5"):
                         st.session_state['df_processed'] = st.session_state['df_original'].copy()
                         st.success("✅ Restaurado!")
                         st.rerun()
@@ -480,7 +517,6 @@ with aba2:
                 periodo_nome = st.radio("Período:", list(FREQ_MAP.keys()), horizontal=True, key="agg_freq")
                 
                 if st.button("📊 Gerar Média " + periodo_nome, key="btn_agg"):
-                    # USAR O DATAFRAME ATUAL (não o df da construção inicial)
                     df_atual = obter_df_processado()
                     freq_code = FREQ_MAP[periodo_nome]
                     
@@ -488,18 +524,18 @@ with aba2:
                         df_agg = criar_agregacao_temporal(df_atual, col_data_agg, freq_code)
                         
                         if df_agg is not None:
-                            # SALVAR NO DICIONÁRIO
                             st.session_state['agregacoes'][periodo_nome] = df_agg
                             st.success(f"✅ Média {periodo_nome.lower()} gerada! ({len(df_agg)} registros)")
                             st.rerun()
                 
-                # Mostrar todas as agregações geradas
+                # Mostrar agregações
                 agregacoes = st.session_state['agregacoes']
                 if agregacoes:
                     st.markdown("---")
                     st.markdown("### 📋 Agregações Geradas")
                     
-                    for nome, df_agg in agregacoes.items():
+                    for nome in ["Semanal", "Mensal", "Anual"]:
+                        df_agg = agregacoes.get(nome)
                         if df_agg is not None:
                             with st.expander(f"📆 {nome} ({len(df_agg)} registros)", expanded=False):
                                 st.dataframe(df_agg, use_container_width=True)
@@ -533,7 +569,7 @@ with aba2:
                         st.success(f"✅ Nenhum outlier em {col_out}")
 
 # ============================================================
-# ABA 3: ESTATÍSTICAS (USA DICIONÁRIO)
+# ABA 3: ESTATÍSTICAS
 # ============================================================
 with aba3:
     st.header("📊 Análise Estatística Completa")
@@ -542,7 +578,6 @@ with aba3:
     if not st.session_state['upload_feito']:
         st.warning("⚠️ Faça o upload na Aba 1 primeiro!")
     else:
-        # Construir opções de fonte
         opcoes = ["Dados Originais"]
         for nome in ["Semanal", "Mensal", "Anual"]:
             if nome in st.session_state['agregacoes'] and st.session_state['agregacoes'][nome] is not None:
@@ -550,7 +585,6 @@ with aba3:
         
         fonte = st.radio("Fonte:", opcoes, horizontal=True, key="fonte_stats")
         
-        # Obter DataFrame correspondente
         if fonte == "Dados Originais":
             df = obter_df_processado()
         else:
@@ -587,7 +621,7 @@ with aba3:
                             st.dataframe(corr.round(3), use_container_width=True)
 
 # ============================================================
-# ABA 4: SÉRIE TEMPORAL (USA DICIONÁRIO + DETECTA DATAS)
+# ABA 4: SÉRIE TEMPORAL
 # ============================================================
 with aba4:
     st.header("📈 Série Temporal")
@@ -596,7 +630,6 @@ with aba4:
     if not st.session_state['upload_feito']:
         st.warning("⚠️ Faça o upload na Aba 1 primeiro!")
     else:
-        # Construir opções
         opcoes = ["Dados Originais"]
         for nome in ["Semanal", "Mensal", "Anual"]:
             if nome in st.session_state['agregacoes'] and st.session_state['agregacoes'][nome] is not None:
@@ -618,31 +651,25 @@ with aba4:
             if not colunas_num:
                 st.warning("⚠️ Sem variáveis numéricas")
             else:
-                # DETECTAR COLUNAS DE DATA NO PRÓPRIO DATAFRAME
+                # Detectar colunas de data no próprio DataFrame
                 date_cols = detectar_dataframe_colunas_data(df)
-                
                 if not date_cols:
-                    # Fallback: usar session_state
                     date_cols = st.session_state.get('date_columns', [])
-                
                 if not date_cols:
-                    # Último fallback: primeira coluna
                     date_cols = [df.columns[0]]
                 
                 col_x = st.selectbox("Eixo X (Data):", date_cols, key="gx")
-                col_y = st.multiselect("Variáveis Y:", colunas_num, 
+                col_y = st.multiselect("Variáveis Y:", colunas_num,
                                       default=colunas_num[:min(3, len(colunas_num))], key="gy")
                 
                 if col_y:
                     df_plot = df[[col_x] + col_y].dropna().copy()
                     
-                    # Garantir datetime com dayfirst=True
                     if df_plot[col_x].dtype != 'datetime64[ns]':
                         df_plot[col_x] = pd.to_datetime(df_plot[col_x], dayfirst=True, errors='coerce')
                     df_plot = df_plot.dropna()
                     
                     if len(df_plot) > 0:
-                        # Mostrar período
                         st.caption(f"📅 Período: {df_plot[col_x].min().strftime('%d/%m/%Y')} → {df_plot[col_x].max().strftime('%d/%m/%Y')}")
                         
                         chart = criar_grafico_series_temporal(df_plot, col_x, col_y)
@@ -650,7 +677,7 @@ with aba4:
                             st.altair_chart(chart, use_container_width=True)
 
 # ============================================================
-# ABA 5: DOWNLOAD (MOSTRA TODAS AS AGREGAÇÕES)
+# ABA 5: DOWNLOAD
 # ============================================================
 with aba5:
     st.header("💾 Download dos Resultados")
@@ -681,7 +708,6 @@ with aba5:
                     )
                     st.markdown("---")
         
-        # Dados processados (opcional)
         with st.expander("📥 Dados Processados (Original)", expanded=False):
             df = obter_df_processado()
             if df is not None:
@@ -701,8 +727,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v11.0</h4>
-    <p>Arquitetura Corrigida | Dicionário Único de Agregações</p>
+    <h4>🌱 AgroDataLab v11.1</h4>
+    <p>Agregação Robusta (ME/YE) | Diagnóstico Incluído</p>
     <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 12.0 - Versão Final Otimizada
+# Versão 9.3 - Abas Integradas e Funcionais
 # ============================================================
 
 import streamlit as st
@@ -50,6 +50,14 @@ st.markdown("""
     .hero-header h1 { font-size: 2.5rem; font-weight: 800; margin: 0; }
     .hero-header p { font-size: 1.1rem; opacity: 0.95; margin: 0.5rem 0 0 0; }
     
+    .metric-card {
+        background: white; border-radius: 16px; padding: 1.2rem;
+        border-left: 4px solid #2d8a4e; box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        margin-bottom: 0.5rem;
+    }
+    .metric-value { font-size: 1.8rem; font-weight: 700; color: #1a5632; margin: 0; }
+    .metric-label { font-size: 0.8rem; color: #6c757d; font-weight: 500; text-transform: uppercase; }
+    
     .stButton > button {
         background: linear-gradient(135deg, #1a5632 0%, #2d8a4e 100%);
         color: white; border: none; padding: 0.6rem 1.2rem;
@@ -70,37 +78,38 @@ st.markdown("""
         background: #e3f2fd; border: 1px solid #64b5f6;
         border-radius: 12px; padding: 1.5rem; border-left: 5px solid #1565c0; margin: 1rem 0;
     }
+    
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem; background: #f8f9fa; padding: 0.5rem; border-radius: 12px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.6rem 1.2rem; background: white; border-radius: 8px; font-weight: 500;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #1a5632, #2d8a4e); color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================
-# SESSION STATE
+# SESSION STATE - CORRIGIDO
 # ============================================================
 if 'df_original' not in st.session_state:
     st.session_state['df_original'] = None
 if 'df_processed' not in st.session_state:
     st.session_state['df_processed'] = None
-if 'df_agregado' not in st.session_state:
+if 'df_agregado' not in st.session_state:       # ← CORRIGIDO
     st.session_state['df_agregado'] = None
-if 'tipo_agregado' not in st.session_state:
+if 'tipo_agregado' not in st.session_state:     # ← NOVO
     st.session_state['tipo_agregado'] = None
 if 'date_columns' not in st.session_state:
     st.session_state['date_columns'] = []
 
 # ============================================================
-# FREQUÊNCIAS (COMPATÍVEIS COM PANDAS 2.x)
+# FUNÇÕES BÁSICAS
 # ============================================================
-FREQ_MAP = {
-    "Semanal": "W",
-    "Mensal": "MS",
-    "Anual": "YS"
-}
-
-# ============================================================
-# FUNÇÕES (ÚNICAS, SEM DUPLICATAS)
-# ============================================================
-
 def corrigir_nomes_duplicados(df):
+    """Renomeia colunas duplicadas"""
     cols = pd.Series(df.columns)
     for nome in cols[cols.duplicated()].unique():
         idx = cols[cols == nome].index.tolist()
@@ -111,6 +120,7 @@ def corrigir_nomes_duplicados(df):
     return df
 
 def detectar_delimitador(arquivo):
+    """Detecta delimitador do CSV"""
     try:
         arquivo.seek(0)
         amostra_bytes = arquivo.read(8192)
@@ -125,21 +135,25 @@ def detectar_delimitador(arquivo):
             amostra = amostra_bytes.decode('utf-8', errors='ignore')
         try:
             sniffer = csv.Sniffer()
-            delim = sniffer.sniff(amostra).delimiter
+            dialecto = sniffer.sniff(amostra)
+            delim = dialecto.delimiter
             linhas = amostra.strip().split('\n')
-            if len(linhas) >= 2 and linhas[0].count(delim) == linhas[1].count(delim) > 0:
-                return delim
+            if len(linhas) >= 2:
+                if linhas[0].count(delim) == linhas[1].count(delim) > 0:
+                    return delim
         except:
             pass
         for sep in [';', ',', '\t', '|']:
             linhas = amostra.strip().split('\n')
-            if len(linhas) >= 2 and linhas[0].count(sep) == linhas[1].count(sep) > 0:
-                return sep
+            if len(linhas) >= 2:
+                if linhas[0].count(sep) == linhas[1].count(sep) > 0:
+                    return sep
         return ';' if amostra.count(';') > amostra.count(',') else ','
     except:
         return ','
 
 def carregar_dados(arquivo):
+    """Carrega CSV ou Excel"""
     try:
         if arquivo.name.endswith('.csv'):
             sep = detectar_delimitador(arquivo)
@@ -159,10 +173,11 @@ def carregar_dados(arquivo):
         else:
             return corrigir_nomes_duplicados(pd.read_excel(arquivo))
     except Exception as e:
-        st.error(f"Erro ao carregar: {str(e)}")
+        st.error(f"Erro: {str(e)}")
         return None
 
 def processar_dados(df):
+    """Processa dados - apenas colunas com nome de data"""
     df = df.copy()
     date_cols = []
     palavras_data = ['data', 'hora', 'date', 'time', 'timestamp', 'datetime', 'datahora']
@@ -211,28 +226,31 @@ def obter_df_limpo():
     df = df.loc[:, ~df.columns.duplicated()]
     return df
 
-def detectar_outliers(dados):
-    q1 = np.percentile(dados, 25)
-    q3 = np.percentile(dados, 75)
-    iqr = q3 - q1
-    lim_inf = q1 - 1.5 * iqr
-    lim_sup = q3 + 1.5 * iqr
-    return (dados < lim_inf) | (dados > lim_sup), lim_inf, lim_sup
+# ============================================================
+# AGREGAÇÃO TEMPORAL (CORRIGIDA - W/M/Y)
+# ============================================================
+FREQ_MAP = {
+    "Semanal": "W",
+    "Mensal": "M",
+    "Anual": "Y"
+}
 
 def criar_agregacao_temporal(df, coluna_data, freq):
     """Agregação temporal (Semanal/Mensal/Anual)"""
     try:
         df_temp = df.copy()
-        df_temp[coluna_data] = pd.to_datetime(df_temp[coluna_data], errors='coerce', dayfirst=True)
+        df_temp[coluna_data] = pd.to_datetime(df_temp[coluna_data], errors='coerce')
         df_temp = df_temp.dropna(subset=[coluna_data])
         
         if len(df_temp) == 0:
+            st.error("❌ Nenhuma data válida.")
             return None
         
         df_temp = df_temp.set_index(coluna_data)
         colunas_num = df_temp.select_dtypes(include=[np.number]).columns
         
         if len(colunas_num) == 0:
+            st.error("❌ Nenhuma coluna numérica.")
             return None
         
         df_agg = df_temp[colunas_num].resample(freq).mean().round(2)
@@ -240,101 +258,115 @@ def criar_agregacao_temporal(df, coluna_data, freq):
         
         return df_agg
     except Exception as e:
-        st.error(f"Erro na agregação: {e}")
+        st.error(f"❌ Erro na agregação: {str(e)}")
         return None
 
+# ============================================================
+# ESTATÍSTICAS COMPLETAS
+# ============================================================
 def calcular_estatisticas_completas(df, coluna):
+    """Calcula estatísticas descritivas completas"""
     dados = df[coluna].dropna()
+    
     if len(dados) < 3:
+        st.warning(f"**{coluna}**: poucos dados ({len(dados)} valores)")
         return None
     
     n = len(dados)
+    faltantes = df[coluna].isnull().sum()
+    soma = np.sum(dados)
     media = np.mean(dados)
     mediana = np.median(dados)
-    moda = dados.mode().iloc[0] if len(dados.mode()) > 0 else np.nan
-    desvio = np.std(dados, ddof=1)
-    variancia = np.var(dados, ddof=1)
-    erro_padrao = desvio / np.sqrt(n)
-    cv = (desvio / media * 100) if media != 0 else 0
+    
+    moda_vals = dados.mode()
+    moda = moda_vals.iloc[0] if len(moda_vals) > 0 else np.nan
+    
     minimo = np.min(dados)
     maximo = np.max(dados)
     amplitude = maximo - minimo
+    variancia = np.var(dados, ddof=1)
+    desvio = np.std(dados, ddof=1)
+    erro_padrao = desvio / np.sqrt(n)
+    cv = (desvio / media * 100) if media != 0 else 0
     
+    q1 = np.percentile(dados, 25)
+    q2 = np.percentile(dados, 50)
+    q3 = np.percentile(dados, 75)
+    iqr = q3 - q1
     p5 = np.percentile(dados, 5)
-    p10 = np.percentile(dados, 10)
-    p25 = np.percentile(dados, 25)
-    p50 = np.percentile(dados, 50)
-    p75 = np.percentile(dados, 75)
-    p90 = np.percentile(dados, 90)
     p95 = np.percentile(dados, 95)
-    iqr = p75 - p25
     
     assimetria = dados.skew()
     curtose = dados.kurtosis()
     
-    if cv <= 10: cv_class = "Baixo 🟢"
-    elif cv <= 20: cv_class = "Médio 🟡"
-    elif cv <= 30: cv_class = "Alto 🟠"
-    else: cv_class = "Muito Alto 🔴"
+    if cv <= 10:
+        cv_class = "Baixo 🟢"
+    elif cv <= 20:
+        cv_class = "Médio 🟡"
+    elif cv <= 30:
+        cv_class = "Alto 🟠"
+    else:
+        cv_class = "Muito Alto 🔴"
     
     resultado = {
-        'N': n, 'Média': round(media, 4), 'Mediana': round(mediana, 4),
+        'N': n, 'Faltantes': faltantes, 'Soma': round(soma, 2),
+        'Média': round(media, 4), 'Mediana': round(mediana, 4),
         'Moda': round(moda, 4) if not pd.isna(moda) else 'N/A',
-        'Desvio Padrão': round(desvio, 4), 'Variância': round(variancia, 4),
-        'Erro Padrão': round(erro_padrao, 4), 'CV (%)': round(cv, 2),
-        'Classificação CV': cv_class, 'Mínimo': round(minimo, 4),
-        'Máximo': round(maximo, 4), 'Amplitude': round(amplitude, 4),
-        'P5': round(p5, 4), 'P10': round(p10, 4), 'P25': round(p25, 4),
-        'P50': round(p50, 4), 'P75': round(p75, 4), 'P90': round(p90, 4),
-        'P95': round(p95, 4), 'IQR': round(iqr, 4),
+        'Mínimo': round(minimo, 4), 'Máximo': round(maximo, 4),
+        'Amplitude': round(amplitude, 4), 'Variância': round(variancia, 4),
+        'Desvio Padrão': round(desvio, 4), 'Erro Padrão': round(erro_padrao, 4),
+        'CV (%)': round(cv, 2), 'Classificação CV': cv_class,
+        'Q1 (25%)': round(q1, 4), 'Q2 (50%)': round(q2, 4),
+        'Q3 (75%)': round(q3, 4), 'IQR': round(iqr, 4),
+        'P5': round(p5, 4), 'P95': round(p95, 4),
         'Assimetria': round(assimetria, 4), 'Curtose': round(curtose, 4),
     }
     
     if SCIPY_DISPONIVEL and 3 <= n <= 5000:
         try:
             stat_sw, p_sw = scipy_stats.shapiro(dados)
+            resultado['Shapiro-Wilk W'] = round(stat_sw, 4)
             resultado['Shapiro-Wilk p'] = round(p_sw, 4)
             resultado['Dist. Normal?'] = "Sim ✅" if p_sw > 0.05 else "Não ❌"
         except:
-            resultado['Dist. Normal?'] = 'Erro'
+            resultado['Dist. Normal?'] = 'N/A'
     else:
         resultado['Dist. Normal?'] = 'N/A'
     
     return resultado
 
-def criar_grafico_series_temporal(df, x_col, y_cols, titulo="Série Temporal"):
-    """Gráfico de linhas para série temporal"""
+# ============================================================
+# FUNÇÕES DE GRÁFICOS (APENAS SÉRIE TEMPORAL)
+# ============================================================
+def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
     try:
+        df = corrigir_nomes_duplicados(df)
         df = df.loc[:, ~df.columns.duplicated()]
         y_cols_validas = [c for c in y_cols if c in df.columns]
         if not y_cols_validas:
             return None
-        
-        for col in y_cols_validas:
-            if df[col].dtype == 'object':
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-        
-        df_melted = pd.melt(
-            df, id_vars=[x_col], value_vars=y_cols_validas,
-            var_name='Variável', value_name='Valor'
-        ).dropna(subset=['Valor'])
-        
-        if len(df_melted) == 0:
-            return None
-        
-        # Formatar eixo X para mostrar data completa
+        df_melted = pd.melt(df, id_vars=[x_col], value_vars=y_cols_validas,
+                           var_name='Variável', value_name='Valor')
         chart = alt.Chart(df_melted).mark_line(strokeWidth=2).encode(
             x=alt.X(f'{x_col}:T', title='Data', axis=alt.Axis(format='%d/%m/%Y')),
             y=alt.Y('Valor:Q', title='Valor'),
             color=alt.Color('Variável:N', legend=alt.Legend(orient='bottom')),
             tooltip=[alt.Tooltip(f'{x_col}:T', title='Data', format='%d/%m/%Y'),
                     'Variável:N', alt.Tooltip('Valor:Q', format='.2f')]
-        ).properties(title=titulo, height=450).interactive()
-        
+        ).properties(title=titulo, height=400).interactive()
         return chart
     except Exception as e:
-        st.error(f"Erro no gráfico: {str(e)}")
+        st.error(f"Erro: {str(e)}")
         return None
+
+def detectar_outliers(dados):
+    q1 = np.percentile(dados, 25)
+    q3 = np.percentile(dados, 75)
+    iqr = q3 - q1
+    lim_inf = q1 - 1.5 * iqr
+    lim_sup = q3 + 1.5 * iqr
+    outliers = (dados < lim_inf) | (dados > lim_sup)
+    return outliers, lim_inf, lim_sup
 
 # ============================================================
 # HEADER
@@ -343,7 +375,7 @@ st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
     <p>Sistema Inteligente de Análise Meteorológica e Agronômica</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v12.0 - Versão Final Estável</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v9.3 - Abas Integradas</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -355,6 +387,8 @@ with st.sidebar:
     
     if SCIPY_DISPONIVEL:
         st.success("✅ SciPy disponível")
+    else:
+        st.warning("⚠️ SciPy não instalado")
     
     df_status = obter_df_limpo()
     if df_status is not None:
@@ -363,14 +397,14 @@ with st.sidebar:
         date_cols = len(st.session_state.get('date_columns', []))
         st.caption(f"📊 {num_cols} numéricas | 📅 {date_cols} datas")
         
+        # ← CORRIGIDO: usa df_agregado
         if st.session_state.get('df_agregado') is not None:
             tipo = st.session_state.get('tipo_agregado', '')
             st.info(f"📆 Agregação {tipo} disponível")
     else:
         st.info("📤 Sem dados")
-    
     st.markdown("---")
-    st.caption("AgroDataLab v12.0 | MIT License")
+    st.caption("AgroDataLab v9.3 | MIT License")
 
 # ============================================================
 # ABAS
@@ -389,27 +423,23 @@ aba1, aba2, aba3, aba4, aba5 = st.tabs([
 with aba1:
     st.header("📤 Upload de Arquivo")
     st.markdown("---")
-    
     arquivo = st.file_uploader("Selecione CSV ou Excel", type=['csv', 'xlsx', 'xls'])
     
     if arquivo is not None:
         with st.spinner('Carregando...'):
             df = carregar_dados(arquivo)
-            
             if df is not None and len(df) > 0:
                 if df.shape[1] == 1:
                     st.error("⚠️ Arquivo lido como UMA ÚNICA coluna!")
                     st.stop()
-                
                 df, date_cols = processar_dados(df)
                 df = corrigir_nomes_duplicados(df)
                 df = df.loc[:, ~df.columns.duplicated()]
-                
                 st.session_state['df_original'] = df.copy()
                 st.session_state['df_processed'] = df.copy()
                 st.session_state['date_columns'] = date_cols
-                st.session_state['df_agregado'] = None
-                st.session_state['tipo_agregado'] = None
+                st.session_state['df_agregado'] = None      # ← CORRIGIDO
+                st.session_state['tipo_agregado'] = None    # ← CORRIGIDO
                 
                 st.markdown(f'<div class="success-box"><h3>✅ {df.shape[0]:,} linhas × {df.shape[1]} colunas</h3></div>', unsafe_allow_html=True)
                 
@@ -421,26 +451,22 @@ with aba1:
                 
                 st.markdown("---")
                 st.subheader("Preview")
-                st.dataframe(df.head(10), use_container_width=True)
+                st.dataframe(df.head(15), use_container_width=True)
 
 # ============================================================
-# ABA 2: TRATAMENTO (COM AGREGAÇÃO E DOWNLOAD)
+# ABA 2: TRATAMENTO (COM AGREGAÇÃO VISÍVEL)
 # ============================================================
 with aba2:
     st.header("🔧 Tratamento de Dados")
     st.markdown("---")
-    
     df = obter_df_limpo()
-    
     if df is None:
         st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
     else:
-        # SEÇÃO 1: Valores Ausentes
+        # Valores ausentes
         missing_total = df.isnull().sum().sum()
-        
         if missing_total > 0:
             st.markdown(f'<div class="warning-box"><h3>⚠️ {missing_total:,} valores ausentes</h3></div>', unsafe_allow_html=True)
-            
             missing_df = pd.DataFrame({
                 'Coluna': df.columns,
                 'Ausentes': df.isnull().sum().values,
@@ -465,7 +491,6 @@ with aba2:
                     st.session_state['df_processed'] = preencher_ausentes(df, 'interpolar')
                     st.success("✅ Preenchido!")
                     st.rerun()
-            
             c4, c5 = st.columns(2)
             with c4:
                 if st.button("🗑️ Remover Linhas", key="m4"):
@@ -482,16 +507,21 @@ with aba2:
         else:
             st.markdown('<div class="success-box"><h3>✅ Nenhum valor ausente!</h3></div>', unsafe_allow_html=True)
         
-        # SEÇÃO 2: AGREGAÇÃO TEMPORAL
+        # AGREGAÇÃO TEMPORAL
         st.markdown("---")
-        st.subheader("📆 Agregação Temporal (Semanal / Mensal / Anual)")
+        st.subheader("📆 Agregação Temporal")
         
         date_cols = st.session_state.get('date_columns', [])
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
         
         if date_cols and colunas_num:
             col_data_agg = st.selectbox("Coluna de data:", date_cols, key="agg_date")
-            periodo_nome = st.radio("Período:", list(FREQ_MAP.keys()), horizontal=True, key="agg_freq")
+            periodo_nome = st.radio(
+                "Período:",
+                list(FREQ_MAP.keys()),
+                horizontal=True,
+                key="agg_freq"
+            )
             
             if st.button("📊 Gerar Média " + periodo_nome, key="btn_agg"):
                 freq_code = FREQ_MAP[periodo_nome]
@@ -499,25 +529,22 @@ with aba2:
                 with st.spinner(f"Calculando..."):
                     df_agg = criar_agregacao_temporal(df, col_data_agg, freq_code)
                     
-                    if df_agg is not None and len(df_agg) > 0:
-                        st.session_state['df_agregado'] = df_agg
-                        st.session_state['tipo_agregado'] = periodo_nome
+                    if df_agg is not None:
+                        st.session_state['df_agregado'] = df_agg        # ← CORRIGIDO
+                        st.session_state['tipo_agregado'] = periodo_nome  # ← NOVO
                         st.success(f"✅ Média {periodo_nome.lower()} gerada! ({len(df_agg)} registros)")
                         st.rerun()
-                    else:
-                        st.error("❌ Falha ao gerar agregação.")
             
-            # EXIBIR RESULTADO IMEDIATAMENTE
+            # ← CORRIGIDO: Mostrar tabela SEMPRE que existir
             if st.session_state.get('df_agregado') is not None:
                 tipo = st.session_state.get('tipo_agregado', '')
-                
                 st.markdown(f"### 📋 Dados {tipo}")
                 st.dataframe(st.session_state['df_agregado'], use_container_width=True)
                 
                 # Download direto
                 csv_agg = st.session_state['df_agregado'].to_csv(index=False, encoding='utf-8')
                 st.download_button(
-                    f"📥 Baixar Dados {tipo} (CSV)",
+                    f"📥 Baixar CSV ({tipo})",
                     csv_agg,
                     file_name=f"dados_{tipo.lower()}_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv",
@@ -529,33 +556,31 @@ with aba2:
             if not colunas_num:
                 st.info("📊 Nenhuma variável numérica disponível.")
         
-        # SEÇÃO 3: Outliers
+        # Outliers
         st.markdown("---")
-        st.subheader("🔍 Detecção de Outliers (IQR)")
+        st.subheader("🔍 Outliers (IQR)")
         
         if colunas_num:
             col_out = st.selectbox("Variável:", colunas_num, key="out_col")
             dados = df[col_out].dropna()
-            
             if len(dados) >= 2:
                 outliers, li, ls = detectar_outliers(dados)
                 n_out = outliers.sum()
-                
                 if n_out > 0:
                     st.warning(f"🔴 {n_out} outliers ({n_out/len(dados)*100:.1f}%)")
-                    st.write(f"Limite Inferior: **{li:.3f}** | Limite Superior: **{ls:.3f}**")
+                    st.write(f"Lim. Inf.: **{li:.3f}** | Lim. Sup.: **{ls:.3f}**")
                 else:
-                    st.success(f"✅ Nenhum outlier em **{col_out}**")
+                    st.success(f"✅ Nenhum outlier em {col_out}")
 
 # ============================================================
-# ABA 3: ESTATÍSTICAS
+# ABA 3: ESTATÍSTICAS (USA df_agregado)
 # ============================================================
 with aba3:
-    st.header("📊 Análise Estatística")
+    st.header("📊 Análise Estatística Completa")
     st.markdown("---")
     
     if not SCIPY_DISPONIVEL:
-        st.warning("⚠️ SciPy não instalado. Teste de normalidade indisponível.")
+        st.warning("⚠️ SciPy não instalado.")
     
     fonte_dados = st.radio(
         "Fonte de dados:",
@@ -564,21 +589,24 @@ with aba3:
         key="fonte_stats"
     )
     
+    # ← CORRIGIDO: usa df_agregado
     if fonte_dados == 'Dados Agregados' and st.session_state.get('df_agregado') is not None:
         df = st.session_state['df_agregado'].copy()
-        st.info(f"📆 Usando dados {st.session_state.get('tipo_agregado', 'agregados')}")
+        tipo = st.session_state.get('tipo_agregado', '')
+        st.info(f"📆 Usando dados {tipo}")
     else:
         df = obter_df_limpo()
     
     if df is None:
-        st.warning("⚠️ Carregue os dados primeiro!")
+        st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
     else:
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
         
         if not colunas_num:
             st.warning("⚠️ Nenhuma variável numérica.")
         else:
-            col_analise = st.selectbox("Variável:", colunas_num, key="stat_col")
+            col_analise = st.selectbox("Variável para análise:", colunas_num, key="stat_col")
+            
             stats = calcular_estatisticas_completas(df, col_analise)
             
             if stats:
@@ -590,11 +618,10 @@ with aba3:
                 c3.metric("CV (%)", f"{stats['CV (%)']:.1f}%", stats['Classificação CV'])
                 c4.metric("Normalidade", stats.get('Dist. Normal?', 'N/A'))
                 
-                with st.expander("📋 Todas as Estatísticas"):
+                with st.expander("📋 Ver Todas as Estatísticas"):
                     stats_df = pd.DataFrame(list(stats.items()), columns=['Estatística', 'Valor'])
                     st.dataframe(stats_df, use_container_width=True, hide_index=True)
                 
-                # Correlação
                 if len(colunas_num) >= 2:
                     st.markdown("---")
                     st.subheader("🔗 Matriz de Correlação de Pearson")
@@ -610,21 +637,18 @@ with aba4:
     st.markdown("---")
     
     fonte_graf = st.radio(
-        "Fonte de dados:",
+        "Fonte:",
         ['Dados Originais', 'Dados Semanais', 'Dados Mensais', 'Dados Anuais'],
         horizontal=True,
         key="fonte_graf"
     )
     
-    # Selecionar fonte
-    if fonte_graf == 'Dados Originais':
-        df = obter_df_limpo()
-    elif st.session_state.get('df_agregado') is not None:
+    # ← CORRIGIDO: usa df_agregado
+    if fonte_graf != 'Dados Originais' and st.session_state.get('df_agregado') is not None:
         df = st.session_state['df_agregado'].copy()
         st.info(f"📆 Usando dados {st.session_state.get('tipo_agregado', 'agregados')}")
     else:
         df = obter_df_limpo()
-        st.warning("⚠️ Dados agregados não disponíveis. Usando originais.")
     
     if df is None:
         st.warning("⚠️ Carregue os dados primeiro!")
@@ -640,7 +664,7 @@ with aba4:
             
             col_x = st.selectbox("Eixo X (Data):", x_cols, key="gx")
             col_y = st.multiselect(
-                "Variáveis (Eixo Y):",
+                "Variáveis Y:",
                 colunas_num,
                 default=colunas_num[:min(3, len(colunas_num))],
                 key="gy"
@@ -648,7 +672,6 @@ with aba4:
             
             if col_y:
                 df_plot = df[[col_x] + col_y].dropna().copy()
-                
                 if df_plot[col_x].dtype != 'datetime64[ns]':
                     try:
                         df_plot[col_x] = pd.to_datetime(df_plot[col_x], errors='coerce')
@@ -657,45 +680,35 @@ with aba4:
                 df_plot = df_plot.dropna()
                 
                 if len(df_plot) > 0:
-                    chart = criar_grafico_series_temporal(df_plot, col_x, col_y)
+                    chart = criar_grafico_linhas(df_plot, col_x, col_y)
                     if chart:
                         st.altair_chart(chart, use_container_width=True)
-                else:
-                    st.warning("Dados insuficientes para o gráfico.")
 
 # ============================================================
-# ABA 5: DOWNLOAD
+# ABA 5: DOWNLOAD (USA df_agregado)
 # ============================================================
 with aba5:
-    st.header("💾 Download dos Dados")
+    st.header("💾 Download")
     st.markdown("---")
     
     df = obter_df_limpo()
-    df_agg = st.session_state.get('df_agregado')
+    df_agg = st.session_state.get('df_agregado')  # ← CORRIGIDO
     
     if df is not None:
         st.markdown('<div class="success-box"><h3>✅ Dados disponíveis</h3></div>', unsafe_allow_html=True)
         
         st.subheader("📥 Dados Processados")
         csv_data = df.to_csv(index=False, encoding='utf-8')
-        st.download_button(
-            "📥 Baixar CSV (Processado)",
-            csv_data,
-            f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            "text/csv"
-        )
+        st.download_button("📥 Baixar CSV (Processado)", csv_data,
+                          f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
         
         if df_agg is not None:
             tipo = st.session_state.get('tipo_agregado', 'Agregado')
             st.markdown("---")
             st.subheader(f"📥 Dados {tipo}")
             csv_agg = df_agg.to_csv(index=False, encoding='utf-8')
-            st.download_button(
-                f"📥 Baixar CSV ({tipo})",
-                csv_agg,
-                f"dados_{tipo.lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                "text/csv"
-            )
+            st.download_button(f"📥 Baixar CSV ({tipo})", csv_agg,
+                              f"dados_{tipo.lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
         
         st.markdown("---")
         st.subheader("Preview")
@@ -709,8 +722,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v12.0</h4>
-    <p>Sistema de Análise Meteorológica | Série Temporal | Agregações</p>
+    <h4>🌱 AgroDataLab v9.3</h4>
+    <p>Abas Integradas | Agregação Semanal/Mensal/Anual</p>
     <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

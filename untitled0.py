@@ -450,13 +450,13 @@ with st.sidebar:
 # ============================================================
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "📤 1 - Upload",
-    "🔧 2 - Tratamento", 
-    "📊 3 - Estatísticas",
-    "🔬 4 - Análises Avançadas",
-    "📈 5 - Gráficos",
-    "💾 6 - Download",
-    "📚 7 - Referências"
+    "1 - Upload",
+    "2 - Tratamento", 
+    "3 - Estatísticas",
+    "4 - Análises Avançadas",
+    "5 - Gráficos",
+    "6 - Download",
+    "7 - Referências"
 ])
 
 # ============================================================
@@ -464,14 +464,14 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 # ============================================================
 
 with tab1:
-    st.markdown('<p class="tab-header">📤 Upload de Dados</p>', unsafe_allow_html=True)
+    st.markdown('<p class="tab-header">Upload de Dados</p>', unsafe_allow_html=True)
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
         st.markdown("""
         <div class="card">
-            <h4>📋 Faça o upload da sua planilha</h4>
+            <h4>Faça o upload da sua planilha</h4>
             <p>Formatos aceitos: CSV, Excel (.xlsx, .xls)</p>
             <p style="color: #666; font-size: 0.9rem;">
             Compatível com arquivos exportados pelo INMET
@@ -510,14 +510,14 @@ with tab1:
             # Mensagem de sucesso
             st.markdown(f"""
             <div class="success-message">
-                <h4>✅ Upload realizado com sucesso!</h4>
+                <h4>Upload realizado com sucesso!</h4>
                 <p>Arquivo: {uploaded_file.name}</p>
                 <p>Dimensões: {df.shape[0]} linhas × {df.shape[1]} colunas</p>
             </div>
             """, unsafe_allow_html=True)
             
             # Preview dos dados
-            st.markdown("### 📊 Pré-visualização dos Dados")
+            st.markdown("### Pré-visualização dos Dados")
             
             # Métricas rápidas
             col1, col2, col3, col4 = st.columns(4)
@@ -556,7 +556,7 @@ with tab1:
                 """.format(memory_usage), unsafe_allow_html=True)
             
             # Mostrar primeiras linhas
-            st.markdown("### 🔍 Primeiras 10 linhas do dataset:")
+            st.markdown("### Primeiras 10 linhas do dataset:")
             st.dataframe(
                 df.head(10).style.background_gradient(cmap='Greens', axis=0),
                 use_container_width=True,
@@ -564,7 +564,7 @@ with tab1:
             )
             
             # Informações das colunas
-            with st.expander("📋 Informações das Colunas"):
+            with st.expander("Informações das Colunas"):
                 col_info = pd.DataFrame({
                     'Coluna': df.columns,
                     'Tipo': df.dtypes.values,
@@ -575,12 +575,12 @@ with tab1:
                 st.dataframe(col_info, use_container_width=True)
             
         except Exception as e:
-            st.error(f"❌ Erro ao carregar o arquivo: {str(e)}")
+            st.error(f"Erro ao carregar o arquivo: {str(e)}")
             st.info("Verifique se o arquivo está no formato correto e tente novamente.")
     else:
-        st.markdown("">
+        st.markdown("""
         <div class="warning-message">
-            <h4>📤 Nenhum arquivo selecionado</h4>
+            <h4>Nenhum arquivo selecionado</h4>
             <p>Faça o upload de um arquivo CSV ou Excel para começar a análise.</p>
         </div>
         """, unsafe_allow_html=True)
@@ -590,7 +590,7 @@ with tab1:
 # ============================================================
 
 with tab2:
-    st.markdown('<p class="tab-header">🔧 Tratamento de Dados Ausentes</p>', unsafe_allow_html=True)
+    st.markdown('<p class="tab-header">Tratamento de Dados Ausentes</p>', unsafe_allow_html=True)
     
     if 'df_processed' in st.session_state:
         df = st.session_state['df_processed']
@@ -601,7 +601,7 @@ with tab2:
         if len(missing_info) > 0:
             st.markdown("""
             <div class="warning-message">
-                <h4>⚠️ Valores Ausentes Detectados</h4>
+                <h4>Valores Ausentes Detectados</h4>
                 <p>As seguintes colunas possuem dados faltantes:</p>
             </div>
             """, unsafe_allow_html=True)
@@ -616,50 +616,50 @@ with tab2:
             )
             
             # Opções de tratamento
-            st.markdown("### 🛠️ Opções de Tratamento")
+            st.markdown("### Opções de Tratamento")
             
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 st.markdown("""
                 <div class="card">
-                    <h4>📊 Preencher com Média</h4>
+                    <h4>Preencher com Média</h4>
                     <p style="color:#666;">Substitui valores ausentes pela média da coluna</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button("📊 Aplicar Média", key="btn_mean"):
+                if st.button("Aplicar Média", key="btn_mean"):
                     df_filled = fill_missing_values(df.copy(), method='mean')
                     st.session_state['df_processed'] = df_filled
-                    st.success("✅ Valores preenchidos com média!")
+                    st.success("Valores preenchidos com média!")
                     st.rerun()
             
             with col2:
                 st.markdown("""
                 <div class="card">
-                    <h4>📈 Preencher com Mediana</h4>
+                    <h4>Preencher com Mediana</h4>
                     <p style="color:#666;">Substitui valores ausentes pela mediana da coluna</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button("📈 Aplicar Mediana", key="btn_median"):
+                if st.button("Aplicar Mediana", key="btn_median"):
                     df_filled = fill_missing_values(df.copy(), method='median')
                     st.session_state['df_processed'] = df_filled
-                    st.success("✅ Valores preenchidos com mediana!")
+                    st.success("Valores preenchidos com mediana!")
                     st.rerun()
             
             with col3:
                 st.markdown("""
                 <div class="card">
-                    <h4>🔄 Interpolar</h4>
+                    <h4>Interpolar</h4>
                     <p style="color:#666;">Preenche por interpolação linear entre valores</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button("🔄 Aplicar Interpolação", key="btn_interpolate"):
+                if st.button("Aplicar Interpolação", key="btn_interpolate"):
                     df_filled = fill_missing_values(df.copy(), method='interpolate')
                     st.session_state['df_processed'] = df_filled
-                    st.success("✅ Valores interpolados!")
+                    st.success("Valores interpolados!")
                     st.rerun()
             
             # Opção de excluir
@@ -669,37 +669,37 @@ with tab2:
             with col1:
                 st.markdown("""
                 <div class="card">
-                    <h4>🗑️ Excluir Linhas com Dados Ausentes</h4>
+                    <h4>Excluir Linhas com Dados Ausentes</h4>
                     <p style="color:#666;">Remove todas as linhas que contêm valores ausentes</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button("🗑️ Excluir Linhas", key="btn_drop"):
+                if st.button("Excluir Linhas", key="btn_drop"):
                     df_dropped = df.dropna()
                     st.session_state['df_processed'] = df_dropped
-                    st.success(f"✅ {len(df) - len(df_dropped)} linhas removidas!")
+                    st.success(f"{len(df) - len(df_dropped)} linhas removidas!")
                     st.rerun()
             
             with col2:
                 st.markdown("""
                 <div class="card">
-                    <h4>🔙 Manter Dados Originais</h4>
+                    <h4>Manter Dados Originais</h4>
                     <p style="color:#666;">Restaura os dados para o estado original</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button("🔙 Restaurar Original", key="btn_restore"):
+                if st.button("Restaurar Original", key="btn_restore"):
                     if 'df_original' in st.session_state:
                         st.session_state['df_processed'] = st.session_state['df_original'].copy()
-                        st.success("✅ Dados restaurados!")
+                        st.success("Dados restaurados!")
                         st.rerun()
             
             # Assistente IA para sugestões
             if gemini_api_key:
                 st.markdown("---")
-                st.markdown("### 🤖 Sugestão da IA")
+                st.markdown("### Sugestão da IA")
                 
-                if st.button("🧠 Analisar com Gemini", key="btn_ai_treatment"):
+                if st.button("Analisar com Gemini", key="btn_ai_treatment"):
                     try:
                         missing_summary = missing_info.to_string()
                         prompt = f"""
@@ -719,7 +719,7 @@ with tab2:
                         
                         st.markdown("""
                         <div class="success-message">
-                            <h4>💡 Recomendação da IA:</h4>
+                            <h4>Recomendação da IA:</h4>
                         </div>
                         """, unsafe_allow_html=True)
                         st.write(response.text)
@@ -728,19 +728,19 @@ with tab2:
         else:
             st.markdown("""
             <div class="success-message">
-                <h4>✅ Nenhum valor ausente detectado!</h4>
+                <h4>Nenhum valor ausente detectado!</h4>
                 <p>Seus dados estão completos e prontos para análise.</p>
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.warning("⚠️ Faça o upload dos dados na Aba 1 primeiro!")
+        st.warning("Faça o upload dos dados na Aba 1 primeiro!")
 
 # ============================================================
 # ABA 3 - ESTATÍSTICAS BÁSICAS
 # ============================================================
 
 with tab3:
-    st.markdown('<p class="tab-header">📊 Estatísticas Descritivas</p>', unsafe_allow_html=True)
+    st.markdown('<p class="tab-header">Estatísticas Descritivas</p>', unsafe_allow_html=True)
     
     if 'df_processed' in st.session_state:
         df = st.session_state['df_processed']
@@ -749,21 +749,21 @@ with tab3:
         date_columns = [col for col in df.columns if 'data' in col.lower() or 'hora' in col.lower() or 'date' in col.lower()]
         
         if date_columns:
-            date_col = st.selectbox("📅 Selecione a coluna de data:", date_columns)
+            date_col = st.selectbox("Selecione a coluna de data:", date_columns)
             
             # Converter para datetime se necessário
             if df[date_col].dtype == 'object':
                 df[date_col] = pd.to_datetime(df[date_col], format='mixed')
             
             # Frequência de agregação
-            st.markdown("### 📈 Frequência de Agregação")
+            st.markdown("### Frequência de Agregação")
             
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 st.markdown("""
                 <div class="card">
-                    <h4>📅 Diário</h4>
+                    <h4>Diário</h4>
                     <p style="color:#666;">Agrupa os dados por dia</p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -773,7 +773,7 @@ with tab3:
             with col2:
                 st.markdown("""
                 <div class="card">
-                    <h4>📆 Semanal</h4>
+                    <h4>Semanal</h4>
                     <p style="color:#666;">Agrupa os dados por semana</p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -783,7 +783,7 @@ with tab3:
             with col3:
                 st.markdown("""
                 <div class="card">
-                    <h4>🗓️ Mensal</h4>
+                    <h4>Mensal</h4>
                     <p style="color:#666;">Agrupa os dados por mês</p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -792,27 +792,27 @@ with tab3:
             
             # Mostrar estatísticas conforme seleção
             if daily_selected:
-                st.markdown("### 📅 Estatísticas Diárias")
+                st.markdown("### Estatísticas Diárias")
                 daily_stats = calculate_statistics(df, date_col, 'D')
                 st.dataframe(daily_stats, use_container_width=True, height=400)
             
             if weekly_selected:
-                st.markdown("### 📆 Estatísticas Semanais")
+                st.markdown("### Estatísticas Semanais")
                 weekly_stats = calculate_statistics(df, date_col, 'W')
                 st.dataframe(weekly_stats, use_container_width=True, height=400)
             
             if monthly_selected:
-                st.markdown("### 🗓️ Estatísticas Mensais")
+                st.markdown("### Estatísticas Mensais")
                 monthly_stats = calculate_statistics(df, date_col, 'M')
                 st.dataframe(monthly_stats, use_container_width=True, height=400)
         else:
-            st.info("ℹ️ Nenhuma coluna de data identificada. Mostrando estatísticas gerais:")
+            st.info("Nenhuma coluna de data identificada. Mostrando estatísticas gerais:")
             numeric_cols = df.select_dtypes(include=[np.number]).columns
             st.dataframe(df[numeric_cols].describe(), use_container_width=True)
         
         # Estatísticas gerais
         st.markdown("---")
-        st.markdown("### 📊 Resumo Estatístico Geral")
+        st.markdown("### Resumo Estatístico Geral")
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         stats_df = df[numeric_cols].describe()
@@ -824,21 +824,21 @@ with tab3:
         
         st.dataframe(stats_df.style.background_gradient(cmap='Greens', axis=1), use_container_width=True)
     else:
-        st.warning("⚠️ Faça o upload dos dados na Aba 1 primeiro!")
+        st.warning("Faça o upload dos dados na Aba 1 primeiro!")
 
 # ============================================================
 # ABA 4 - ANÁLISES AVANÇADAS
 # ============================================================
 
 with tab4:
-    st.markdown('<p class="tab-header">🔬 Análises Estatísticas Avançadas</p>', unsafe_allow_html=True)
+    st.markdown('<p class="tab-header">Análises Estatísticas Avançadas</p>', unsafe_allow_html=True)
     
     if 'df_processed' in st.session_state:
         df = st.session_state['df_processed']
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
         
         # Seção de correlação
-        st.markdown("### 📈 Análise de Correlação")
+        st.markdown("### Análise de Correlação")
         
         col1, col2 = st.columns(2)
         
@@ -852,7 +852,7 @@ with tab4:
         with col2:
             st.markdown("""
             <div class="metric-card">
-                <h4>📊 Interpretação</h4>
+                <h4>Interpretação</h4>
                 <p style="font-size:0.9rem;">
                 <strong>0.0 - 0.3:</strong> Fraca<br>
                 <strong>0.3 - 0.7:</strong> Moderada<br>
@@ -884,7 +884,7 @@ with tab4:
                 
                 # Assistente IA para correlação
                 if gemini_api_key:
-                    if st.button("🧠 Interpretar Correlações com IA", key="btn_ai_corr"):
+                    if st.button("Interpretar Correlações com IA", key="btn_ai_corr"):
                         try:
                             prompt = f"""
                             Analise a matriz de correlação entre variáveis meteorológicas:
@@ -906,17 +906,17 @@ with tab4:
                             """
                             
                             response = model.generate_content(prompt)
-                            st.markdown("#### 💡 Interpretação da IA:")
+                            st.markdown("#### Interpretação da IA:")
                             st.write(response.text)
                         except:
                             st.error("Erro ao consultar a IA.")
         else:
-            st.warning("⚠️ São necessárias pelo menos 2 variáveis numéricas para correlação.")
+            st.warning("São necessárias pelo menos 2 variáveis numéricas para correlação.")
         
         st.markdown("---")
         
         # Seção ANOVA
-        st.markdown("### 🔍 Análise de Variância (ANOVA)")
+        st.markdown("### Análise de Variância (ANOVA)")
         
         col1, col2 = st.columns(2)
         
@@ -940,11 +940,11 @@ with tab4:
                     help="Variável para formar os grupos"
                 )
                 
-                if st.button("🔬 Executar ANOVA", key="btn_anova"):
+                if st.button("Executar ANOVA", key="btn_anova"):
                     results = perform_anova(df, anova_target, anova_group)
                     
                     if results:
-                        st.markdown("### 📊 Resultados da ANOVA")
+                        st.markdown("### Resultados da ANOVA")
                         
                         col1, col2, col3 = st.columns(3)
                         
@@ -957,7 +957,7 @@ with tab4:
                                 </p>
                                 <p>p = {results['Levene_P_Value']}</p>
                                 <p style="font-size:0.8rem;">
-                                    {'✅ Homogeneidade confirmada' if results['Levene_P_Value'] > 0.05 else '⚠️ Variâncias diferentes'}
+                                    {'Homogeneidade confirmada' if results['Levene_P_Value'] > 0.05 else 'Variâncias diferentes'}
                                 </p>
                             </div>
                             """, unsafe_allow_html=True)
@@ -971,7 +971,7 @@ with tab4:
                                 </p>
                                 <p>p = {results['ANOVA_P_Value']}</p>
                                 <p style="font-size:0.8rem;">
-                                    {'✅ Diferença significativa' if results['ANOVA_P_Value'] < 0.05 else '❌ Sem diferença significativa'}
+                                    {'Diferença significativa' if results['ANOVA_P_Value'] < 0.05 else 'Sem diferença significativa'}
                                 </p>
                             </div>
                             """, unsafe_allow_html=True)
@@ -987,14 +987,14 @@ with tab4:
                             </div>
                             """, unsafe_allow_html=True)
                     else:
-                        st.error("❌ Não foi possível realizar a ANOVA. Verifique os dados.")
+                        st.error("Não foi possível realizar a ANOVA. Verifique os dados.")
             else:
-                st.warning("⚠️ Nenhuma variável de agrupamento identificada.")
+                st.warning("Nenhuma variável de agrupamento identificada.")
         
         st.markdown("---")
         
         # Coeficiente de Variação
-        st.markdown("### 📊 Coeficiente de Variação")
+        st.markdown("### Coeficiente de Variação")
         
         cv_df = calculate_cv(df)
         st.dataframe(
@@ -1011,20 +1011,20 @@ with tab4:
         
         st.info("""
         **Interpretação do CV:**
-        - **Baixo (≤10%):** Alta precisão dos dados
+        - **Baixo (até 10%):** Alta precisão dos dados
         - **Médio (10-20%):** Precisão moderada
         - **Alto (20-30%):** Baixa precisão
-        - **Muito Alto (>30%):** Dados muito dispersos
+        - **Muito Alto (acima de 30%):** Dados muito dispersos
         """)
     else:
-        st.warning("⚠️ Faça o upload dos dados na Aba 1 primeiro!")
+        st.warning("Faça o upload dos dados na Aba 1 primeiro!")
 
 # ============================================================
 # ABA 5 - GRÁFICOS
 # ============================================================
 
 with tab5:
-    st.markdown('<p class="tab-header">📈 Visualização de Dados</p>', unsafe_allow_html=True)
+    st.markdown('<p class="tab-header">Visualização de Dados</p>', unsafe_allow_html=True)
     
     if 'df_processed' in st.session_state:
         df = st.session_state['df_processed']
@@ -1032,12 +1032,12 @@ with tab5:
         # Tipo de gráfico
         chart_type = st.radio(
             "Selecione o tipo de gráfico:",
-            ['📈 Gráfico de Linhas', '📊 Histograma'],
+            ['Gráfico de Linhas', 'Histograma'],
             horizontal=True
         )
         
-        if chart_type == '📈 Gráfico de Linhas':
-            st.markdown("### 📈 Gráfico de Linhas Temporais")
+        if chart_type == 'Gráfico de Linhas':
+            st.markdown("### Gráfico de Linhas Temporais")
             
             # Selecionar eixo X
             date_columns = [col for col in df.columns if 'data' in col.lower() or 'date' in col.lower() or 'hora' in col.lower()]
@@ -1064,13 +1064,13 @@ with tab5:
                         df_temp,
                         x_col,
                         y_cols,
-                        title=f"Série Temporal das Variáveis Meteorológicas"
+                        title="Série Temporal das Variáveis Meteorológicas"
                     )
                     
                     st.altair_chart(chart, use_container_width=True)
                     
                     # Estatísticas do gráfico
-                    with st.expander("📊 Estatísticas do Período"):
+                    with st.expander("Estatísticas do Período"):
                         for col in y_cols:
                             st.markdown(f"**{col}:**")
                             col1, col2, col3, col4 = st.columns(4)
@@ -1087,8 +1087,8 @@ with tab5:
             else:
                 st.warning("Nenhuma coluna de data identificada para o eixo X.")
         
-        elif chart_type == '📊 Histograma':
-            st.markdown("### 📊 Histograma das Variáveis")
+        elif chart_type == 'Histograma':
+            st.markdown("### Histograma das Variáveis")
             
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
             selected_cols = st.multiselect(
@@ -1105,16 +1105,16 @@ with tab5:
                 st.altair_chart(chart, use_container_width=True)
                 
                 # Estatísticas descritivas
-                with st.expander("📊 Estatísticas Descritivas"):
+                with st.expander("Estatísticas Descritivas"):
                     st.dataframe(df[selected_cols].describe(), use_container_width=True)
             else:
                 st.info("Selecione pelo menos uma variável para visualizar.")
         
         # Análise com IA
-        if gemini_api_key and y_cols if chart_type == '📈 Gráfico de Linhas' else selected_cols:
-            if st.button("🧠 Analisar Gráfico com IA", key="btn_ai_chart"):
+        if gemini_api_key and ('y_cols' in locals() or 'selected_cols' in locals()):
+            if st.button("Analisar Gráfico com IA", key="btn_ai_chart"):
                 try:
-                    if chart_type == '📈 Gráfico de Linhas':
+                    if chart_type == 'Gráfico de Linhas' and y_cols:
                         data_desc = df[y_cols].describe().to_string()
                         prompt = f"""
                         Analise a série temporal meteorológica:
@@ -1132,7 +1132,7 @@ with tab5:
                         
                         Responda em português.
                         """
-                    else:
+                    elif selected_cols:
                         data_desc = df[selected_cols].describe().to_string()
                         prompt = f"""
                         Analise a distribuição das variáveis meteorológicas:
@@ -1155,28 +1155,28 @@ with tab5:
                     
                     st.markdown("""
                     <div class="success-message">
-                        <h4>💡 Análise da IA:</h4>
+                        <h4>Análise da IA:</h4>
                     </div>
                     """, unsafe_allow_html=True)
                     st.write(response.text)
                 except:
                     st.error("Erro ao consultar a IA.")
     else:
-        st.warning("⚠️ Faça o upload dos dados na Aba 1 primeiro!")
+        st.warning("Faça o upload dos dados na Aba 1 primeiro!")
 
 # ============================================================
 # ABA 6 - DOWNLOAD
 # ============================================================
 
 with tab6:
-    st.markdown('<p class="tab-header">💾 Download dos Dados Processados</p>', unsafe_allow_html=True)
+    st.markdown('<p class="tab-header">Download dos Dados Processados</p>', unsafe_allow_html=True)
     
     if 'df_processed' in st.session_state:
         df = st.session_state['df_processed']
         
         st.markdown("""
         <div class="success-message">
-            <h4>✅ Dados prontos para download!</h4>
+            <h4>Dados prontos para download!</h4>
             <p>Seus dados foram processados e estão prontos para exportação.</p>
         </div>
         """, unsafe_allow_html=True)
@@ -1187,7 +1187,7 @@ with tab6:
         with col1:
             st.markdown(f"""
             <div class="metric-card">
-                <h4>📊 Registros</h4>
+                <h4>Registros</h4>
                 <p style="font-size:2rem; font-weight:bold; color:#1a5632;">{len(df)}</p>
             </div>
             """, unsafe_allow_html=True)
@@ -1195,7 +1195,7 @@ with tab6:
         with col2:
             st.markdown(f"""
             <div class="metric-card">
-                <h4>📋 Colunas</h4>
+                <h4>Colunas</h4>
                 <p style="font-size:2rem; font-weight:bold; color:#1a5632;">{len(df.columns)}</p>
             </div>
             """, unsafe_allow_html=True)
@@ -1204,20 +1204,20 @@ with tab6:
             missing = df.isnull().sum().sum()
             st.markdown(f"""
             <div class="metric-card">
-                <h4>🔍 Dados Ausentes</h4>
+                <h4>Dados Ausentes</h4>
                 <p style="font-size:2rem; font-weight:bold; color:#1a5632;">{missing}</p>
             </div>
             """, unsafe_allow_html=True)
         
         # Opções de download
-        st.markdown("### 📥 Selecione o formato de exportação:")
+        st.markdown("### Selecione o formato de exportação:")
         
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("""
             <div class="card">
-                <h4>📄 CSV</h4>
+                <h4>CSV</h4>
                 <p style="color:#666;">Formato texto com separador vírgula</p>
                 <p style="color:#666;">Compatível com Excel, Google Sheets</p>
             </div>
@@ -1231,14 +1231,14 @@ with tab6:
                 f'<a href="data:file/csv;base64,{b64_csv}" download="dados_processados.csv">'
                 f'<button style="background: linear-gradient(135deg, #1a5632 0%, #2d8a4e 100%); '
                 f'color: white; border: none; padding: 0.6rem 2rem; border-radius: 25px; '
-                f'cursor: pointer; width: 100%;">📥 Baixar CSV</button></a>',
+                f'cursor: pointer; width: 100%;">Baixar CSV</button></a>',
                 unsafe_allow_html=True
             )
         
         with col2:
             st.markdown("""
             <div class="card">
-                <h4>📊 Excel</h4>
+                <h4>Excel</h4>
                 <p style="color:#666;">Formato nativo do Microsoft Excel</p>
                 <p style="color:#666;">Com múltiplas abas e formatação</p>
             </div>
@@ -1261,13 +1261,13 @@ with tab6:
                 f'download="dados_processados.xlsx">'
                 f'<button style="background: linear-gradient(135deg, #1a5632 0%, #2d8a4e 100%); '
                 f'color: white; border: none; padding: 0.6rem 2rem; border-radius: 25px; '
-                f'cursor: pointer; width: 100%;">📥 Baixar Excel</button></a>',
+                f'cursor: pointer; width: 100%;">Baixar Excel</button></a>',
                 unsafe_allow_html=True
             )
         
         # Resumo do processamento
         st.markdown("---")
-        st.markdown("### 📋 Resumo do Processamento")
+        st.markdown("### Resumo do Processamento")
         
         if 'df_original' in st.session_state:
             df_original = st.session_state['df_original']
@@ -1294,25 +1294,25 @@ with tab6:
             summary_df = pd.DataFrame(summary_data)
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
         
-        st.success("🎉 Seus dados estão prontos para uso!")
+        st.success("Seus dados estão prontos para uso!")
         
     else:
-        st.warning("⚠️ Faça o upload e processamento dos dados nas abas anteriores primeiro!")
+        st.warning("Faça o upload e processamento dos dados nas abas anteriores primeiro!")
 
 # ============================================================
 # ABA 7 - REFERÊNCIAS E MÉTODOS
 # ============================================================
 
 with tab7:
-    st.markdown('<p class="tab-header">📚 Referências e Métodos Científicos</p>', unsafe_allow_html=True)
+    st.markdown('<p class="tab-header">Referências e Métodos Científicos</p>', unsafe_allow_html=True)
     
     st.markdown("""
     <div class="card">
-        <h3>📖 Fundamentação Científica</h3>
+        <h3>Fundamentação Científica</h3>
         
         <p>Este aplicativo utiliza métodos estatísticos consolidados na literatura científica para análise de dados meteorológicos e agronômicos.</p>
         
-        <h4>🔬 Métodos Implementados</h4>
+        <h4>Métodos Implementados</h4>
         
         <h5>1. Tratamento de Dados Ausentes</h5>
         <ul>
@@ -1358,17 +1358,17 @@ with tab7:
         
         <p><strong>Classificação (Pimentel-Gomes, 2000):</strong></p>
         <ul>
-            <li>CV ≤ 10%: Baixo (alta precisão)</li>
-            <li>10% < CV ≤ 20%: Médio</li>
-            <li>20% < CV ≤ 30%: Alto</li>
-            <li>CV > 30%: Muito Alto (baixa precisão)</li>
+            <li>CV até 10%: Baixo (alta precisão)</li>
+            <li>10% a 20%: Médio</li>
+            <li>20% a 30%: Alto</li>
+            <li>CV acima de 30%: Muito Alto (baixa precisão)</li>
         </ul>
         
         <p><strong>Referência:</strong> Pimentel-Gomes, F. (2000). Curso de Estatística Experimental. 14ª ed. Piracicaba: ESALQ/USP.</p>
     </div>
     
     <div class="card">
-        <h4>📊 Estatísticas Descritivas</h4>
+        <h4>Estatísticas Descritivas</h4>
         <p>As estatísticas descritivas incluem:</p>
         <ul>
             <li><strong>Média (x̄):</strong> Soma dos valores dividida pelo número de observações</li>
@@ -1381,7 +1381,7 @@ with tab7:
     </div>
     
     <div class="card">
-        <h4>🎓 Créditos</h4>
+        <h4>Créditos</h4>
         <p><strong>Desenvolvido por:</strong> Equipe AgroDataLab</p>
         <p><strong>Versão:</strong> 1.0</p>
         <p><strong>Bibliotecas Utilizadas:</strong></p>
@@ -1399,7 +1399,7 @@ with tab7:
     </div>
     
     <div class="card">
-        <h4>📞 Contato e Suporte</h4>
+        <h4>Contato e Suporte</h4>
         <p>Para dúvidas, sugestões ou reportar bugs:</p>
         <ul>
             <li>Email: suporte@agrodatalab.com</li>
@@ -1415,8 +1415,8 @@ with tab7:
 
 st.markdown("""
 <div class="footer">
-    <p>🌱 AgroDataLab v1.0 | Desenvolvido com Streamlit e Python</p>
-    <p>Análise Inteligente de Dados Meteorológicos | © 2024</p>
+    <p>AgroDataLab v1.0 | Desenvolvido com Streamlit e Python</p>
+    <p>Análise Inteligente de Dados Meteorológicos | 2024</p>
 </div>
 """, unsafe_allow_html=True)
 

@@ -319,18 +319,14 @@ def calcular_estatisticas_completas(df, coluna):
     return resultado
 
 # ============================================================
-# FUNÇÕES DE GRÁFICOS (CORRIGIDAS)
+# FUNÇÕES DE GRÁFICOS (CORRIGIDAS - Versão Final)
 # ============================================================
 
 def garantir_dados_numericos(df, coluna):
-    """
-    Garante que os dados são numéricos antes de plotar
-    CORRIGIDO: Converte objetos para float64
-    """
+    """Garante que os dados são numéricos antes de plotar"""
     if coluna not in df.columns:
         return None
     
-    # Converter para numérico se necessário
     if df[coluna].dtype == 'object':
         dados = pd.to_numeric(df[coluna], errors='coerce').dropna()
     else:
@@ -341,106 +337,68 @@ def garantir_dados_numericos(df, coluna):
     
     return dados
 
-def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
-    try:
-        df = corrigir_nomes_duplicados(df)
-        df = df.loc[:, ~df.columns.duplicated()]
-        y_cols_validas = [c for c in y_cols if c in df.columns]
-        if not y_cols_validas:
-            return None
-        
-        # Garantir que colunas Y são numéricas
-        for col in y_cols_validas:
-            if df[col].dtype == 'object':
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-        
-        df_melted = pd.melt(df, id_vars=[x_col], value_vars=y_cols_validas,
-                           var_name='Variável', value_name='Valor')
-        df_melted = df_melted.dropna(subset=['Valor'])
-        
-        if len(df_melted) == 0:
-            return None
-        
-        chart = alt.Chart(df_melted).mark_line(strokeWidth=2).encode(
-            x=alt.X(f'{x_col}:T', title='Data'),
-            y=alt.Y('Valor:Q', title='Valor'),
-            color=alt.Color('Variável:N', legend=alt.Legend(orient='bottom')),
-            tooltip=[f'{x_col}:T', 'Variável:N', alt.Tooltip('Valor:Q', format='.2f')]
-        ).properties(title=titulo, height=400).interactive()
-        return chart
-    except Exception as e:
-        st.error(f"Erro no gráfico de linhas: {str(e)}")
-        return None
-
 def criar_histograma_aprimorado(df, coluna, bins=20):
-    """
-    Histograma CORRIGIDO:
-    - Garante dados numéricos
-    - Bins padrão reduzido para 20
-    - Usa Altair nativo (sem Plotly)
-    """
+    """Histograma com média e mediana - CORRIGIDO"""
     try:
-        # GARANTIR DADOS NUMÉRICOS
         dados = garantir_dados_numericos(df, coluna)
         if dados is None or len(dados) < 2:
             st.warning(f"⚠️ Dados insuficientes para histograma de {coluna}")
             return None
         
-        media_val = dados.mean()
-        mediana_val = dados.median()
+        media_val = float(dados.mean())
+        mediana_val = float(dados.median())
+        n_val = len(dados)
         
-        # Criar DataFrame apenas com a coluna numérica
         df_clean = pd.DataFrame({coluna: dados.values})
         
-        # Histograma com Altair
+        # Barras do histograma
         bars = alt.Chart(df_clean).mark_bar(opacity=0.7, color='#2d8a4e').encode(
             alt.X(f'{coluna}:Q', bin=alt.Bin(maxbins=bins), title=coluna),
             alt.Y('count()', title='Frequência')
         )
         
-        # Linha da média (vermelha tracejada)
+        # Linha da média
         rule_media = alt.Chart(pd.DataFrame({'x': [media_val]})).mark_rule(
             color='red', strokeWidth=2, strokeDash=[5, 5]
         ).encode(x='x:Q')
         
-        # Linha da mediana (azul pontilhada)
+        # Linha da mediana
         rule_mediana = alt.Chart(pd.DataFrame({'x': [mediana_val]})).mark_rule(
             color='blue', strokeWidth=2, strokeDash=[3, 3]
         ).encode(x='x:Q')
         
-        # Combinar camadas
+        # Combinar
         chart = (bars + rule_media + rule_mediana).properties(
-            title=f'Distribuição de {coluna} | Média: {media_val:.2f} | Mediana: {mediana_val:.2f} | n: {len(dados)}',
+            title=f'Distribuição de {coluna} | Média: {media_val:.2f} | Mediana: {mediana_val:.2f} | n: {n_val}',
             height=400
-        ).configure_axis(
-            labelFontSize=12,
-            titleFontSize=14
         )
         
         return chart
     
     except Exception as e:
         st.error(f"❌ Erro no histograma: {str(e)}")
-        st.code(traceback.format_exc())
         return None
 
 def criar_boxplot(df, coluna):
-    """
-    Boxplot CORRIGIDO:
-    - Garante dados numéricos
-    - Mostra outliers
-    """
+    """Boxplot com outliers - CORRIGIDO"""
     try:
-        # GARANTIR DADOS NUMÉRICOS
         dados = garantir_dados_numericos(df, coluna)
         if dados is None or len(dados) < 5:
             st.warning(f"⚠️ Dados insuficientes para boxplot de {coluna} (mínimo 5)")
             return None
         
-        # Criar DataFrame apenas com a coluna numérica
+        n_val = len(dados)
+        
+        # Calcular outliers
+        q1_val = float(dados.quantile(0.25))
+        q3_val = float(dados.quantile(0.75))
+        iqr_val = q3_val - q1_val
+        lim_inf = q1_val - 1.5 * iqr_val
+        lim_sup = q3_val + 1.5 * iqr_val
+        n_outliers = int(((dados < lim_inf) | (dados > lim_sup)).sum())
+        
         df_clean = pd.DataFrame({coluna: dados.values})
         
-        # Boxplot com Altair
         chart = alt.Chart(df_clean).mark_boxplot(
             extent='min-max',
             color='#2d8a4e',
@@ -448,27 +406,23 @@ def criar_boxplot(df, coluna):
         ).encode(
             y=alt.Y(f'{coluna}:Q', title=coluna, scale=alt.Scale(zero=False))
         ).properties(
-            title=f'Boxplot de {coluna} | n: {len(dados)} | Outliers: {(dados < dados.quantile(0.25) - 1.5*(dados.quantile(0.75)-dados.quantile(0.25))) | (dados > dados.quantile(0.75) + 1.5*(dados.quantile(0.75)-dados.quantile(0.25)))).sum()}',
+            title=f'Boxplot de {coluna} | n: {n_val} | Outliers: {n_outliers}',
             height=400
-        ).configure_axis(
-            labelFontSize=12,
-            titleFontSize=14
         )
         
         return chart
     
     except Exception as e:
         st.error(f"❌ Erro no boxplot: {str(e)}")
-        st.code(traceback.format_exc())
         return None
 
 def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
+    """Gráfico de barras"""
     try:
         df = corrigir_nomes_duplicados(df)
         if x_col not in df.columns or y_col not in df.columns:
             return None
         
-        # Garantir que Y é numérico
         if df[y_col].dtype == 'object':
             df[y_col] = pd.to_numeric(df[y_col], errors='coerce')
         
@@ -490,17 +444,8 @@ def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
         
         return chart
     except Exception as e:
-        st.error(f"Erro: {str(e)}")
+        st.error(f"Erro no gráfico de barras: {str(e)}")
         return None
-
-def detectar_outliers(dados):
-    q1 = np.percentile(dados, 25)
-    q3 = np.percentile(dados, 75)
-    iqr = q3 - q1
-    lim_inf = q1 - 1.5 * iqr
-    lim_sup = q3 + 1.5 * iqr
-    outliers = (dados < lim_inf) | (dados > lim_sup)
-    return outliers, lim_inf, lim_sup
 
 # ============================================================
 # MAPA DE FREQUÊNCIAS

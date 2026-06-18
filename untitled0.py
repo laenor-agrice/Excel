@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 7.0 - Detecção Robusta de Delimitador e Datas
+# Versão 8.0 - Correção Definitiva de Tipos de Dados
 # ============================================================
 
 import streamlit as st
@@ -78,6 +78,12 @@ st.markdown("""
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #1a5632, #2d8a4e); color: white;
     }
+    
+    .diagnostic-box {
+        background: #f5f5f5; border: 1px solid #ddd;
+        border-radius: 8px; padding: 1rem; margin: 1rem 0;
+        font-family: monospace; font-size: 0.85rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -108,20 +114,15 @@ def corrigir_nomes_duplicados(df):
     return df
 
 # ============================================================
-# FUNÇÃO: DETECTAR DELIMITADOR (NOVA - ROBUSTA)
+# FUNÇÃO: DETECTAR DELIMITADOR
 # ============================================================
 def detectar_delimitador(arquivo):
-    """
-    Detecta automaticamente o delimitador do CSV
-    Usa csv.Sniffer + fallback para delimitadores comuns
-    """
+    """Detecta automaticamente o delimitador do CSV"""
     try:
-        # Ler amostra para análise
         arquivo.seek(0)
         amostra_bytes = arquivo.read(8192)
         arquivo.seek(0)
         
-        # Tentar decodificar
         for encoding in ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']:
             try:
                 amostra = amostra_bytes.decode(encoding)
@@ -137,7 +138,6 @@ def detectar_delimitador(arquivo):
             dialecto = sniffer.sniff(amostra)
             delimitador = dialecto.delimiter
             
-            # Validar
             linhas = amostra.strip().split('\n')
             if len(linhas) >= 2:
                 c1 = linhas[0].count(delimitador)
@@ -147,7 +147,7 @@ def detectar_delimitador(arquivo):
         except:
             pass
         
-        # Método 2: Fallback - testar delimitadores comuns
+        # Método 2: Fallback
         delimitadores = [';', ',', '\t', '|']
         linhas = amostra.strip().split('\n')
         
@@ -158,7 +158,7 @@ def detectar_delimitador(arquivo):
                 if c1 == c2 and c1 > 0:
                     return sep
         
-        # Método 3: Qual delimitador aparece mais
+        # Método 3: Mais frequente
         melhor_sep = ','
         max_count = 0
         for sep in delimitadores:
@@ -172,34 +172,20 @@ def detectar_delimitador(arquivo):
     except:
         return ','
 
-
 # ============================================================
-# FUNÇÃO: CARREGAR DADOS (CORRIGIDA)
+# FUNÇÃO: CARREGAR DADOS
 # ============================================================
 def carregar_dados(arquivo):
-    """
-    Carrega CSV ou Excel com:
-    - Detecção automática de delimitador
-    - Detecção de encoding
-    - Tratamento de decimal (vírgula/ponto)
-    """
+    """Carrega CSV ou Excel com detecção automática"""
     try:
         if arquivo.name.endswith('.csv'):
-            
-            # Detectar delimitador
             separador = detectar_delimitador(arquivo)
             
-            # Tentar diferentes configurações
             configuracoes = [
-                # (encoding, decimal)
-                ('utf-8', ','),
-                ('utf-8', '.'),
-                ('latin1', ','),
-                ('latin1', '.'),
-                ('iso-8859-1', ','),
-                ('iso-8859-1', '.'),
-                ('cp1252', ','),
-                ('cp1252', '.'),
+                ('utf-8', ','), ('utf-8', '.'),
+                ('latin1', ','), ('latin1', '.'),
+                ('iso-8859-1', ','), ('iso-8859-1', '.'),
+                ('cp1252', ','), ('cp1252', '.'),
             ]
             
             for encoding, decimal in configuracoes:
@@ -215,162 +201,140 @@ def carregar_dados(arquivo):
                         engine='python'
                     )
                     
-                    # Verificar se leu corretamente (mais de 1 coluna)
                     if df.shape[1] > 1:
-                        # Verificar se colunas numéricas foram lidas
-                        num_cols = df.select_dtypes(include=[np.number]).columns
-                        obj_cols = df.select_dtypes(include=['object']).columns
-                        
-                        # Se tem colunas numéricas, ótimo
-                        if len(num_cols) > 0:
-                            return corrigir_nomes_duplicados(df)
-                        
-                        # Se todas são objeto, pode ser que o decimal esteja errado
-                        # Tentar converter vírgula para ponto nas colunas objeto
-                        if len(obj_cols) > 0 and len(num_cols) == 0:
-                            # Verificar se parece número com vírgula
-                            for col in obj_cols[:3]:  # testar primeiras 3 colunas
-                                amostra = df[col].dropna().head(5).astype(str)
-                                if amostra.str.contains(',').any():
-                                    # Provavelmente é número com vírgula decimal
-                                    arquivo.seek(0)
-                                    df = pd.read_csv(
-                                        arquivo,
-                                        sep=separador,
-                                        encoding=encoding,
-                                        decimal=',',
-                                        thousands='.',
-                                        on_bad_lines='skip',
-                                        engine='python'
-                                    )
-                                    return corrigir_nomes_duplicados(df)
-                        
                         return corrigir_nomes_duplicados(df)
                 
-                except Exception as e:
+                except:
                     continue
             
-            # Última tentativa: deixar pandas decidir tudo
+            # Última tentativa
             arquivo.seek(0)
-            df = pd.read_csv(
-                arquivo,
-                sep=separador,
-                encoding='utf-8',
-                on_bad_lines='skip',
-                engine='python'
-            )
+            df = pd.read_csv(arquivo, sep=separador, encoding='utf-8', on_bad_lines='skip', engine='python')
             return corrigir_nomes_duplicados(df)
         
         else:
-            # Excel
             df = pd.read_excel(arquivo)
             return corrigir_nomes_duplicados(df)
     
     except Exception as e:
-        st.error(f"❌ Erro ao carregar arquivo:")
-        st.code(f"{type(e).__name__}: {str(e)}")
-        st.code(traceback.format_exc())
+        st.error(f"❌ Erro ao carregar arquivo: {str(e)}")
         return None
 
 # ============================================================
-# FUNÇÃO PRINCIPAL: PROCESSAR DADOS COM DETECÇÃO INTELIGENTE
+# FUNÇÃO PRINCIPAL: PROCESSAR DADOS (TOTALMENTE CORRIGIDA)
 # ============================================================
 def processar_dados(df):
     """
-    Processa dados automaticamente
-    DETECÇÃO INTELIGENTE DE DATAS: analisa nome E conteúdo
+    Processa dados automaticamente.
+    CORREÇÃO: Apenas colunas com NOME de data são convertidas para datetime.
+    Colunas numéricas NUNCA são convertidas para datetime.
     """
     df = df.copy()
     date_cols = []
 
-    # Padrões de nome de coluna (EXPANDIDO)
-    padroes_data = [
+    # ============================================================
+    # ETAPA 1: IDENTIFICAR COLUNAS DE DATA (APENAS POR NOME)
+    # ============================================================
+    # Palavras-chave que indicam coluna de data
+    palavras_data = [
         'data', 'hora', 'date', 'time',
-        'ano', 'mes', 'mês', 'dia',
-        'timestamp', 'datetime',
-        'datahora', 'data_coleta',
-        'month', 'year', 'day',
-        'período', 'periodo', 'safra',
-        'tempo', 'juliano'
+        'timestamp', 'datetime', 'datahora',
+        'data_coleta', 'dt_', '_dt'
     ]
-
-    # ============================================================
-    # ETAPA 1: DETECÇÃO DE DATAS (NOME + CONTEÚDO)
-    # ============================================================
+    
     for col in df.columns:
         col_lower = str(col).lower().replace(" ", "_")
-        eh_data = False
-
-        # Critério 1: Nome da coluna contém padrão de data
-        if any(p in col_lower for p in padroes_data):
-            eh_data = True
         
-        # Critério 2: Análise do conteúdo da coluna
-        else:
-            amostra = df[col].dropna().head(20)
-            
-            if len(amostra) > 0:
-                try:
-                    # Tentar converter para datetime
-                    teste = pd.to_datetime(
-                        amostra,
-                        errors="coerce",
-                        dayfirst=True  # Formato brasileiro: dd/mm/aaaa
-                    )
-                    
-                    taxa_sucesso = teste.notna().mean()
-                    
-                    # Se 70% ou mais converteram, é data
-                    if taxa_sucesso >= 0.70:
-                        eh_data = True
-                except:
-                    pass
-        
-        # Se identificou como data, converter
-        if eh_data:
+        # Verificar se o nome da coluna contém palavra de data
+        if any(p in col_lower for p in palavras_data):
             try:
+                # Tentar converter APENAS esta coluna para datetime
                 df[col] = pd.to_datetime(
                     df[col],
-                    errors="coerce",
-                    dayfirst=True
+                    format='mixed',  # Aceita múltiplos formatos
+                    dayfirst=True,   # dd/mm/aaaa
+                    errors='coerce'
                 )
                 
-                # Só adiciona se realmente converteu algo
+                # Só adiciona se converteu algo
                 if df[col].notna().sum() > 0:
                     date_cols.append(col)
+                    # Garantir que é datetime64
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
             except:
                 pass
-
+    
     # ============================================================
-    # ETAPA 2: CONVERSÃO NUMÉRICA (PRESERVANDO CATEGÓRICAS)
+    # ETAPA 2: CONVERTER COLUNAS NUMÉRICAS (NUNCA DATAS)
     # ============================================================
     for col in df.columns:
-        if col not in date_cols:
-            if df[col].dtype == "object":
-                # Testar se é realmente numérica
-                amostra = (
+        # PULAR colunas que já são data
+        if col in date_cols:
+            continue
+        
+        # Se é objeto (string), tentar converter para número
+        if df[col].dtype == "object":
+            # Testar se parece número (vírgula como decimal)
+            amostra = (
+                df[col]
+                .dropna()
+                .astype(str)
+                .str.replace(",", ".")
+                .head(20)
+            )
+            
+            try:
+                # Tentar converter amostra para número
+                pd.to_numeric(amostra)
+                
+                # Se converteu, converter toda a coluna
+                df[col] = (
                     df[col]
-                    .dropna()
                     .astype(str)
                     .str.replace(",", ".")
-                    .head(20)
                 )
+                df[col] = pd.to_numeric(df[col], errors="coerce")
                 
-                try:
-                    pd.to_numeric(amostra)
-                    # É numérica, converter
-                    df[col] = (
-                        df[col]
-                        .astype(str)
-                        .str.replace(",", ".")
-                    )
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-                except:
-                    # Não é numérica, manter como categórica
-                    pass
-            elif df[col].dtype in ['int64', 'float64']:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-
+            except (ValueError, TypeError):
+                # Não é numérica, manter como está (categórica)
+                pass
+        
+        # Se já é int64 ou float64, garantir
+        elif df[col].dtype in ['int64', 'float64']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    # ============================================================
+    # ETAPA 3: TENTAR CRIAR DATETIME COMPOSTO (Data + Hora)
+    # ============================================================
+    # Verificar se existe coluna "Data" e "Hora" separadas
+    colunas_data = [c for c in date_cols if 'data' in c.lower() and 'hora' not in c.lower()]
+    colunas_hora = [c for c in df.columns if 'hora' in c.lower()]
+    
+    if colunas_data and colunas_hora:
+        col_data = colunas_data[0]
+        col_hora = colunas_hora[0]
+        
+        try:
+            # Garantir que Hora é string com 4 dígitos
+            if df[col_hora].dtype in ['int64', 'float64']:
+                df[col_hora] = df[col_hora].fillna(0).astype(int).astype(str).str.zfill(4)
+            else:
+                df[col_hora] = df[col_hora].astype(str).str.zfill(4)
+            
+            # Criar datetime combinado
+            df['Datetime'] = pd.to_datetime(
+                df[col_data].dt.strftime('%d/%m/%Y') + ' ' + df[col_hora],
+                format='%d/%m/%Y %H%M',
+                errors='coerce'
+            )
+            
+            # Adicionar Datetime como coluna de data principal
+            if 'Datetime' not in date_cols:
+                date_cols.append('Datetime')
+        
+        except:
+            pass
+    
     return df, date_cols
 
 # ============================================================
@@ -474,7 +438,6 @@ def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
         return chart
     except Exception as e:
         st.error(f"Erro no gráfico: {str(e)}")
-        st.code(traceback.format_exc())
         return None
 
 def criar_histograma(df, coluna, bins=30):
@@ -498,7 +461,6 @@ def criar_histograma(df, coluna, bins=30):
         return chart
     except Exception as e:
         st.error(f"Erro: {str(e)}")
-        st.code(traceback.format_exc())
         return None
 
 def criar_boxplot(df, coluna):
@@ -520,7 +482,6 @@ def criar_boxplot(df, coluna):
         return chart
     except Exception as e:
         st.error(f"Erro: {str(e)}")
-        st.code(traceback.format_exc())
         return None
 
 # ============================================================
@@ -530,7 +491,7 @@ st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
     <p>Sistema Inteligente de Análise de Dados Meteorológicos</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v7.0 - Detecção Robusta de CSV e Datas</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v8.0 - Correção Definitiva de Tipos</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -566,7 +527,7 @@ with st.sidebar:
         st.info("📤 Sem dados")
     
     st.markdown("---")
-    st.caption("AgroDataLab v7.0 | MIT License")
+    st.caption("AgroDataLab v8.0 | MIT License")
 
 # ============================================================
 # ABAS
@@ -600,15 +561,10 @@ with aba1:
                     ⚠️ **Arquivo lido como UMA ÚNICA coluna!**
                     
                     O delimitador não foi identificado corretamente.
-                    
-                    **Solução:**
-                    1. Abra o arquivo no Excel
-                    2. Salve como CSV (separado por vírgulas ou ponto-e-vírgula)
-                    3. Faça upload novamente
                     """)
                     st.stop()
                 
-                # Processar com detecção inteligente de datas
+                # Processar dados (NOVA VERSÃO CORRIGIDA)
                 df, date_cols = processar_dados(df)
                 
                 # Garantir nomes únicos
@@ -626,17 +582,20 @@ with aba1:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # DIAGNÓSTICO DE DATAS
-                if date_cols:
-                    st.success(f"📅 **{len(date_cols)}** colunas de data detectadas:")
-                    for dc in date_cols:
-                        st.caption(f"• {dc} ({df[dc].dtype})")
-                else:
-                    st.warning("""
-                    ⚠️ **Nenhuma coluna de data foi detectada.**
+                # DIAGNÓSTICO DE TIPOS (IMPORTANTE!)
+                with st.expander("🔍 Diagnóstico de Tipos de Dados"):
+                    tipos_df = pd.DataFrame({
+                        'Coluna': df.columns,
+                        'Tipo': df.dtypes.values.astype(str)
+                    })
+                    st.dataframe(tipos_df, use_container_width=True)
                     
-                    Os gráficos temporais ficarão indisponíveis.
-                    """)
+                    # Verificar se há colunas numéricas
+                    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+                    if num_cols:
+                        st.success(f"✅ {len(num_cols)} colunas numéricas: {', '.join(num_cols[:5])}...")
+                    else:
+                        st.error("❌ NENHUMA coluna numérica encontrada! Verifique a leitura do arquivo.")
                 
                 # Métricas
                 col1, col2, col3, col4 = st.columns(4)
@@ -644,7 +603,6 @@ with aba1:
                 col2.metric("📊 Colunas", len(df.columns))
                 
                 num_cols = len(df.select_dtypes(include=[np.number]).columns)
-                cat_cols = len(df.select_dtypes(include=['object']).columns)
                 col3.metric("🔢 Numéricas", num_cols)
                 col4.metric("📅 Datas", len(date_cols))
                 
@@ -652,37 +610,6 @@ with aba1:
                 st.markdown("---")
                 st.subheader("👀 Preview dos Dados")
                 st.dataframe(df.head(15), use_container_width=True)
-                
-                # Info das colunas
-                with st.expander("🔍 Detalhes das Colunas"):
-                    info = pd.DataFrame({
-                        'Coluna': df.columns,
-                        'Tipo': df.dtypes.values.astype(str),
-                        'Não Nulos': df.count().values,
-                        'Nulos': df.isnull().sum().values,
-                        'Únicos': df.nunique().values
-                    })
-                    st.dataframe(info, use_container_width=True)
-            else:
-                st.error("❌ Não foi possível carregar o arquivo. Verifique o formato.")
-    else:
-        st.markdown("""
-        <div class="info-box">
-            <h4>📤 Instruções:</h4>
-            <ol>
-                <li>Clique em <strong>"Browse files"</strong></li>
-                <li>Selecione um arquivo <strong>CSV</strong> ou <strong>Excel</strong></li>
-                <li>O sistema detecta automaticamente:
-                    <ul>
-                        <li>Delimitador ( ; , tab | )</li>
-                        <li>Encoding (UTF-8, Latin1, etc.)</li>
-                        <li>Decimal (vírgula ou ponto)</li>
-                        <li>Colunas de data (nome e conteúdo)</li>
-                    </ul>
-                </li>
-            </ol>
-        </div>
-        """, unsafe_allow_html=True)
 
 # ============================================================
 # ABA 2: TRATAMENTO
@@ -778,6 +705,8 @@ with aba2:
                     col_b.metric("Lim. Sup.", f"{ls:.3f}")
                 else:
                     st.success(f"✅ Nenhum outlier em {col_out}")
+        else:
+            st.warning("⚠️ Nenhuma coluna numérica encontrada para análise de outliers.")
 
 # ============================================================
 # ABA 3: ESTATÍSTICAS
@@ -794,7 +723,7 @@ with aba3:
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
         
         if not colunas_num:
-            st.warning("⚠️ Nenhuma variável numérica")
+            st.warning("⚠️ Nenhuma variável numérica encontrada.")
         else:
             col_analise = st.selectbox("Variável:", colunas_num, key="stat_col")
             
@@ -833,7 +762,7 @@ with aba3:
                             use_container_width=True
                         )
                 
-                # Série temporal (SÓ SE HOUVER DATAS)
+                # Série temporal
                 date_cols = st.session_state.get('date_columns', [])
                 
                 if date_cols:
@@ -843,7 +772,8 @@ with aba3:
                     col_data = st.selectbox("Data:", date_cols, key="dt_s")
                     
                     df_plot = df[[col_data, col_analise]].dropna().copy()
-                    df_plot[col_data] = pd.to_datetime(df_plot[col_data], errors='coerce')
+                    if df_plot[col_data].dtype != 'datetime64[ns]':
+                        df_plot[col_data] = pd.to_datetime(df_plot[col_data], errors='coerce')
                     df_plot = df_plot.dropna()
                     
                     if len(df_plot) > 0:
@@ -883,7 +813,8 @@ with aba4:
                     
                     if col_y:
                         df_plot = df[[col_x] + col_y].dropna().copy()
-                        df_plot[col_x] = pd.to_datetime(df_plot[col_x], errors='coerce')
+                        if df_plot[col_x].dtype != 'datetime64[ns]':
+                            df_plot[col_x] = pd.to_datetime(df_plot[col_x], errors='coerce')
                         df_plot = df_plot.dropna()
                         
                         if len(df_plot) > 0:
@@ -950,8 +881,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v7.0</h4>
-    <p>Detecção Robusta de CSV | Análise Inteligente de Datas</p>
+    <h4>🌱 AgroDataLab v8.0</h4>
+    <p>Correção Definitiva de Tipos | Análise Meteorológica Completa</p>
     <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

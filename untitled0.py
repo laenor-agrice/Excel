@@ -102,7 +102,327 @@ if 'df_mensal' not in st.session_state:
     st.session_state['df_mensal'] = None
 if 'date_columns' not in st.session_state:
     st.session_state['date_columns'] = []
+# ============================================================
+# FUNÇÕES AUXILIARES (DEVEM ESTAR ANTES DAS ABAS)
+# ============================================================
 
+def corrigir_nomes_duplicados(df):
+    """Renomeia colunas duplicadas"""
+    cols = pd.Series(df.columns)
+    for nome in cols[cols.duplicated()].unique():
+        idx = cols[cols == nome].index.tolist()
+        for i, pos in enumerate(idx):
+            if i > 0:
+                cols[pos] = f"{nome}_{i}"
+    df.columns = cols
+    return df
+
+def detectar_delimitador(arquivo):
+    """Detecta delimitador do CSV"""
+    try:
+        arquivo.seek(0)
+        amostra_bytes = arquivo.read(8192)
+        arquivo.seek(0)
+        for enc in ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']:
+            try:
+                amostra = amostra_bytes.decode(enc)
+                break
+            except:
+                continue
+        else:
+            amostra = amostra_bytes.decode('utf-8', errors='ignore')
+        try:
+            sniffer = csv.Sniffer()
+            dialecto = sniffer.sniff(amostra)
+            delim = dialecto.delimiter
+            linhas = amostra.strip().split('\n')
+            if len(linhas) >= 2:
+                if linhas[0].count(delim) == linhas[1].count(delim) > 0:
+                    return delim
+        except:
+            pass
+        for sep in [';', ',', '\t', '|']:
+            linhas = amostra.strip().split('\n')
+            if len(linhas) >= 2:
+                if linhas[0].count(sep) == linhas[1].count(sep) > 0:
+                    return sep
+        return ';' if amostra.count(';') > amostra.count(',') else ','
+    except:
+        return ','
+
+def carregar_dados(arquivo):
+    """Carrega CSV ou Excel"""
+    try:
+        if arquivo.name.endswith('.csv'):
+            sep = detectar_delimitador(arquivo)
+            for enc, dec in [('utf-8',','),('utf-8','.'),('latin1',','),('latin1','.'),
+                            ('iso-8859-1',','),('iso-8859-1','.'),('cp1252',','),('cp1252','.')]:
+                try:
+                    arquivo.seek(0)
+                    df = pd.read_csv(arquivo, sep=sep, encoding=enc, decimal=dec,
+                                   thousands='.', on_bad_lines='skip', engine='python')
+                    if df.shape[1] > 1:
+                        return corrigir_nomes_duplicados(df)
+                except:
+                    continue
+            arquivo.seek(0)
+            df = pd.read_csv(arquivo, sep=sep, encoding='utf-8', on_bad_lines='skip', engine='python')
+            return corrigir_nomes_duplicados(df)
+        else:
+            return corrigir_nomes_duplicados(pd.read_excel(arquivo))
+    except Exception as e:
+        st.error(f"Erro: {str(e)}")
+        return None
+
+def processar_dados(df):
+    """Processa dados"""
+    df = df.copy()
+    date_cols = []
+    palavras_data = ['data', 'hora', 'date', 'time', 'timestamp', 'datetime', 'datahora']
+    
+    for col in df.columns:
+        if any(p in str(col).lower().replace(" ","_") for p in palavras_data):
+            try:
+                df[col] = pd.to_datetime(df[col], format='mixed', dayfirst=True, errors='coerce')
+                if df[col].notna().sum() > 0:
+                    date_cols.append(col)
+            except:
+                pass
+    
+    for col in df.columns:
+        if col in date_cols:
+            continue
+        if df[col].dtype == "object":
+            amostra = df[col].dropna().astype(str).str.replace(",", ".").head(20)
+            try:
+                pd.to_numeric(amostra)
+                df[col] = df[col].astype(str).str.replace(",", ".")
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            except:
+                pass
+        elif df[col].dtype in ['int64', 'float64']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    return df, date_cols
+
+def preencher_ausentes(df, metodo='media'):
+    """Preenche valores ausentes"""
+    df = df.copy()
+    cols_num = df.select_dtypes(include=[np.number]).columns
+    if metodo == 'media':
+        df[cols_num] = df[cols_num].fillna(df[cols_num].mean())
+    elif metodo == 'mediana':
+        df[cols_num] = df[cols_num].fillna(df[cols_num].median())
+    elif metodo == 'interpolar':
+        df[cols_num] = df[cols_num].interpolate(method='linear', limit_direction='both')
+    return df
+
+def obter_df_limpo():
+    """Obtém DataFrame processado"""
+    if st.session_state['df_processed'] is None:
+        return None
+    df = st.session_state['df_processed'].copy()
+    df = corrigir_nomes_duplicados(df)
+    df = df.loc[:, ~df.columns.duplicated()]
+    return df
+
+def detectar_outliers(dados):
+    """Detecta outliers pelo método IQR - ESTA FUNÇÃO DEVE EXISTIR!"""
+    q1 = np.percentile(dados, 25)
+    q3 = np.percentile(dados, 75)
+    iqr = q3 - q1
+    lim_inf = q1 - 1.5 * iqr
+    lim_sup = q3 + 1.5 * iqr
+    outliers = (dados < lim_inf) | (dados > lim_sup)
+    return outliers, lim_inf, lim_sup
+
+def garantir_dados_numericos(df, coluna):
+    """Garante dados numéricos para gráficos"""
+    if coluna not in df.columns:
+        return None
+    if df[coluna].dtype == 'object':
+        dados = pd.to_numeric(df[coluna], errors='coerce').dropna()
+    else:
+        dados = df[coluna].dropna()
+    if len(dados) < 2:
+        return None
+    return dados
+
+def criar_agregacao_temporal(df, coluna_data, freq):
+    """Cria agregação temporal"""
+    df_temp = df.copy()
+    df_temp[coluna_data] = pd.to_datetime(df_temp[coluna_data], errors='coerce')
+    df_temp = df_temp.dropna(subset=[coluna_data])
+    if len(df_temp) == 0:
+        return None
+    df_temp = df_temp.set_index(coluna_data)
+    colunas_num = df_temp.select_dtypes(include=[np.number]).columns
+    if len(colunas_num) == 0:
+        return None
+    try:
+        df_agg = df_temp[colunas_num].resample(freq).mean().round(2)
+    except:
+        return None
+    if freq in ['ME', 'M', 'MS']:
+        df_agg.index = df_agg.index.strftime('%b/%Y')
+    elif freq in ['YE', 'Y', 'YS']:
+        df_agg.index = df_agg.index.strftime('%Y')
+    return df_agg.reset_index()
+
+def calcular_estatisticas_completas(df, coluna):
+    """Calcula estatísticas completas"""
+    dados = df[coluna].dropna()
+    if len(dados) < 3:
+        st.warning(f"Poucos dados para {coluna}")
+        return None
+    
+    n = len(dados)
+    media = np.mean(dados)
+    mediana = np.median(dados)
+    desvio = np.std(dados, ddof=1)
+    variancia = np.var(dados, ddof=1)
+    minimo = np.min(dados)
+    maximo = np.max(dados)
+    amplitude = maximo - minimo
+    q1 = np.percentile(dados, 25)
+    q3 = np.percentile(dados, 75)
+    iqr = q3 - q1
+    cv = (desvio / media * 100) if media != 0 else 0
+    assimetria = dados.skew()
+    curtose = dados.kurtosis()
+    
+    cv_class = "Baixo 🟢" if cv <= 10 else "Médio 🟡" if cv <= 20 else "Alto 🟠" if cv <= 30 else "Muito Alto 🔴"
+    
+    resultado = {
+        'N': n, 'Média': round(media, 4), 'Mediana': round(mediana, 4),
+        'Desvio Padrão': round(desvio, 4), 'Variância': round(variancia, 4),
+        'Mínimo': round(minimo, 4), 'Máximo': round(maximo, 4),
+        'Amplitude': round(amplitude, 4), 'Q1': round(q1, 4),
+        'Q3': round(q3, 4), 'IQR': round(iqr, 4),
+        'CV (%)': round(cv, 2), 'Classificação CV': cv_class,
+        'Assimetria': round(assimetria, 4), 'Curtose': round(curtose, 4),
+    }
+    
+    if SCIPY_DISPONIVEL and 3 <= n <= 5000:
+        try:
+            stat_sw, p_sw = scipy_stats.shapiro(dados)
+            resultado['Shapiro-Wilk p'] = round(p_sw, 4)
+            resultado['Normal?'] = "Sim ✅" if p_sw > 0.05 else "Não ❌"
+        except:
+            resultado['Normal?'] = 'Erro'
+    else:
+        resultado['Normal?'] = 'N/A'
+    
+    return resultado
+
+def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
+    """Gráfico de linhas"""
+    try:
+        df = corrigir_nomes_duplicados(df)
+        df = df.loc[:, ~df.columns.duplicated()]
+        y_cols_validas = [c for c in y_cols if c in df.columns]
+        if not y_cols_validas:
+            return None
+        for col in y_cols_validas:
+            if df[col].dtype == 'object':
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        df_melted = pd.melt(df, id_vars=[x_col], value_vars=y_cols_validas,
+                           var_name='Variável', value_name='Valor')
+        df_melted = df_melted.dropna(subset=['Valor'])
+        if len(df_melted) == 0:
+            return None
+        chart = alt.Chart(df_melted).mark_line(strokeWidth=2).encode(
+            x=alt.X(f'{x_col}:T', title='Data'),
+            y=alt.Y('Valor:Q', title='Valor'),
+            color=alt.Color('Variável:N', legend=alt.Legend(orient='bottom')),
+            tooltip=[f'{x_col}:T', 'Variável:N', alt.Tooltip('Valor:Q', format='.2f')]
+        ).properties(title=titulo, height=400).interactive()
+        return chart
+    except Exception as e:
+        st.error(f"Erro: {str(e)}")
+        return None
+
+def criar_histograma_aprimorado(df, coluna, bins=20):
+    """Histograma com média e mediana"""
+    try:
+        dados = garantir_dados_numericos(df, coluna)
+        if dados is None:
+            return None
+        
+        media_val = float(dados.mean())
+        mediana_val = float(dados.median())
+        
+        df_clean = pd.DataFrame({coluna: dados.values})
+        
+        bars = alt.Chart(df_clean).mark_bar(opacity=0.7, color='#2d8a4e').encode(
+            alt.X(f'{coluna}:Q', bin=alt.Bin(maxbins=bins), title=coluna),
+            alt.Y('count()', title='Frequência')
+        )
+        
+        rule_media = alt.Chart(pd.DataFrame({'x': [media_val]})).mark_rule(
+            color='red', strokeWidth=2, strokeDash=[5, 5]
+        ).encode(x='x:Q')
+        
+        rule_mediana = alt.Chart(pd.DataFrame({'x': [mediana_val]})).mark_rule(
+            color='blue', strokeWidth=2, strokeDash=[3, 3]
+        ).encode(x='x:Q')
+        
+        chart = (bars + rule_media + rule_mediana).properties(
+            title=f'{coluna} | Média: {media_val:.2f} | Mediana: {mediana_val:.2f} | n: {len(dados)}',
+            height=400
+        )
+        return chart
+    except Exception as e:
+        st.error(f"Erro: {str(e)}")
+        return None
+
+def criar_boxplot(df, coluna):
+    """Boxplot"""
+    try:
+        dados = garantir_dados_numericos(df, coluna)
+        if dados is None or len(dados) < 5:
+            return None
+        
+        q1_val = float(dados.quantile(0.25))
+        q3_val = float(dados.quantile(0.75))
+        iqr_val = q3_val - q1_val
+        n_out = int(((dados < q1_val - 1.5*iqr_val) | (dados > q3_val + 1.5*iqr_val)).sum())
+        
+        df_clean = pd.DataFrame({coluna: dados.values})
+        
+        chart = alt.Chart(df_clean).mark_boxplot(extent='min-max', color='#2d8a4e').encode(
+            y=alt.Y(f'{coluna}:Q', title=coluna, scale=alt.Scale(zero=False))
+        ).properties(
+            title=f'{coluna} | n: {len(dados)} | Outliers: {n_out}',
+            height=400
+        )
+        return chart
+    except Exception as e:
+        st.error(f"Erro: {str(e)}")
+        return None
+
+def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
+    """Gráfico de barras"""
+    try:
+        df = corrigir_nomes_duplicados(df)
+        if x_col not in df.columns or y_col not in df.columns:
+            return None
+        if df[y_col].dtype == 'object':
+            df[y_col] = pd.to_numeric(df[y_col], errors='coerce')
+        df_clean = df[[x_col, y_col]].dropna()
+        if len(df_clean) < 1:
+            return None
+        if pd.api.types.is_datetime64_any_dtype(df_clean[x_col]):
+            df_clean[x_col] = df_clean[x_col].dt.strftime('%b/%Y')
+        chart = alt.Chart(df_clean).mark_bar(opacity=0.85, color='#2d8a4e').encode(
+            x=alt.X(f'{x_col}:O', title=x_col, axis=alt.Axis(labelAngle=-45)),
+            y=alt.Y(f'{y_col}:Q', title=y_col),
+            tooltip=[x_col, alt.Tooltip(y_col, format='.2f')]
+        ).properties(title=titulo, height=400)
+        return chart
+    except Exception as e:
+        st.error(f"Erro: {str(e)}")
+        return None
 # ============================================================
 # FUNÇÕES BÁSICAS
 # ============================================================

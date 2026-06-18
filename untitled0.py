@@ -1,1104 +1,1434 @@
-# ==============================================================================
-# IMPORTAÇÕES E CONFIGURAÇÕES INICIAIS
-# ==============================================================================
+# ============================================================
+# NOME DO APLICATIVO: AgroDataLab - Análise de Dados Meteorológicos
+# DESENVOLVIDO PARA: Tratamento de dados INMET e análise estatística
+# ============================================================
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+from datetime import datetime, timedelta
+import altair as alt
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
-from datetime import datetime, timedelta
-import base64
 import io
+import base64
+import google.generativeai as genai
+from scipy.stats import pearsonr, spearmanr, f_oneway, levene
 import warnings
 warnings.filterwarnings('ignore')
 
-# Configuração da página
+# ============================================================
+# CONFIGURAÇÃO DA PÁGINA E ESTILO
+# ============================================================
 st.set_page_config(
-    page_title="AgroAnalytics Pro",
-    page_icon="🌿",
+    page_title="AgroDataLab",
+    page_icon="🌱",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ==============================================================================
-# CSS PERSONALIZADO - DESIGN MINIMALISTA MODERNO
-# ==============================================================================
-def load_css():
-    st.markdown("""
-    <style>
-    /* Cores principais */
-    :root {
-        --primary: #2E7D32;
-        --secondary: #1976D2;
-        --accent: #FF8F00;
-        --bg-light: #F5F7F2;
-        --text-dark: #2C3E50;
-        --card-bg: #FFFFFF;
-        --border: #E0E6ED;
+# ============================================================
+# CSS CUSTOMIZADO - DESIGN MINIMALISTA INSPIRADO NO MAPBIOMAS
+# ============================================================
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
     }
     
-    /* Estilo geral */
-    .stApp {
-        background-color: var(--bg-light);
+    .main-header {
+        background: linear-gradient(135deg, #1a5632 0%, #2d8a4e 50%, #4caf50 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        margin-bottom: 2rem;
+        color: white;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     }
     
-    /* Cards modernos */
-    .custom-card {
-        background: var(--card-bg);
+    .card {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        margin: 1rem 0;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .metric-card {
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        padding: 1.5rem;
         border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        border: 1px solid var(--border);
-        margin: 10px 0;
-        transition: transform 0.2s;
+        border-left: 4px solid #2d8a4e;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin: 0.5rem 0;
     }
     
-    .custom-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-    }
-    
-    /* Títulos elegantes */
-    .main-title {
-        color: var(--primary);
-        font-size: 2.5em;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.05);
-    }
-    
-    .subtitle {
-        color: var(--text-dark);
-        font-size: 1.2em;
-        font-weight: 400;
-        opacity: 0.8;
-    }
-    
-    /* Métricas */
-    .metric-box {
-        background: var(--card-bg);
-        border-left: 4px solid var(--primary);
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    
-    /* Botões personalizados */
     .stButton > button {
-        background-color: var(--primary) !important;
-        color: white !important;
-        border-radius: 8px !important;
-        border: none !important;
-        padding: 8px 20px !important;
-        transition: all 0.3s;
+        background: linear-gradient(135deg, #1a5632 0%, #2d8a4e 100%);
+        color: white;
+        border: none;
+        padding: 0.6rem 2rem;
+        border-radius: 25px;
         font-weight: 500;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(26,86,50,0.2);
     }
     
     .stButton > button:hover {
-        background-color: #1B5E20 !important;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.15);
-        transform: translateY(-1px);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(26,86,50,0.3);
+        background: linear-gradient(135deg, #2d8a4e 0%, #1a5632 100%);
     }
     
-    /* Tabs estilizadas */
+    .tab-header {
+        color: #1a5632;
+        font-weight: 600;
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+    }
+    
+    .success-message {
+        background: #e8f5e9;
+        padding: 1rem;
+        border-radius: 10px;
+        border-left: 4px solid #4caf50;
+        margin: 1rem 0;
+    }
+    
+    .warning-message {
+        background: #fff3e0;
+        padding: 1rem;
+        border-radius: 10px;
+        border-left: 4px solid #ff9800;
+        margin: 1rem 0;
+    }
+    
+    .footer {
+        text-align: center;
+        padding: 2rem;
+        color: #666;
+        font-size: 0.9rem;
+        border-top: 1px solid #eee;
+        margin-top: 3rem;
+    }
+    
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: transparent;
+        gap: 2rem;
+        background: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 10px;
     }
     
     .stTabs [data-baseweb="tab"] {
-        background-color: var(--card-bg);
-        border-radius: 8px 8px 0 0;
-        padding: 10px 20px;
-        border: 1px solid var(--border);
-        color: var(--text-dark);
+        height: 50px;
+        white-space: pre-wrap;
+        background: white;
+        border-radius: 8px;
+        color: #1a5632;
+        font-weight: 500;
+        padding: 0.5rem 1.5rem;
+        transition: all 0.3s ease;
     }
     
     .stTabs [aria-selected="true"] {
-        background-color: var(--primary);
+        background: linear-gradient(135deg, #1a5632 0%, #2d8a4e 100%);
         color: white;
-        border-color: var(--primary);
     }
-    
-    /* Inputs */
-    .stSelectbox label, .stMultiselect label {
-        color: var(--text-dark);
-        font-weight: 500;
-    }
-    
-    /* DataFrames */
-    [data-testid="stDataFrame"] {
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    
-    /* Mensagens de sucesso */
-    .stSuccess {
-        background-color: #E8F5E9 !important;
-        border-left: 4px solid #4CAF50 !important;
-        border-radius: 8px !important;
-    }
-    
-    /* Responsividade */
-    @media (max-width: 768px) {
-        .main-title {
-            font-size: 2em;
-        }
-    }
-    </style>
-    """, unsafe_allow_html=True)
+</style>
+""", unsafe_allow_html=True)
 
-load_css()
-
-# ==============================================================================
+# ============================================================
 # FUNÇÕES AUXILIARES
-# ==============================================================================
+# ============================================================
 
-# Função para processar arquivos INMET
-def process_inmet_file(df):
-    """Processa e padroniza arquivos do INMET"""
+def process_inmet_data(df):
+    """
+    Processa dados no formato INMET
+    """
     try:
-        # Identificar colunas comuns do INMET
-        df.columns = df.columns.str.strip()
-        
-        # Renomear colunas padrão se existirem
-        column_mapping = {
-            'Data': 'Data',
-            'Hora': 'Hora',
-            'PRECIPITAÇÃO TOTAL, HORÁRIO (mm)': 'Precipitacao_mm',
-            'PRESSAO ATMOSFERICA AO NIVEL DA ESTACAO, HORARIA (mB)': 'Pressao_mB',
-            'PRESSÃO ATMOSFERICA MAX.NA HORA ANT. (AUT) (mB)': 'Pressao_Max_mB',
-            'PRESSÃO ATMOSFERICA MIN. NA HORA ANT. (AUT) (mB)': 'Pressao_Min_mB',
-            'RADIACAO GLOBAL (KJ/m²)': 'Radiacao_KJm2',
-            'TEMPERATURA DO AR - BULBO SECO, HORARIA (°C)': 'Temperatura_C',
-            'TEMPERATURA DO PONTO DE ORVALHO (°C)': 'Ponto_Orvalho_C',
-            'TEMPERATURA MÁXIMA NA HORA ANT. (AUT) (°C)': 'Temperatura_Max_C',
-            'TEMPERATURA MÍNIMA NA HORA ANT. (AUT) (°C)': 'Temperatura_Min_C',
-            'UMIDADE RELATIVA DO AR, HORARIA (%)': 'Umidade_%',
-            'VENTO, DIREÇÃO HORARIA (gr) (° (gr))': 'Direcao_Vento_gr',
-            'VENTO, RAJADA MAXIMA (m/s)': 'Rajada_Max_ms',
-            'VENTO, VELOCIDADE HORARIA (m/s)': 'Velocidade_Vento_ms'
-        }
-        
-        for old, new in column_mapping.items():
-            if old in df.columns:
-                df.rename(columns={old: new}, inplace=True)
-        
-        # Converter coluna de data
-        if 'Data' in df.columns:
-            df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
-        
-        # Substituir valores nulos padrão do INMET (-9999, etc)
-        df.replace([-9999, -999, -99, -9, '', ' '], np.nan, inplace=True)
+        # Identificar colunas de data
+        date_columns = [col for col in df.columns if 'data' in col.lower() or 'hora' in col.lower()]
         
         # Converter colunas numéricas
         for col in df.columns:
-            if col not in ['Data', 'Hora']:
+            if col not in date_columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # Identificar coluna de data principal
+        if date_columns:
+            date_col = date_columns[0]
+            try:
+                df[date_col] = pd.to_datetime(df[date_col], format='mixed')
+            except:
+                pass
         
         return df
     except Exception as e:
-        st.error(f"Erro ao processar arquivo: {str(e)}")
+        st.error(f"Erro no processamento: {str(e)}")
         return df
 
-# Função para análise de dados faltantes
-def analyze_missing_data(df):
-    """Analisa dados faltantes no DataFrame"""
-    missing_data = pd.DataFrame({
+def detect_missing_values(df):
+    """
+    Detecta valores ausentes e retorna estatísticas
+    """
+    missing_info = pd.DataFrame({
         'Coluna': df.columns,
-        'Dados Faltantes': df.isnull().sum().values,
-        'Percentual (%)': (df.isnull().sum() / len(df) * 100).values
+        'Valores Ausentes': df.isnull().sum().values,
+        'Porcentagem (%)': (df.isnull().sum() / len(df) * 100).values
     })
-    missing_data = missing_data[missing_data['Dados Faltantes'] > 0]
-    missing_data = missing_data.sort_values('Percentual (%)', ascending=False)
-    return missing_data
+    return missing_info[missing_info['Valores Ausentes'] > 0]
 
-# Função para download de dados
-def get_download_link(df, filename="dados_tratados.csv"):
-    """Gera link para download do DataFrame"""
-    csv = df.to_csv(index=False)
-    b64 = base64.b64encode(csv.encode()).decode()
-    return f'<a href="data:file/csv;base64,{b64}" download="{filename}" class="download-button">📥 Download do Arquivo Tratado</a>'
+def fill_missing_values(df, method='mean'):
+    """
+    Preenche valores ausentes
+    """
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    
+    if method == 'mean':
+        df[numeric_columns] = df[numeric_columns].fillna(df[numeric_columns].mean())
+    elif method == 'median':
+        df[numeric_columns] = df[numeric_columns].fillna(df[numeric_columns].median())
+    elif method == 'interpolate':
+        df[numeric_columns] = df[numeric_columns].interpolate(method='linear')
+    
+    return df
 
-# Função para estatísticas descritivas
-def calculate_statistics(df, numeric_cols):
-    """Calcula estatísticas descritivas para colunas numéricas"""
-    stats_dict = {}
-    for col in numeric_cols:
-        data = df[col].dropna()
-        stats_dict[col] = {
-            'Média': np.mean(data),
-            'Mediana': np.median(data),
-            'Desvio Padrão': np.std(data),
-            'CV (%)': (np.std(data) / np.mean(data) * 100) if np.mean(data) != 0 else 0,
-            'Mínimo': np.min(data),
-            'Máximo': np.max(data),
-            'Assimetria': stats.skew(data),
-            'Curtose': stats.kurtosis(data)
+def calculate_statistics(df, group_col=None, freq='D'):
+    """
+    Calcula estatísticas com diferentes agrupamentos
+    """
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    
+    if group_col and freq:
+        df_temp = df.copy()
+        df_temp['date_group'] = pd.to_datetime(df[group_col]).dt.to_period(freq)
+        
+        stats_df = df_temp.groupby('date_group')[numeric_cols].agg([
+            'mean', 'std', 'min', 'max', 'count'
+        ]).round(3)
+        
+        return stats_df
+    else:
+        stats_df = df[numeric_cols].describe().round(3)
+        return stats_df
+
+# ============================================================
+# FUNÇÃO PARA CORRELAÇÃO
+# ============================================================
+
+def calculate_correlations(df, method='pearson'):
+    """
+    Calcula correlações entre variáveis numéricas
+    """
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    
+    if len(numeric_cols) < 2:
+        return None, None
+    
+    corr_matrix = pd.DataFrame(index=numeric_cols, columns=numeric_cols)
+    p_values = pd.DataFrame(index=numeric_cols, columns=numeric_cols)
+    
+    for i in range(len(numeric_cols)):
+        for j in range(len(numeric_cols)):
+            if i == j:
+                corr_matrix.iloc[i, j] = 1.0
+                p_values.iloc[i, j] = 0.0
+            else:
+                col1, col2 = numeric_cols[i], numeric_cols[j]
+                valid_data = df[[col1, col2]].dropna()
+                
+                if len(valid_data) > 2:
+                    if method == 'pearson':
+                        corr, p_val = pearsonr(valid_data[col1], valid_data[col2])
+                    else:  # spearman
+                        corr, p_val = spearmanr(valid_data[col1], valid_data[col2])
+                    
+                    corr_matrix.iloc[i, j] = round(corr, 3)
+                    p_values.iloc[i, j] = round(p_val, 4)
+                else:
+                    corr_matrix.iloc[i, j] = np.nan
+                    p_values.iloc[i, j] = np.nan
+    
+    return corr_matrix, p_values
+
+# ============================================================
+# FUNÇÃO PARA ANOVA
+# ============================================================
+
+def perform_anova(df, target_col, group_col):
+    """
+    Realiza ANOVA entre grupos
+    """
+    if df[target_col].dtype not in [np.float64, np.int64]:
+        return None
+    
+    groups = df[group_col].dropna().unique()
+    if len(groups) < 2:
+        return None
+    
+    group_data = [df[df[group_col] == group][target_col].dropna() for group in groups]
+    
+    try:
+        # Teste de Levene para homogeneidade de variâncias
+        stat_lev, p_lev = levene(*group_data)
+        
+        # ANOVA
+        stat_anova, p_anova = f_oneway(*group_data)
+        
+        results = {
+            'Levene_Statistic': round(stat_lev, 3),
+            'Levene_P_Value': round(p_lev, 4),
+            'ANOVA_F_Statistic': round(stat_anova, 3),
+            'ANOVA_P_Value': round(p_anova, 4),
+            'N_Groups': len(groups),
+            'Groups': groups
         }
-    return stats_dict
+        
+        return results
+    except:
+        return None
 
-# ==============================================================================
+# ============================================================
+# FUNÇÃO PARA COEFICIENTE DE VARIAÇÃO
+# ============================================================
+
+def calculate_cv(df):
+    """
+    Calcula Coeficiente de Variação
+    """
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    
+    cv_data = []
+    for col in numeric_cols:
+        mean_val = df[col].mean()
+        std_val = df[col].std()
+        cv = (std_val / mean_val * 100) if mean_val != 0 else np.nan
+        
+        cv_data.append({
+            'Variável': col,
+            'Média': round(mean_val, 3),
+            'Desvio Padrão': round(std_val, 3),
+            'CV (%)': round(cv, 2),
+            'Classificação': classify_cv(cv)
+        })
+    
+    return pd.DataFrame(cv_data)
+
+def classify_cv(cv):
+    """
+    Classifica o Coeficiente de Variação
+    """
+    if pd.isna(cv):
+        return "Não classificado"
+    elif cv <= 10:
+        return "Baixo"
+    elif cv <= 20:
+        return "Médio"
+    elif cv <= 30:
+        return "Alto"
+    else:
+        return "Muito Alto"
+
+# ============================================================
+# FUNÇÃO PARA CRIAR GRÁFICOS COM ALTAIR
+# ============================================================
+
+def create_line_chart(df, x_col, y_cols, title="Gráfico de Linhas"):
+    """
+    Cria gráfico de linhas com Altair
+    """
+    # Melt para transformar em formato long
+    df_melted = pd.melt(
+        df, 
+        id_vars=[x_col], 
+        value_vars=y_cols,
+        var_name='Variável', 
+        value_name='Valor'
+    )
+    
+    chart = alt.Chart(df_melted).mark_line(point=True).encode(
+        x=alt.X(f'{x_col}:T', title='Data'),
+        y=alt.Y('Valor:Q', title='Valor'),
+        color=alt.Color('Variável:N', legend=alt.Legend(title="Variáveis")),
+        tooltip=[x_col, 'Variável', 'Valor']
+    ).properties(
+        title=title,
+        width=800,
+        height=400
+    ).interactive()
+    
+    return chart
+
+def create_histogram(df, cols, bins=30):
+    """
+    Cria histograma com Altair
+    """
+    df_melted = pd.melt(
+        df, 
+        value_vars=cols,
+        var_name='Variável', 
+        value_name='Valor'
+    )
+    
+    chart = alt.Chart(df_melted).mark_bar(opacity=0.7).encode(
+        alt.X('Valor:Q', bin=alt.Bin(maxbins=bins), title='Valor'),
+        alt.Y('count()', title='Frequência'),
+        alt.Color('Variável:N', legend=alt.Legend(title="Variáveis")),
+        tooltip=['Variável', 'count()']
+    ).properties(
+        title="Histograma das Variáveis",
+        width=800,
+        height=400
+    ).facet(
+        'Variável:N',
+        columns=2
+    ).resolve_scale(
+        y='independent'
+    )
+    
+    return chart
+
+# ============================================================
 # INTERFACE PRINCIPAL
-# ==============================================================================
+# ============================================================
 
-# Header elegante
-st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    st.markdown('<h1 class="main-title">🌿 AgroAnalytics Pro</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Plataforma Inteligente para Análise de Dados Agrometeorológicos</p>', unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
+# Header
+st.markdown("""
+<div class="main-header">
+    <h1 style="margin:0; font-weight:700;">🌱 AgroDataLab</h1>
+    <p style="margin:0; opacity:0.9; font-size:1.1rem;">
+        Análise Inteligente de Dados Meteorológicos
+    </p>
+    <p style="margin:0; opacity:0.8; font-size:0.9rem;">
+        Desenvolvido para tratamento de dados INMET e análise estatística avançada
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-# Sidebar para API Key e informações
+# Sidebar com configurações
 with st.sidebar:
     st.markdown("### ⚙️ Configurações")
     
     # API Key Gemini
     st.markdown("---")
-    api_key = st.text_input("🔑 Google Gemini API Key", type="password", 
-                           placeholder="Insira sua chave API do Gemini",
-                           help="Necessário para funcionalidades de IA")
+    st.markdown("### 🤖 Inteligência Artificial")
+    gemini_api_key = st.text_input(
+        "Chave API Gemini",
+        type="password",
+        placeholder="Insira sua chave API do Gemini",
+        help="Opcional: para análises avançadas com IA"
+    )
     
-    if api_key:
-        st.success("✅ API Key configurada")
+    if gemini_api_key:
+        try:
+            genai.configure(api_key=gemini_api_key)
+            model = genai.GenerativeModel('gemini-pro')
+            st.success("✅ Gemini conectado!")
+        except:
+            st.error("❌ Erro na conexão com Gemini")
     
     st.markdown("---")
-    st.markdown("### 📊 Sobre")
+    st.markdown("### 📋 Sobre")
     st.info("""
-    **AgroAnalytics Pro v1.0**
+    **AgroDataLab** v1.0
     
-    Desenvolvido para análise de dados meteorológicos do INMET.
+    Desenvolvido para análise e tratamento de dados meteorológicos do INMET.
     
     Funcionalidades:
-    - Processamento de dados INMET
-    - Análise de dados faltantes
-    - Estatísticas descritivas
-    - Análise de correlação
+    - Upload e processamento de dados
+    - Tratamento de valores ausentes
+    - Análises estatísticas
     - Visualizações gráficas
-    - Download de dados tratados
+    - Exportação de dados
     """)
-    
-    st.markdown("---")
-    st.markdown("### 👨‍💻 Desenvolvido por")
-    st.markdown("Equipe AgroAnalytics | 2024")
 
-# Inicialização do estado da sessão
-if 'df' not in st.session_state:
-    st.session_state.df = None
-if 'treated_df' not in st.session_state:
-    st.session_state.treated_df = None
-if 'numeric_cols' not in st.session_state:
-    st.session_state.numeric_cols = []
+# ============================================================
+# CRIAÇÃO DAS ABAS
+# ============================================================
 
-# ==============================================================================
-# TABS PRINCIPAIS
-# ==============================================================================
-
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📤 **Upload**", 
-    "🔧 **Tratamento**", 
-    "📊 **Estatísticas**", 
-    "🔬 **Análise Avançada**",
-    "📈 **Gráficos**",
-    "📥 **Download**"
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "📤 1 - Upload",
+    "🔧 2 - Tratamento", 
+    "📊 3 - Estatísticas",
+    "🔬 4 - Análises Avançadas",
+    "📈 5 - Gráficos",
+    "💾 6 - Download",
+    "📚 7 - Referências"
 ])
 
-# ==============================================================================
-# TAB 1: UPLOAD DE DADOS
-# ==============================================================================
+# ============================================================
+# ABA 1 - UPLOAD
+# ============================================================
+
 with tab1:
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown("## 📤 Upload de Dados")
+    st.markdown('<p class="tab-header">📤 Upload de Dados</p>', unsafe_allow_html=True)
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
+        st.markdown("""
+        <div class="card">
+            <h4>📋 Faça o upload da sua planilha</h4>
+            <p>Formatos aceitos: CSV, Excel (.xlsx, .xls)</p>
+            <p style="color: #666; font-size: 0.9rem;">
+            Compatível com arquivos exportados pelo INMET
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         uploaded_file = st.file_uploader(
-            "Faça upload do arquivo Excel/CSV do INMET",
+            "Selecione o arquivo",
             type=['csv', 'xlsx', 'xls'],
-            help="Formatos aceitos: CSV, Excel (.xlsx, .xls)"
+            help="Arraste ou selecione o arquivo para upload"
         )
-        
-        if uploaded_file is not None:
-            try:
-                # Carregar dados baseado na extensão
-                if uploaded_file.name.endswith('.csv'):
-                    # Tentar diferentes delimitadores e encodings
+    
+    if uploaded_file is not None:
+        try:
+            # Carregar dados
+            if uploaded_file.name.endswith('.csv'):
+                # Tentar diferentes encodings e delimitadores
+                try:
+                    df = pd.read_csv(uploaded_file, encoding='utf-8')
+                except:
                     try:
-                        df = pd.read_csv(uploaded_file, encoding='utf-8')
+                        df = pd.read_csv(uploaded_file, encoding='latin1')
                     except:
-                        try:
-                            df = pd.read_csv(uploaded_file, encoding='latin1')
-                        except:
-                            df = pd.read_csv(uploaded_file, encoding='ISO-8859-1')
-                else:
-                    df = pd.read_excel(uploaded_file)
-                
-                # Processar dados INMET
-                df = process_inmet_file(df)
-                
-                # Armazenar no estado da sessão
-                st.session_state.df = df
-                st.session_state.treated_df = df.copy()
-                
-                # Identificar colunas numéricas
-                st.session_state.numeric_cols = df.select_dtypes(
-                    include=[np.number]
-                ).columns.tolist()
-                
-                # Mensagem de sucesso
-                st.success(f"✅ Upload realizado com sucesso! Arquivo: {uploaded_file.name}")
-                
-                # Métricas rápidas
-                with col2:
-                    st.metric("Total de Registros", len(df))
-                    st.metric("Total de Colunas", len(df.columns))
-                    missing = df.isnull().sum().sum()
-                    st.metric("Dados Faltantes", missing)
-                
-                # Prévia dos dados
-                st.markdown("### 📋 Prévia dos Dados")
-                st.markdown("*Primeiras 10 linhas do dataset:*")
-                st.dataframe(df.head(10), use_container_width=True)
-                
-                # Informações das colunas
-                st.markdown("### 📊 Informações das Colunas")
-                col_info = pd.DataFrame({
-                    'Coluna': df.columns,
-                    'Tipo': df.dtypes.astype(str),
-                    'Não Nulos': df.count().values,
-                    'Nulos': df.isnull().sum().values
-                })
-                st.dataframe(col_info, use_container_width=True)
-                
-            except Exception as e:
-                st.error(f"❌ Erro ao carregar arquivo: {str(e)}")
-    
-    with col2:
-        st.markdown("### 🎯 Formatos Aceitos")
-        st.info("""
-        **Arquivos suportados:**
-        - CSV (separado por vírgula)
-        - Excel (.xlsx, .xls)
-        
-        **Estrutura esperada:**
-        - Coluna de Data
-        - Colunas meteorológicas
-        - Valores numéricos
-        
-        **Exemplo INMET:**
-        - Precipitação
-        - Temperatura
-        - Umidade
-        - Pressão
-        - Vento
-        """)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ==============================================================================
-# TAB 2: TRATAMENTO DE DADOS
-# ==============================================================================
-with tab2:
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown("## 🔧 Tratamento de Dados")
-    
-    if st.session_state.df is not None:
-        df = st.session_state.treated_df.copy()
-        
-        # Análise de dados faltantes
-        missing_data = analyze_missing_data(df)
-        
-        if len(missing_data) > 0:
-            st.warning(f"⚠️ Foram encontrados dados faltantes em {len(missing_data)} colunas")
+                        df = pd.read_csv(uploaded_file, encoding='iso-8859-1')
+            else:
+                df = pd.read_excel(uploaded_file)
             
-            # Mostrar dados faltantes
-            st.markdown("### 📊 Colunas com Dados Faltantes")
+            # Processar dados INMET
+            df = process_inmet_data(df)
             
-            # Criar visualização com barras de progresso
-            for _, row in missing_data.iterrows():
-                col1, col2, col3 = st.columns([3, 1, 1])
-                with col1:
-                    st.markdown(f"**{row['Coluna']}**")
-                    st.progress(int(row['Percentual (%)']) / 100)
-                with col2:
-                    st.metric("Faltantes", row['Dados Faltantes'])
-                with col3:
-                    st.metric("%", f"{row['Percentual (%)']:.1f}%")
+            # Armazenar no session_state
+            st.session_state['df_original'] = df.copy()
+            st.session_state['df_processed'] = df.copy()
             
-            # Opções de tratamento
-            st.markdown("### ⚙️ Opções de Tratamento")
+            # Mensagem de sucesso
+            st.markdown(f"""
+            <div class="success-message">
+                <h4>✅ Upload realizado com sucesso!</h4>
+                <p>Arquivo: {uploaded_file.name}</p>
+                <p>Dimensões: {df.shape[0]} linhas × {df.shape[1]} colunas</p>
+            </div>
+            """, unsafe_allow_html=True)
             
-            col1, col2 = st.columns(2)
+            # Preview dos dados
+            st.markdown("### 📊 Pré-visualização dos Dados")
             
+            # Métricas rápidas
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
-                treatment_option = st.radio(
-                    "Escolha o método de tratamento:",
-                    ["Não fazer nada", "Preencher com média", "Preencher com mediana", 
-                     "Excluir linhas com dados faltantes"],
-                    help="Selecione como tratar os dados faltantes"
-                )
+                st.markdown("""
+                <div class="metric-card">
+                    <h3 style="color:#1a5632; margin:0;">{}</h3>
+                    <p style="margin:0; color:#666;">Registros</p>
+                </div>
+                """.format(len(df)), unsafe_allow_html=True)
             
             with col2:
-                columns_to_treat = st.multiselect(
-                    "Selecione as colunas para tratamento:",
-                    missing_data['Coluna'].tolist(),
-                    default=missing_data['Coluna'].tolist(),
-                    help="Escolha quais colunas receberão o tratamento"
-                )
+                st.markdown("""
+                <div class="metric-card">
+                    <h3 style="color:#1a5632; margin:0;">{}</h3>
+                    <p style="margin:0; color:#666;">Variáveis</p>
+                </div>
+                """.format(len(df.columns)), unsafe_allow_html=True)
             
-            if st.button("🔄 Aplicar Tratamento", type="primary"):
-                if treatment_option == "Preencher com média":
-                    for col in columns_to_treat:
-                        df[col].fillna(df[col].mean(), inplace=True)
-                    st.success("✅ Valores preenchidos com a média")
-                    
-                elif treatment_option == "Preencher com mediana":
-                    for col in columns_to_treat:
-                        df[col].fillna(df[col].median(), inplace=True)
-                    st.success("✅ Valores preenchidos com a mediana")
-                    
-                elif treatment_option == "Excluir linhas com dados faltantes":
-                    df.dropna(subset=columns_to_treat, inplace=True)
-                    st.success(f"✅ Linhas removidas. Novo tamanho: {len(df)} registros")
-                    
-                else:
-                    st.info("ℹ️ Nenhum tratamento aplicado")
-                
-                # Atualizar DataFrame tratado
-                st.session_state.treated_df = df
-                
-                # Mostrar resultado
-                new_missing = analyze_missing_data(df)
-                st.markdown("### ✅ Após Tratamento")
-                
-                if len(new_missing) == 0:
-                    st.success("🎉 Todos os dados faltantes foram tratados!")
-                else:
-                    st.info(f"Ainda restam {len(new_missing)} colunas com dados faltantes")
-                    
-        else:
-            st.success("✅ Não foram encontrados dados faltantes no dataset!")
-    
-    else:
-        st.info("👆 Faça o upload dos dados na aba 'Upload' primeiro")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ==============================================================================
-# TAB 3: ESTATÍSTICAS
-# ==============================================================================
-with tab3:
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown("## 📊 Análise Estatística")
-    
-    if st.session_state.treated_df is not None:
-        df = st.session_state.treated_df.copy()
-        
-        # Verificar se há coluna de data
-        date_col = None
-        for col in df.columns:
-            if 'data' in col.lower() or 'date' in col.lower():
-                date_col = col
-                break
-        
-        # Agrupamento temporal
-        st.markdown("### 📅 Agrupamento Temporal")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if date_col:
-                time_agg = st.selectbox(
-                    "Período de agregação:",
-                    ["Diário", "Semanal", "Mensal", "Anual", "Sem agregação"],
-                    help="Escolha o período para calcular as médias"
-                )
-            else:
-                st.warning("⚠️ Coluna de data não identificada. Verifique se há uma coluna 'Data' no arquivo.")
-                time_agg = "Sem agregação"
-        
-        with col2:
-            agg_columns = st.multiselect(
-                "Selecione as variáveis para análise:",
-                st.session_state.numeric_cols,
-                default=st.session_state.numeric_cols[:3] if len(st.session_state.numeric_cols) >= 3 else st.session_state.numeric_cols,
-                help="Escolha as variáveis meteorológicas"
-            )
-        
-        if date_col and time_agg != "Sem agregação":
-            try:
-                df[date_col] = pd.to_datetime(df[date_col])
-                
-                if time_agg == "Diário":
-                    df_agg = df.groupby(df[date_col].dt.date)[agg_columns].mean().reset_index()
-                elif time_agg == "Semanal":
-                    df_agg = df.groupby(df[date_col].dt.isocalendar().week)[agg_columns].mean().reset_index()
-                elif time_agg == "Mensal":
-                    df_agg = df.groupby(df[date_col].dt.to_period('M'))[agg_columns].mean().reset_index()
-                elif time_agg == "Anual":
-                    df_agg = df.groupby(df[date_col].dt.year)[agg_columns].mean().reset_index()
-                
-                st.success(f"✅ Dados agregados: {time_agg} ({len(df_agg)} registros)")
-                st.dataframe(df_agg, use_container_width=True)
-                
-            except Exception as e:
-                st.error(f"Erro na agregação: {str(e)}")
-        
-        # Estatísticas descritivas
-        if agg_columns:
-            st.markdown("### 📈 Estatísticas Descritivas")
+            with col3:
+                missing_pct = (df.isnull().sum().sum() / (df.shape[0] * df.shape[1]) * 100)
+                st.markdown("""
+                <div class="metric-card">
+                    <h3 style="color:#1a5632; margin:0;">{:.1f}%</h3>
+                    <p style="margin:0; color:#666;">Dados Ausentes</p>
+                </div>
+                """.format(missing_pct), unsafe_allow_html=True)
             
-            stats_df = calculate_statistics(df, agg_columns)
-            stats_display = pd.DataFrame(stats_df).round(3)
+            with col4:
+                memory_usage = df.memory_usage(deep=True).sum() / 1024 / 1024
+                st.markdown("""
+                <div class="metric-card">
+                    <h3 style="color:#1a5632; margin:0;">{:.1f} MB</h3>
+                    <p style="margin:0; color:#666;">Tamanho</p>
+                </div>
+                """.format(memory_usage), unsafe_allow_html=True)
             
-            # Formatação visual
+            # Mostrar primeiras linhas
+            st.markdown("### 🔍 Primeiras 10 linhas do dataset:")
             st.dataframe(
-                stats_display.style.background_gradient(cmap='YlOrRd', axis=1)
-                .highlight_max(color='lightgreen', axis=1)
-                .highlight_min(color='lightcoral', axis=1),
+                df.head(10).style.background_gradient(cmap='Greens', axis=0),
+                use_container_width=True,
+                height=400
+            )
+            
+            # Informações das colunas
+            with st.expander("📋 Informações das Colunas"):
+                col_info = pd.DataFrame({
+                    'Coluna': df.columns,
+                    'Tipo': df.dtypes.values,
+                    'Valores Únicos': df.nunique().values,
+                    'Valores Nulos': df.isnull().sum().values,
+                    'Memória (bytes)': df.memory_usage(deep=True).values
+                })
+                st.dataframe(col_info, use_container_width=True)
+            
+        except Exception as e:
+            st.error(f"❌ Erro ao carregar o arquivo: {str(e)}")
+            st.info("Verifique se o arquivo está no formato correto e tente novamente.")
+    else:
+        st.markdown("">
+        <div class="warning-message">
+            <h4>📤 Nenhum arquivo selecionado</h4>
+            <p>Faça o upload de um arquivo CSV ou Excel para começar a análise.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ============================================================
+# ABA 2 - TRATAMENTO
+# ============================================================
+
+with tab2:
+    st.markdown('<p class="tab-header">🔧 Tratamento de Dados Ausentes</p>', unsafe_allow_html=True)
+    
+    if 'df_processed' in st.session_state:
+        df = st.session_state['df_processed']
+        
+        # Detectar valores ausentes
+        missing_info = detect_missing_values(df)
+        
+        if len(missing_info) > 0:
+            st.markdown("""
+            <div class="warning-message">
+                <h4>⚠️ Valores Ausentes Detectados</h4>
+                <p>As seguintes colunas possuem dados faltantes:</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Mostrar tabela de valores ausentes
+            st.dataframe(
+                missing_info.style.applymap(
+                    lambda x: 'background-color: #ffebee' if x > 0 else '',
+                    subset=['Valores Ausentes']
+                ),
                 use_container_width=True
             )
             
-            # Métricas principais
-            st.markdown("### 🎯 Métricas Principais")
+            # Opções de tratamento
+            st.markdown("### 🛠️ Opções de Tratamento")
             
-            cols = st.columns(len(agg_columns) if len(agg_columns) <= 4 else 4)
-            for i, col in enumerate(agg_columns[:4]):
-                with cols[i % 4]:
-                    mean_val = stats_df[col]['Média']
-                    cv_val = stats_df[col]['CV (%)']
-                    
-                    st.markdown(f"""
-                    <div class="metric-box">
-                        <h4>{col[:20]}</h4>
-                        <p><strong>Média:</strong> {mean_val:.2f}</p>
-                        <p><strong>CV:</strong> {cv_val:.2f}%</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-    
-    else:
-        st.info("👆 Faça o upload dos dados na aba 'Upload' primeiro")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ==============================================================================
-# TAB 4: ANÁLISE AVANÇADA
-# ==============================================================================
-with tab4:
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown("## 🔬 Análise Estatística Avançada")
-    
-    if st.session_state.treated_df is not None and len(st.session_state.numeric_cols) >= 2:
-        df = st.session_state.treated_df.copy()
-        
-        # Tipo de análise
-        analysis_type = st.selectbox(
-            "Selecione o tipo de análise:",
-            ["Correlação entre Variáveis", "Teste ANOVA", "Coeficiente de Variação"],
-            help="Escolha o método estatístico avançado"
-        )
-        
-        # Correlação
-        if analysis_type == "Correlação entre Variáveis":
-            st.markdown("### 📊 Matriz de Correlação")
+            col1, col2, col3 = st.columns(3)
             
-            selected_cols = st.multiselect(
-                "Selecione as variáveis para correlação:",
-                st.session_state.numeric_cols,
-                default=st.session_state.numeric_cols[:4] if len(st.session_state.numeric_cols) >= 4 else st.session_state.numeric_cols,
-                help="Escolha no mínimo 2 variáveis"
-            )
+            with col1:
+                st.markdown("""
+                <div class="card">
+                    <h4>📊 Preencher com Média</h4>
+                    <p style="color:#666;">Substitui valores ausentes pela média da coluna</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button("📊 Aplicar Média", key="btn_mean"):
+                    df_filled = fill_missing_values(df.copy(), method='mean')
+                    st.session_state['df_processed'] = df_filled
+                    st.success("✅ Valores preenchidos com média!")
+                    st.rerun()
             
-            if len(selected_cols) >= 2:
-                # Calcular correlação
-                corr_matrix = df[selected_cols].corr()
+            with col2:
+                st.markdown("""
+                <div class="card">
+                    <h4>📈 Preencher com Mediana</h4>
+                    <p style="color:#666;">Substitui valores ausentes pela mediana da coluna</p>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                # Visualização com matplotlib/seaborn
-                fig, ax = plt.subplots(figsize=(10, 8))
-                sns.heatmap(corr_matrix, 
-                           annot=True, 
-                           cmap='RdYlBu', 
-                           center=0,
-                           vmin=-1, 
-                           vmax=1, 
-                           square=True,
-                           linewidths=1.5,
-                           cbar_kws={"shrink": 0.8},
-                           ax=ax)
-                ax.set_title('Matriz de Correlação', fontsize=14, fontweight='bold')
-                
-                st.pyplot(fig)
-                
-                # Análise de correlações fortes
-                st.markdown("### 🔍 Análise de Correlações Significativas")
-                
-                strong_corrs = []
-                for i in range(len(corr_matrix.columns)):
-                    for j in range(i+1, len(corr_matrix.columns)):
-                        corr_val = corr_matrix.iloc[i, j]
-                        if abs(corr_val) > 0.5:
-                            strong_corrs.append({
-                                'Variável 1': corr_matrix.columns[i],
-                                'Variável 2': corr_matrix.columns[j],
-                                'Correlação': corr_val,
-                                'Força': 'Forte positiva' if corr_val > 0.7 else 
-                                        'Moderada positiva' if corr_val > 0.5 else
-                                        'Forte negativa' if corr_val < -0.7 else
-                                        'Moderada negativa'
-                            })
-                
-                if strong_corrs:
-                    corr_df = pd.DataFrame(strong_corrs)
-                    st.dataframe(corr_df, use_container_width=True)
-                    
-                    # Insights
-                    st.markdown("### 💡 Insights de Correlação")
-                    for _, row in corr_df.iterrows():
-                        if row['Correlação'] > 0.7:
-                            st.info(f"🔗 **{row['Variável 1']}** e **{row['Variável 2']}** têm uma forte correlação positiva ({row['Correlação']:.2f}). Quando uma aumenta, a outra tende a aumentar também.")
-                        elif row['Correlação'] < -0.7:
-                            st.warning(f"⚡ **{row['Variável 1']}** e **{row['Variável 2']}** têm uma forte correlação negativa ({row['Correlação']:.2f}). Quando uma aumenta, a outra tende a diminuir.")
-                else:
-                    st.info("Não foram encontradas correlações fortes (|r| > 0.5) entre as variáveis selecionadas.")
-        
-        # ANOVA
-        elif analysis_type == "Teste ANOVA":
-            st.markdown("### 📊 Análise de Variância (ANOVA)")
+                if st.button("📈 Aplicar Mediana", key="btn_median"):
+                    df_filled = fill_missing_values(df.copy(), method='median')
+                    st.session_state['df_processed'] = df_filled
+                    st.success("✅ Valores preenchidos com mediana!")
+                    st.rerun()
             
-            st.info("""
-            O teste ANOVA compara as médias entre grupos para determinar se existem diferenças 
-            estatisticamente significativas.
-            """)
+            with col3:
+                st.markdown("""
+                <div class="card">
+                    <h4>🔄 Interpolar</h4>
+                    <p style="color:#666;">Preenche por interpolação linear entre valores</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button("🔄 Aplicar Interpolação", key="btn_interpolate"):
+                    df_filled = fill_missing_values(df.copy(), method='interpolate')
+                    st.session_state['df_processed'] = df_filled
+                    st.success("✅ Valores interpolados!")
+                    st.rerun()
             
-            # Selecionar variável numérica
-            numeric_var = st.selectbox(
-                "Selecione a variável numérica para análise:",
-                st.session_state.numeric_cols,
-                help="Variável dependente (numérica)"
-            )
+            # Opção de excluir
+            st.markdown("---")
+            col1, col2 = st.columns(2)
             
-            # Criar grupos baseado em quartis ou seleção manual
-            group_method = st.radio(
-                "Método de agrupamento:",
-                ["Quartis (automático)", "Mediana (alto/baixo)"],
-                help="Como dividir os dados em grupos"
-            )
+            with col1:
+                st.markdown("""
+                <div class="card">
+                    <h4>🗑️ Excluir Linhas com Dados Ausentes</h4>
+                    <p style="color:#666;">Remove todas as linhas que contêm valores ausentes</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button("🗑️ Excluir Linhas", key="btn_drop"):
+                    df_dropped = df.dropna()
+                    st.session_state['df_processed'] = df_dropped
+                    st.success(f"✅ {len(df) - len(df_dropped)} linhas removidas!")
+                    st.rerun()
             
-            if group_method == "Quartis (automático)":
-                df['Grupo'] = pd.qcut(df[numeric_var], q=3, labels=['Baixo', 'Médio', 'Alto'])
-            else:
-                median = df[numeric_var].median()
-                df['Grupo'] = np.where(df[numeric_var] >= median, 'Alto', 'Baixo')
+            with col2:
+                st.markdown("""
+                <div class="card">
+                    <h4>🔙 Manter Dados Originais</h4>
+                    <p style="color:#666;">Restaura os dados para o estado original</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button("🔙 Restaurar Original", key="btn_restore"):
+                    if 'df_original' in st.session_state:
+                        st.session_state['df_processed'] = st.session_state['df_original'].copy()
+                        st.success("✅ Dados restaurados!")
+                        st.rerun()
             
-            # Realizar ANOVA
-            groups = [group[numeric_var].values for name, group in df.groupby('Grupo')]
-            
-            if len(groups) >= 2:
-                f_stat, p_value = stats.f_oneway(*groups)
+            # Assistente IA para sugestões
+            if gemini_api_key:
+                st.markdown("---")
+                st.markdown("### 🤖 Sugestão da IA")
                 
-                # Resultados
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.metric("Estatística F", f"{f_stat:.4f}")
-                with col2:
-                    st.metric("Valor-p", f"{p_value:.4f}")
-                with col3:
-                    significance = "Significativo" if p_value < 0.05 else "Não significativo"
-                    st.metric("Resultado", significance)
-                
-                # Interpretação
-                st.markdown("### 📝 Interpretação")
-                if p_value < 0.05:
-                    st.success(f"✅ Existem diferenças estatisticamente significativas entre os grupos (p = {p_value:.4f} < 0.05)")
-                else:
-                    st.warning(f"⚠️ Não há diferenças estatisticamente significativas entre os grupos (p = {p_value:.4f} > 0.05)")
-                
-                # Visualização
-                fig, ax = plt.subplots(figsize=(10, 6))
-                df.boxplot(column=numeric_var, by='Grupo', ax=ax)
-                ax.set_title(f'Distribuição de {numeric_var} por Grupo', fontsize=14)
-                ax.set_xlabel('Grupo')
-                ax.set_ylabel(numeric_var)
-                plt.xticks(rotation=0)
-                
-                st.pyplot(fig)
-        
-        # Coeficiente de Variação
-        else:
-            st.markdown("### 📊 Análise de Coeficiente de Variação (CV)")
-            
-            cv_vars = st.multiselect(
-                "Selecione as variáveis para análise de CV:",
-                st.session_state.numeric_cols,
-                default=st.session_state.numeric_cols[:3] if len(st.session_state.numeric_cols) >= 3 else st.session_state.numeric_cols,
-                help="O CV mede a dispersão relativa dos dados"
-            )
-            
-            if cv_vars:
-                # Calcular CV para cada variável
-                cv_data = []
-                for var in cv_vars:
-                    data = df[var].dropna()
-                    mean = np.mean(data)
-                    std = np.std(data)
-                    cv = (std / mean * 100) if mean != 0 else 0
-                    
-                    # Classificação do CV
-                    if cv < 10:
-                        classification = "Baixa dispersão"
-                    elif cv < 20:
-                        classification = "Média dispersão"
-                    elif cv < 30:
-                        classification = "Alta dispersão"
-                    else:
-                        classification = "Muito alta dispersão"
-                    
-                    cv_data.append({
-                        'Variável': var,
-                        'Média': mean,
-                        'Desvio Padrão': std,
-                        'CV (%)': cv,
-                        'Classificação': classification
-                    })
-                
-                cv_df = pd.DataFrame(cv_data)
-                
-                # Visualização
-                st.dataframe(
-                    cv_df.style.background_gradient(subset=['CV (%)'], cmap='RdYlGn_r'),
-                    use_container_width=True
-                )
-                
-                # Gráfico de barras
-                fig, ax = plt.subplots(figsize=(10, 6))
-                bars = ax.bar(cv_df['Variável'], cv_df['CV (%)'], color=['green' if cv < 20 else 'orange' if cv < 30 else 'red' for cv in cv_df['CV (%)']])
-                ax.set_title('Coeficiente de Variação por Variável', fontsize=14)
-                ax.set_ylabel('CV (%)')
-                ax.set_xlabel('Variáveis')
-                plt.xticks(rotation=45)
-                
-                # Adicionar valores nas barras
-                for bar, cv in zip(bars, cv_df['CV (%)']):
-                    ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.5,
-                           f'{cv:.1f}%', ha='center', va='bottom')
-                
-                st.pyplot(fig)
-                
-                # Recomendações
-                st.markdown("### 💡 Recomendações")
-                high_cv = cv_df[cv_df['CV (%)'] > 30]
-                if not high_cv.empty:
-                    st.warning("⚠️ As seguintes variáveis apresentam alta variabilidade:")
-                    for _, row in high_cv.iterrows():
-                        st.write(f"- **{row['Variável']}**: CV = {row['CV (%)']:.1f}% - Considere investigar outliers ou fatores externos")
-    
-    else:
-        st.info("👆 Faça o upload dos dados e certifique-se de ter pelo menos 2 variáveis numéricas")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ==============================================================================
-# TAB 5: GRÁFICOS
-# ==============================================================================
-with tab5:
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown("## 📈 Visualizações Gráficas")
-    
-    if st.session_state.treated_df is not None:
-        df = st.session_state.treated_df.copy()
-        
-        # Tipo de gráfico
-        chart_type = st.selectbox(
-            "Selecione o tipo de gráfico:",
-            ["Gráfico de Linhas (Série Temporal)", "Histograma", "Boxplot", "Dispersão"],
-            help="Escolha o tipo de visualização"
-        )
-        
-        # Selecionar variáveis
-        selected_vars = st.multiselect(
-            "Selecione as variáveis para visualização:",
-            st.session_state.numeric_cols,
-            default=[st.session_state.numeric_cols[0]] if st.session_state.numeric_cols else [],
-            help="Escolha as variáveis meteorológicas"
-        )
-        
-        if selected_vars:
-            # Gráfico de Linhas
-            if chart_type == "Gráfico de Linhas (Série Temporal)":
-                # Procurar coluna de data
-                date_col = None
-                for col in df.columns:
-                    if 'data' in col.lower() or 'date' in col.lower():
-                        date_col = col
-                        break
-                
-                if date_col:
+                if st.button("🧠 Analisar com Gemini", key="btn_ai_treatment"):
                     try:
-                        df[date_col] = pd.to_datetime(df[date_col])
-                        df_sorted = df.sort_values(date_col)
+                        missing_summary = missing_info.to_string()
+                        prompt = f"""
+                        Analise os dados meteorológicos com valores ausentes:
                         
-                        fig, ax = plt.subplots(figsize=(12, 6))
+                        {missing_summary}
                         
-                        for var in selected_vars:
-                            ax.plot(df_sorted[date_col], df_sorted[var], 
-                                   label=var, linewidth=2, alpha=0.8)
+                        Sugira a melhor estratégia para tratar esses dados ausentes considerando:
+                        1. Impacto na análise estatística
+                        2. Preservação da série temporal
+                        3. Recomendações científicas para dados meteorológicos
                         
-                        ax.set_title('Série Temporal das Variáveis Meteorológicas', 
-                                    fontsize=14, fontweight='bold')
-                        ax.set_xlabel('Data')
-                        ax.set_ylabel('Valores')
-                        ax.legend(loc='best')
-                        ax.grid(True, alpha=0.3)
+                        Responda em português de forma objetiva.
+                        """
                         
-                        st.pyplot(fig)
+                        response = model.generate_content(prompt)
                         
-                    except Exception as e:
-                        st.error(f"Erro ao criar gráfico temporal: {str(e)}")
-                else:
-                    st.warning("⚠️ Coluna de data não encontrada. Criando gráfico com índice.")
-                    
-                    fig, ax = plt.subplots(figsize=(12, 6))
-                    for var in selected_vars:
-                        ax.plot(df.index, df[var], label=var, linewidth=2, alpha=0.8)
-                    
-                    ax.set_title('Série dos Dados', fontsize=14, fontweight='bold')
-                    ax.set_xlabel('Índice')
-                    ax.set_ylabel('Valores')
-                    ax.legend(loc='best')
-                    ax.grid(True, alpha=0.3)
-                    
-                    st.pyplot(fig)
-            
-            # Histograma
-            elif chart_type == "Histograma":
-                cols = st.columns(min(len(selected_vars), 2))
-                
-                for i, var in enumerate(selected_vars):
-                    with cols[i % 2]:
-                        fig, ax = plt.subplots(figsize=(8, 5))
-                        data = df[var].dropna()
-                        
-                        ax.hist(data, bins=30, color='steelblue', edgecolor='white', 
-                               alpha=0.7, density=True)
-                        
-                        # Curva de densidade
-                        from scipy.stats import gaussian_kde
-                        if len(data) > 1:
-                            kde = gaussian_kde(data)
-                            x_range = np.linspace(data.min(), data.max(), 100)
-                            ax.plot(x_range, kde(x_range), 'r-', linewidth=2, label='Densidade')
-                        
-                        ax.set_title(f'Histograma - {var}', fontsize=12, fontweight='bold')
-                        ax.set_xlabel(var)
-                        ax.set_ylabel('Frequência')
-                        ax.legend()
-                        
-                        st.pyplot(fig)
-                        
-                        # Estatísticas do histograma
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Média", f"{data.mean():.2f}")
-                        with col2:
-                            st.metric("Mediana", f"{data.median():.2f}")
-                        with col3:
-                            st.metric("Desvio Padrão", f"{data.std():.2f}")
-                        
-                        st.markdown("---")
-            
-            # Boxplot
-            elif chart_type == "Boxplot":
-                fig, ax = plt.subplots(figsize=(10, 6))
-                
-                df[selected_vars].boxplot(ax=ax)
-                ax.set_title('Diagrama de Caixa (Boxplot)', fontsize=14, fontweight='bold')
-                ax.set_ylabel('Valores')
-                plt.xticks(rotation=45)
-                ax.grid(True, alpha=0.3)
-                
-                st.pyplot(fig)
-                
-                # Detecção de outliers
-                st.markdown("### 🔍 Detecção de Outliers")
-                for var in selected_vars:
-                    data = df[var].dropna()
-                    Q1 = data.quantile(0.25)
-                    Q3 = data.quantile(0.75)
-                    IQR = Q3 - Q1
-                    outliers = data[(data < Q1 - 1.5 * IQR) | (data > Q3 + 1.5 * IQR)]
-                    
-                    if len(outliers) > 0:
-                        st.warning(f"**{var}**: {len(outliers)} outliers detectados ({len(outliers)/len(data)*100:.1f}%)")
-            
-            # Dispersão
-            elif chart_type == "Dispersão":
-                if len(selected_vars) >= 2:
-                    x_var = st.selectbox("Variável X:", selected_vars)
-                    y_var = st.selectbox("Variável Y:", selected_vars, index=min(1, len(selected_vars)-1))
-                    
-                    if x_var != y_var:
-                        fig, ax = plt.subplots(figsize=(10, 8))
-                        
-                        scatter = ax.scatter(df[x_var], df[y_var], 
-                                           c=df.index, cmap='viridis', 
-                                           alpha=0.6, edgecolors='white', linewidth=0.5)
-                        
-                        # Linha de tendência
-                        z = np.polyfit(df[x_var].dropna(), df[y_var].dropna(), 1)
-                        p = np.poly1d(z)
-                        x_range = np.linspace(df[x_var].min(), df[x_var].max(), 100)
-                        ax.plot(x_range, p(x_range), "r--", linewidth=2, label='Tendência')
-                        
-                        ax.set_xlabel(x_var)
-                        ax.set_ylabel(y_var)
-                        ax.set_title(f'Dispersão: {x_var} vs {y_var}', fontsize=14, fontweight='bold')
-                        ax.legend()
-                        plt.colorbar(scatter, label='Índice')
-                        
-                        # Adicionar coeficiente de correlação
-                        corr = df[x_var].corr(df[y_var])
-                        ax.text(0.05, 0.95, f'Correlação: {corr:.3f}', 
-                               transform=ax.transAxes, fontsize=12,
-                               verticalalignment='top',
-                               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-                        
-                        st.pyplot(fig)
-                    else:
-                        st.warning("⚠️ Selecione variáveis diferentes para X e Y")
-                else:
-                    st.warning("⚠️ Selecione pelo menos 2 variáveis para o gráfico de dispersão")
-        
+                        st.markdown("""
+                        <div class="success-message">
+                            <h4>💡 Recomendação da IA:</h4>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        st.write(response.text)
+                    except:
+                        st.error("Erro ao consultar a IA. Verifique sua chave API.")
         else:
-            st.info("👆 Selecione as variáveis para visualização")
-    
+            st.markdown("""
+            <div class="success-message">
+                <h4>✅ Nenhum valor ausente detectado!</h4>
+                <p>Seus dados estão completos e prontos para análise.</p>
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        st.info("👆 Faça o upload dos dados na aba 'Upload' primeiro")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.warning("⚠️ Faça o upload dos dados na Aba 1 primeiro!")
 
-# ==============================================================================
-# TAB 6: DOWNLOAD
-# ==============================================================================
-with tab6:
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown("## 📥 Download dos Dados Tratados")
+# ============================================================
+# ABA 3 - ESTATÍSTICAS BÁSICAS
+# ============================================================
+
+with tab3:
+    st.markdown('<p class="tab-header">📊 Estatísticas Descritivas</p>', unsafe_allow_html=True)
     
-    if st.session_state.treated_df is not None:
-        df = st.session_state.treated_df.copy()
+    if 'df_processed' in st.session_state:
+        df = st.session_state['df_processed']
         
-        st.success(f"✅ Dataset pronto para download: {len(df)} registros e {len(df.columns)} colunas")
+        # Selecionar coluna de data
+        date_columns = [col for col in df.columns if 'data' in col.lower() or 'hora' in col.lower() or 'date' in col.lower()]
         
-        # Opções de download
+        if date_columns:
+            date_col = st.selectbox("📅 Selecione a coluna de data:", date_columns)
+            
+            # Converter para datetime se necessário
+            if df[date_col].dtype == 'object':
+                df[date_col] = pd.to_datetime(df[date_col], format='mixed')
+            
+            # Frequência de agregação
+            st.markdown("### 📈 Frequência de Agregação")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("""
+                <div class="card">
+                    <h4>📅 Diário</h4>
+                    <p style="color:#666;">Agrupa os dados por dia</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                daily_selected = st.checkbox("Ativar Diário", key="daily")
+            
+            with col2:
+                st.markdown("""
+                <div class="card">
+                    <h4>📆 Semanal</h4>
+                    <p style="color:#666;">Agrupa os dados por semana</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                weekly_selected = st.checkbox("Ativar Semanal", key="weekly")
+            
+            with col3:
+                st.markdown("""
+                <div class="card">
+                    <h4>🗓️ Mensal</h4>
+                    <p style="color:#666;">Agrupa os dados por mês</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                monthly_selected = st.checkbox("Ativar Mensal", key="monthly")
+            
+            # Mostrar estatísticas conforme seleção
+            if daily_selected:
+                st.markdown("### 📅 Estatísticas Diárias")
+                daily_stats = calculate_statistics(df, date_col, 'D')
+                st.dataframe(daily_stats, use_container_width=True, height=400)
+            
+            if weekly_selected:
+                st.markdown("### 📆 Estatísticas Semanais")
+                weekly_stats = calculate_statistics(df, date_col, 'W')
+                st.dataframe(weekly_stats, use_container_width=True, height=400)
+            
+            if monthly_selected:
+                st.markdown("### 🗓️ Estatísticas Mensais")
+                monthly_stats = calculate_statistics(df, date_col, 'M')
+                st.dataframe(monthly_stats, use_container_width=True, height=400)
+        else:
+            st.info("ℹ️ Nenhuma coluna de data identificada. Mostrando estatísticas gerais:")
+            numeric_cols = df.select_dtypes(include=[np.number]).columns
+            st.dataframe(df[numeric_cols].describe(), use_container_width=True)
+        
+        # Estatísticas gerais
+        st.markdown("---")
+        st.markdown("### 📊 Resumo Estatístico Geral")
+        
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        stats_df = df[numeric_cols].describe()
+        
+        # Adicionar métricas adicionais
+        stats_df.loc['variância'] = df[numeric_cols].var()
+        stats_df.loc['assimetria'] = df[numeric_cols].skew()
+        stats_df.loc['curtose'] = df[numeric_cols].kurtosis()
+        
+        st.dataframe(stats_df.style.background_gradient(cmap='Greens', axis=1), use_container_width=True)
+    else:
+        st.warning("⚠️ Faça o upload dos dados na Aba 1 primeiro!")
+
+# ============================================================
+# ABA 4 - ANÁLISES AVANÇADAS
+# ============================================================
+
+with tab4:
+    st.markdown('<p class="tab-header">🔬 Análises Estatísticas Avançadas</p>', unsafe_allow_html=True)
+    
+    if 'df_processed' in st.session_state:
+        df = st.session_state['df_processed']
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        
+        # Seção de correlação
+        st.markdown("### 📈 Análise de Correlação")
+        
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("### 📄 Formato CSV")
-            
-            # Prévia do arquivo
-            st.markdown("**Prévia dos dados tratados:**")
-            st.dataframe(df.head(5), use_container_width=True)
-            
-            # Download CSV
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label="📥 Baixar Arquivo CSV",
-                data=csv,
-                file_name="dados_meteorologicos_tratados.csv",
-                mime="text/csv",
-                help="Download do dataset completo em formato CSV"
+            corr_method = st.radio(
+                "Método de Correlação:",
+                ['Pearson', 'Spearman'],
+                help="Pearson: correlação linear | Spearman: correlação de postos"
             )
         
         with col2:
-            st.markdown("### 📊 Resumo do Tratamento")
+            st.markdown("""
+            <div class="metric-card">
+                <h4>📊 Interpretação</h4>
+                <p style="font-size:0.9rem;">
+                <strong>0.0 - 0.3:</strong> Fraca<br>
+                <strong>0.3 - 0.7:</strong> Moderada<br>
+                <strong>0.7 - 1.0:</strong> Forte
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        if len(numeric_cols) >= 2:
+            corr_matrix, p_values = calculate_correlations(
+                df, 
+                method=corr_method.lower()
+            )
             
-            # Métricas do tratamento
-            original_rows = len(st.session_state.df) if st.session_state.df is not None else 0
-            treated_rows = len(df)
-            rows_removed = original_rows - treated_rows
+            if corr_matrix is not None:
+                st.markdown("#### Matriz de Correlação")
+                st.dataframe(
+                    corr_matrix.style.background_gradient(cmap='RdYlGn', vmin=-1, vmax=1),
+                    use_container_width=True
+                )
+                
+                st.markdown("#### Valores P")
+                st.dataframe(
+                    p_values.style.applymap(
+                        lambda x: 'background-color: #c8e6c9' if x < 0.05 else 'background-color: #ffcdd2'
+                    ),
+                    use_container_width=True
+                )
+                
+                # Assistente IA para correlação
+                if gemini_api_key:
+                    if st.button("🧠 Interpretar Correlações com IA", key="btn_ai_corr"):
+                        try:
+                            prompt = f"""
+                            Analise a matriz de correlação entre variáveis meteorológicas:
+                            
+                            Método: {corr_method}
+                            
+                            Matriz de correlação:
+                            {corr_matrix.to_string()}
+                            
+                            Valores P:
+                            {p_values.to_string()}
+                            
+                            Interprete os resultados, destacando:
+                            1. Correlações significativas (p < 0.05)
+                            2. Força das relações
+                            3. Implicações práticas para agricultura/meteorologia
+                            
+                            Responda em português.
+                            """
+                            
+                            response = model.generate_content(prompt)
+                            st.markdown("#### 💡 Interpretação da IA:")
+                            st.write(response.text)
+                        except:
+                            st.error("Erro ao consultar a IA.")
+        else:
+            st.warning("⚠️ São necessárias pelo menos 2 variáveis numéricas para correlação.")
+        
+        st.markdown("---")
+        
+        # Seção ANOVA
+        st.markdown("### 🔍 Análise de Variância (ANOVA)")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            anova_target = st.selectbox(
+                "Variável Dependente:",
+                numeric_cols,
+                help="Variável numérica para análise"
+            )
+        
+        with col2:
+            # Identificar colunas categóricas ou de data
+            cat_cols = df.select_dtypes(include=['object']).columns.tolist()
+            date_cols = [col for col in df.columns if 'data' in col.lower() or 'date' in col.lower()]
+            group_cols = cat_cols + date_cols
             
-            st.metric("Registros Originais", original_rows)
-            st.metric("Registros Tratados", treated_rows)
-            
-            if rows_removed > 0:
-                st.metric("Linhas Removidas", rows_removed)
+            if group_cols:
+                anova_group = st.selectbox(
+                    "Variável de Agrupamento:",
+                    group_cols,
+                    help="Variável para formar os grupos"
+                )
+                
+                if st.button("🔬 Executar ANOVA", key="btn_anova"):
+                    results = perform_anova(df, anova_target, anova_group)
+                    
+                    if results:
+                        st.markdown("### 📊 Resultados da ANOVA")
+                        
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.markdown(f"""
+                            <div class="metric-card">
+                                <h4>Teste de Levene</h4>
+                                <p style="font-size:1.5rem; font-weight:bold;">
+                                    F = {results['Levene_Statistic']}
+                                </p>
+                                <p>p = {results['Levene_P_Value']}</p>
+                                <p style="font-size:0.8rem;">
+                                    {'✅ Homogeneidade confirmada' if results['Levene_P_Value'] > 0.05 else '⚠️ Variâncias diferentes'}
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with col2:
+                            st.markdown(f"""
+                            <div class="metric-card">
+                                <h4>ANOVA</h4>
+                                <p style="font-size:1.5rem; font-weight:bold;">
+                                    F = {results['ANOVA_F_Statistic']}
+                                </p>
+                                <p>p = {results['ANOVA_P_Value']}</p>
+                                <p style="font-size:0.8rem;">
+                                    {'✅ Diferença significativa' if results['ANOVA_P_Value'] < 0.05 else '❌ Sem diferença significativa'}
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with col3:
+                            st.markdown(f"""
+                            <div class="metric-card">
+                                <h4>Grupos Analisados</h4>
+                                <p style="font-size:1.5rem; font-weight:bold;">
+                                    {results['N_Groups']}
+                                </p>
+                                <p>grupos distintos</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.error("❌ Não foi possível realizar a ANOVA. Verifique os dados.")
             else:
-                st.metric("Linhas Removidas", 0)
-            
-            # Colunas tratadas
-            missing_before = st.session_state.df.isnull().sum().sum() if st.session_state.df is not None else 0
-            missing_after = df.isnull().sum().sum()
-            
-            st.metric("Dados Faltantes Antes", missing_before)
-            st.metric("Dados Faltantes Depois", missing_after)
-            
-            if missing_before > missing_after:
-                st.success(f"✅ {missing_before - missing_after} valores foram preenchidos")
-            
-            # Botão para reset
-            if st.button("🔄 Resetar Tratamentos"):
-                st.session_state.treated_df = st.session_state.df.copy()
-                st.success("✅ Tratamentos resetados com sucesso!")
-                st.rerun()
-    
+                st.warning("⚠️ Nenhuma variável de agrupamento identificada.")
+        
+        st.markdown("---")
+        
+        # Coeficiente de Variação
+        st.markdown("### 📊 Coeficiente de Variação")
+        
+        cv_df = calculate_cv(df)
+        st.dataframe(
+            cv_df.style.applymap(
+                lambda x: 'background-color: #c8e6c9' if x == 'Baixo' 
+                else 'background-color: #fff9c4' if x == 'Médio'
+                else 'background-color: #ffccbc' if x == 'Alto'
+                else 'background-color: #ffab91' if x == 'Muito Alto'
+                else '',
+                subset=['Classificação']
+            ),
+            use_container_width=True
+        )
+        
+        st.info("""
+        **Interpretação do CV:**
+        - **Baixo (≤10%):** Alta precisão dos dados
+        - **Médio (10-20%):** Precisão moderada
+        - **Alto (20-30%):** Baixa precisão
+        - **Muito Alto (>30%):** Dados muito dispersos
+        """)
     else:
-        st.info("👆 Faça o upload dos dados na aba 'Upload' primeiro e realize os tratamentos desejados")
+        st.warning("⚠️ Faça o upload dos dados na Aba 1 primeiro!")
+
+# ============================================================
+# ABA 5 - GRÁFICOS
+# ============================================================
+
+with tab5:
+    st.markdown('<p class="tab-header">📈 Visualização de Dados</p>', unsafe_allow_html=True)
     
-    st.markdown('</div>', unsafe_allow_html=True)
+    if 'df_processed' in st.session_state:
+        df = st.session_state['df_processed']
+        
+        # Tipo de gráfico
+        chart_type = st.radio(
+            "Selecione o tipo de gráfico:",
+            ['📈 Gráfico de Linhas', '📊 Histograma'],
+            horizontal=True
+        )
+        
+        if chart_type == '📈 Gráfico de Linhas':
+            st.markdown("### 📈 Gráfico de Linhas Temporais")
+            
+            # Selecionar eixo X
+            date_columns = [col for col in df.columns if 'data' in col.lower() or 'date' in col.lower() or 'hora' in col.lower()]
+            
+            if date_columns:
+                x_col = st.selectbox("Eixo X (Tempo):", date_columns)
+                
+                # Converter para datetime
+                df_temp = df.copy()
+                if df_temp[x_col].dtype == 'object':
+                    df_temp[x_col] = pd.to_datetime(df_temp[x_col], format='mixed')
+                
+                # Selecionar variáveis para Y
+                numeric_cols = df_temp.select_dtypes(include=[np.number]).columns.tolist()
+                y_cols = st.multiselect(
+                    "Variáveis para o eixo Y:",
+                    numeric_cols,
+                    default=numeric_cols[:3] if len(numeric_cols) >= 3 else numeric_cols
+                )
+                
+                if y_cols:
+                    # Criar gráfico
+                    chart = create_line_chart(
+                        df_temp,
+                        x_col,
+                        y_cols,
+                        title=f"Série Temporal das Variáveis Meteorológicas"
+                    )
+                    
+                    st.altair_chart(chart, use_container_width=True)
+                    
+                    # Estatísticas do gráfico
+                    with st.expander("📊 Estatísticas do Período"):
+                        for col in y_cols:
+                            st.markdown(f"**{col}:**")
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("Média", f"{df_temp[col].mean():.2f}")
+                            with col2:
+                                st.metric("Máximo", f"{df_temp[col].max():.2f}")
+                            with col3:
+                                st.metric("Mínimo", f"{df_temp[col].min():.2f}")
+                            with col4:
+                                st.metric("Desvio Padrão", f"{df_temp[col].std():.2f}")
+                else:
+                    st.info("Selecione pelo menos uma variável para o eixo Y.")
+            else:
+                st.warning("Nenhuma coluna de data identificada para o eixo X.")
+        
+        elif chart_type == '📊 Histograma':
+            st.markdown("### 📊 Histograma das Variáveis")
+            
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            selected_cols = st.multiselect(
+                "Selecione as variáveis:",
+                numeric_cols,
+                default=numeric_cols[:4] if len(numeric_cols) >= 4 else numeric_cols
+            )
+            
+            if selected_cols:
+                n_bins = st.slider("Número de bins:", 10, 100, 30)
+                
+                # Criar histograma
+                chart = create_histogram(df, selected_cols, bins=n_bins)
+                st.altair_chart(chart, use_container_width=True)
+                
+                # Estatísticas descritivas
+                with st.expander("📊 Estatísticas Descritivas"):
+                    st.dataframe(df[selected_cols].describe(), use_container_width=True)
+            else:
+                st.info("Selecione pelo menos uma variável para visualizar.")
+        
+        # Análise com IA
+        if gemini_api_key and y_cols if chart_type == '📈 Gráfico de Linhas' else selected_cols:
+            if st.button("🧠 Analisar Gráfico com IA", key="btn_ai_chart"):
+                try:
+                    if chart_type == '📈 Gráfico de Linhas':
+                        data_desc = df[y_cols].describe().to_string()
+                        prompt = f"""
+                        Analise a série temporal meteorológica:
+                        
+                        Variáveis: {', '.join(y_cols)}
+                        
+                        Estatísticas descritivas:
+                        {data_desc}
+                        
+                        Forneça insights sobre:
+                        1. Tendências observadas
+                        2. Sazonalidade
+                        3. Eventos extremos
+                        4. Recomendações baseadas nos padrões
+                        
+                        Responda em português.
+                        """
+                    else:
+                        data_desc = df[selected_cols].describe().to_string()
+                        prompt = f"""
+                        Analise a distribuição das variáveis meteorológicas:
+                        
+                        Variáveis: {', '.join(selected_cols)}
+                        
+                        Estatísticas descritivas:
+                        {data_desc}
+                        
+                        Interprete:
+                        1. Forma da distribuição
+                        2. Assimetria e curtose
+                        3. Valores atípicos
+                        4. Implicações práticas
+                        
+                        Responda em português.
+                        """
+                    
+                    response = model.generate_content(prompt)
+                    
+                    st.markdown("""
+                    <div class="success-message">
+                        <h4>💡 Análise da IA:</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.write(response.text)
+                except:
+                    st.error("Erro ao consultar a IA.")
+    else:
+        st.warning("⚠️ Faça o upload dos dados na Aba 1 primeiro!")
 
-# ==============================================================================
-# RODAPÉ COM REFERÊNCIAS E CRÉDITOS
-# ==============================================================================
-st.markdown("---")
-st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+# ============================================================
+# ABA 6 - DOWNLOAD
+# ============================================================
 
-col1, col2 = st.columns([2, 1])
+with tab6:
+    st.markdown('<p class="tab-header">💾 Download dos Dados Processados</p>', unsafe_allow_html=True)
+    
+    if 'df_processed' in st.session_state:
+        df = st.session_state['df_processed']
+        
+        st.markdown("""
+        <div class="success-message">
+            <h4>✅ Dados prontos para download!</h4>
+            <p>Seus dados foram processados e estão prontos para exportação.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Informações do arquivo
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown(f"""
+            <div class="metric-card">
+                <h4>📊 Registros</h4>
+                <p style="font-size:2rem; font-weight:bold; color:#1a5632;">{len(df)}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="metric-card">
+                <h4>📋 Colunas</h4>
+                <p style="font-size:2rem; font-weight:bold; color:#1a5632;">{len(df.columns)}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            missing = df.isnull().sum().sum()
+            st.markdown(f"""
+            <div class="metric-card">
+                <h4>🔍 Dados Ausentes</h4>
+                <p style="font-size:2rem; font-weight:bold; color:#1a5632;">{missing}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Opções de download
+        st.markdown("### 📥 Selecione o formato de exportação:")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            <div class="card">
+                <h4>📄 CSV</h4>
+                <p style="color:#666;">Formato texto com separador vírgula</p>
+                <p style="color:#666;">Compatível com Excel, Google Sheets</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Criar CSV
+            csv = df.to_csv(index=False)
+            b64_csv = base64.b64encode(csv.encode()).decode()
+            
+            st.markdown(
+                f'<a href="data:file/csv;base64,{b64_csv}" download="dados_processados.csv">'
+                f'<button style="background: linear-gradient(135deg, #1a5632 0%, #2d8a4e 100%); '
+                f'color: white; border: none; padding: 0.6rem 2rem; border-radius: 25px; '
+                f'cursor: pointer; width: 100%;">📥 Baixar CSV</button></a>',
+                unsafe_allow_html=True
+            )
+        
+        with col2:
+            st.markdown("""
+            <div class="card">
+                <h4>📊 Excel</h4>
+                <p style="color:#666;">Formato nativo do Microsoft Excel</p>
+                <p style="color:#666;">Com múltiplas abas e formatação</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Criar Excel
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Dados_Processados', index=False)
+                
+                # Adicionar aba de estatísticas
+                stats_df = df.describe()
+                stats_df.to_excel(writer, sheet_name='Estatísticas')
+            
+            excel_data = output.getvalue()
+            b64_excel = base64.b64encode(excel_data).decode()
+            
+            st.markdown(
+                f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64_excel}" '
+                f'download="dados_processados.xlsx">'
+                f'<button style="background: linear-gradient(135deg, #1a5632 0%, #2d8a4e 100%); '
+                f'color: white; border: none; padding: 0.6rem 2rem; border-radius: 25px; '
+                f'cursor: pointer; width: 100%;">📥 Baixar Excel</button></a>',
+                unsafe_allow_html=True
+            )
+        
+        # Resumo do processamento
+        st.markdown("---")
+        st.markdown("### 📋 Resumo do Processamento")
+        
+        if 'df_original' in st.session_state:
+            df_original = st.session_state['df_original']
+            
+            summary_data = {
+                'Métrica': [
+                    'Registros Originais',
+                    'Registros Finais',
+                    'Colunas',
+                    'Dados Ausentes (Original)',
+                    'Dados Ausentes (Final)',
+                    'Tamanho em Memória'
+                ],
+                'Valor': [
+                    len(df_original),
+                    len(df),
+                    len(df.columns),
+                    df_original.isnull().sum().sum(),
+                    df.isnull().sum().sum(),
+                    f"{df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB"
+                ]
+            }
+            
+            summary_df = pd.DataFrame(summary_data)
+            st.dataframe(summary_df, use_container_width=True, hide_index=True)
+        
+        st.success("🎉 Seus dados estão prontos para uso!")
+        
+    else:
+        st.warning("⚠️ Faça o upload e processamento dos dados nas abas anteriores primeiro!")
 
-with col1:
-    st.markdown("### 📚 Referências e Métodos")
+# ============================================================
+# ABA 7 - REFERÊNCIAS E MÉTODOS
+# ============================================================
+
+with tab7:
+    st.markdown('<p class="tab-header">📚 Referências e Métodos Científicos</p>', unsafe_allow_html=True)
+    
     st.markdown("""
-    **Metodologias Científicas Utilizadas:**
+    <div class="card">
+        <h3>📖 Fundamentação Científica</h3>
+        
+        <p>Este aplicativo utiliza métodos estatísticos consolidados na literatura científica para análise de dados meteorológicos e agronômicos.</p>
+        
+        <h4>🔬 Métodos Implementados</h4>
+        
+        <h5>1. Tratamento de Dados Ausentes</h5>
+        <ul>
+            <li><strong>Média:</strong> Substituição pela média aritmética - Método simples e eficaz para dados com distribuição normal</li>
+            <li><strong>Mediana:</strong> Substituição pela mediana - Robusto para dados com outliers</li>
+            <li><strong>Interpolação Linear:</strong> Estimativa de valores baseada em pontos adjacentes - Ideal para séries temporais</li>
+        </ul>
+        
+        <p><strong>Referência:</strong> Little, R.J.A. & Rubin, D.B. (2019). Statistical Analysis with Missing Data. 3rd Edition. Wiley.</p>
+        
+        <h5>2. Correlação de Pearson</h5>
+        <p>Mede a relação linear entre duas variáveis. O coeficiente varia de -1 a 1:</p>
+        <ul>
+            <li>r = 1: Correlação positiva perfeita</li>
+            <li>r = 0: Sem correlação linear</li>
+            <li>r = -1: Correlação negativa perfeita</li>
+        </ul>
+        
+        <p><strong>Fórmula:</strong> r = Σ((x - x̄)(y - ȳ)) / √(Σ(x - x̄)² · Σ(y - ȳ)²)</p>
+        <p><strong>Referência:</strong> Pearson, K. (1895). Notes on regression and inheritance in the case of two parents. Proceedings of the Royal Society of London, 58, 240-242.</p>
+        
+        <h5>3. Correlação de Spearman</h5>
+        <p>Versão não-paramétrica da correlação, baseada em postos. Não assume distribuição normal.</p>
+        
+        <p><strong>Referência:</strong> Spearman, C. (1904). The proof and measurement of association between two things. American Journal of Psychology, 15, 72-101.</p>
+        
+        <h5>4. ANOVA (Análise de Variância)</h5>
+        <p>Testa diferenças entre médias de três ou mais grupos.</p>
+        <p><strong>Pressupostos:</strong></p>
+        <ul>
+            <li>Independência das observações</li>
+            <li>Normalidade dos resíduos</li>
+            <li>Homogeneidade de variâncias (testada com Levene)</li>
+        </ul>
+        
+        <p><strong>Fórmula:</strong> F = Variância entre grupos / Variância dentro dos grupos</p>
+        <p><strong>Referência:</strong> Fisher, R.A. (1925). Statistical Methods for Research Workers. Oliver and Boyd, Edinburgh.</p>
+        
+        <h5>5. Coeficiente de Variação (CV)</h5>
+        <p>Medida de dispersão relativa, expressa em porcentagem.</p>
+        <p><strong>Fórmula:</strong> CV = (s / x̄) × 100</p>
+        <p>Onde s = desvio padrão e x̄ = média</p>
+        
+        <p><strong>Classificação (Pimentel-Gomes, 2000):</strong></p>
+        <ul>
+            <li>CV ≤ 10%: Baixo (alta precisão)</li>
+            <li>10% < CV ≤ 20%: Médio</li>
+            <li>20% < CV ≤ 30%: Alto</li>
+            <li>CV > 30%: Muito Alto (baixa precisão)</li>
+        </ul>
+        
+        <p><strong>Referência:</strong> Pimentel-Gomes, F. (2000). Curso de Estatística Experimental. 14ª ed. Piracicaba: ESALQ/USP.</p>
+    </div>
     
-    - **Correlação de Pearson**: Mede a força e direção da relação linear entre duas variáveis
+    <div class="card">
+        <h4>📊 Estatísticas Descritivas</h4>
+        <p>As estatísticas descritivas incluem:</p>
+        <ul>
+            <li><strong>Média (x̄):</strong> Soma dos valores dividida pelo número de observações</li>
+            <li><strong>Mediana:</strong> Valor central quando os dados são ordenados</li>
+            <li><strong>Desvio Padrão (s):</strong> Raiz quadrada da variância</li>
+            <li><strong>Variância (s²):</strong> Média dos quadrados das diferenças em relação à média</li>
+            <li><strong>Assimetria:</strong> Medida de simetria da distribuição</li>
+            <li><strong>Curtose:</strong> Medida de achatamento da distribuição</li>
+        </ul>
+    </div>
     
-    - **ANOVA (Analysis of Variance)**: Teste paramétrico para comparar médias entre grupos
+    <div class="card">
+        <h4>🎓 Créditos</h4>
+        <p><strong>Desenvolvido por:</strong> Equipe AgroDataLab</p>
+        <p><strong>Versão:</strong> 1.0</p>
+        <p><strong>Bibliotecas Utilizadas:</strong></p>
+        <ul>
+            <li>Streamlit - Interface web interativa</li>
+            <li>Pandas - Manipulação de dados</li>
+            <li>NumPy - Computação numérica</li>
+            <li>SciPy - Estatística avançada</li>
+            <li>Altair - Visualização de dados</li>
+            <li>Google Generative AI - Análise com IA</li>
+        </ul>
+        
+        <p><strong>Licença:</strong> MIT License</p>
+        <p>Este software é fornecido "como está", sem garantias de qualquer tipo.</p>
+    </div>
     
-    - **Coeficiente de Variação (CV)**: Medida de dispersão relativa, calculada como (Desvio Padrão / Média) × 100
-    
-    - **Imputação por Média**: Método de preenchimento de dados faltantes usando a média da variável
-    
-    **Referências Bibliográficas:**
-    - Montgomery, D.C. (2017). Design and Analysis of Experiments. 9th Edition.
-    - Wilks, D.S. (2011). Statistical Methods in the Atmospheric Sciences. 3rd Edition.
-    - INMET (2024). Normais Climatológicas do Brasil.
-    """)
+    <div class="card">
+        <h4>📞 Contato e Suporte</h4>
+        <p>Para dúvidas, sugestões ou reportar bugs:</p>
+        <ul>
+            <li>Email: suporte@agrodatalab.com</li>
+            <li>GitHub: github.com/agrodatalab</li>
+            <li>Documentação: docs.agrodatalab.com</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
-with col2:
-    st.markdown("### 👨‍💻 Créditos")
-    st.markdown("""
-    **AgroAnalytics Pro v1.0**
-    
-    Desenvolvido com ❤️ para a comunidade agrícola e científica
-    
-    **Tecnologias:**
-    - Python 3.10+
-    - Streamlit
-    - Pandas
-    - NumPy
-    - SciPy
-    - Matplotlib
-    - Seaborn
-    
-    **IA Integrada:**
-    - Google Gemini API
-    
-    © 2024 - Todos os direitos reservados
-    """)
+# ============================================================
+# FOOTER
+# ============================================================
 
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="footer">
+    <p>🌱 AgroDataLab v1.0 | Desenvolvido com Streamlit e Python</p>
+    <p>Análise Inteligente de Dados Meteorológicos | © 2024</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# INICIALIZAÇÃO DO SESSION STATE
+# ============================================================
+
+if 'df_original' not in st.session_state:
+    st.session_state['df_original'] = None
+if 'df_processed' not in st.session_state:
+    st.session_state['df_processed'] = None
+
+# ============================================================
+# FIM DO CÓDIGO
+# ============================================================

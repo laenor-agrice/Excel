@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 9.0 - Aprimoramento Analítico
+# Versão 9.1 - Correção de Importação SciPy
 # ============================================================
 
 import streamlit as st
@@ -8,12 +8,21 @@ import pandas as pd
 import numpy as np
 import altair as alt
 from datetime import datetime
-from scipy import stats as scipy_stats
 import io
 import csv
 import traceback
 import warnings
 warnings.filterwarnings('ignore')
+
+# ============================================================
+# IMPORTAÇÃO SEGURA DO SCIPY
+# ============================================================
+try:
+    from scipy import stats as scipy_stats
+    SCIPY_DISPONIVEL = True
+except ImportError:
+    SCIPY_DISPONIVEL = False
+    scipy_stats = None
 
 # ============================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -216,13 +225,10 @@ def obter_df_limpo():
     return df
 
 # ============================================================
-# NOVA FUNÇÃO: AGREGAÇÃO TEMPORAL (MENSAL/ANUAL)
+# AGREGAÇÃO TEMPORAL
 # ============================================================
 def criar_agregacao_temporal(df, date_col, freq='M'):
-    """
-    Cria agregação temporal (média mensal ou anual)
-    freq: 'M' para mensal, 'Y' para anual
-    """
+    """Cria agregação temporal (média mensal ou anual)"""
     df_temp = df.copy()
     df_temp[date_col] = pd.to_datetime(df_temp[date_col], errors='coerce')
     df_temp = df_temp.dropna(subset=[date_col])
@@ -240,10 +246,14 @@ def criar_agregacao_temporal(df, date_col, freq='M'):
     return df_agg.reset_index()
 
 # ============================================================
-# NOVA FUNÇÃO: ESTATÍSTICAS COMPLETAS (EXPANDIDA)
+# ESTATÍSTICAS COMPLETAS (COM FALLBACK SEM SCIPY)
 # ============================================================
 def calcular_estatisticas_completas(df, coluna):
-    """Calcula estatísticas descritivas completas + teste de normalidade"""
+    """
+    Calcula estatísticas descritivas completas.
+    Se SciPy disponível: inclui Shapiro-Wilk
+    Se SciPy indisponível: usa apenas pandas/numpy
+    """
     dados = df[coluna].dropna()
     
     if len(dados) < 3:
@@ -256,7 +266,7 @@ def calcular_estatisticas_completas(df, coluna):
     media = np.mean(dados)
     mediana = np.median(dados)
     
-    # Moda (pode ter múltiplas)
+    # Moda
     moda_vals = dados.mode()
     moda = moda_vals.iloc[0] if len(moda_vals) > 0 else np.nan
     
@@ -272,20 +282,12 @@ def calcular_estatisticas_completas(df, coluna):
     q2 = np.percentile(dados, 50)
     q3 = np.percentile(dados, 75)
     iqr = q3 - q1
+    p10 = np.percentile(dados, 10)
+    p90 = np.percentile(dados, 90)
     
-    assimetria = scipy_stats.skew(dados)
-    curtose = scipy_stats.kurtosis(dados)
-    
-    # Teste de normalidade Shapiro-Wilk
-    if 3 <= n <= 5000:
-        try:
-            stat_sw, p_sw = scipy_stats.shapiro(dados)
-            normal = "Sim ✅" if p_sw > 0.05 else "Não ❌"
-            p_sw_val = round(p_sw, 4)
-        except:
-            stat_sw, p_sw_val, normal = np.nan, np.nan, "N/A"
-    else:
-        stat_sw, p_sw_val, normal = np.nan, np.nan, "N/A (n>5000)"
+    # Assimetria e Curtose (pandas nativo)
+    assimetria = dados.skew()
+    curtose = dados.kurtosis()
     
     # Classificação CV
     if cv <= 10:
@@ -297,11 +299,7 @@ def calcular_estatisticas_completas(df, coluna):
     else:
         cv_class = "Muito Alto 🔴"
     
-    # Percentis adicionais
-    p10 = np.percentile(dados, 10)
-    p90 = np.percentile(dados, 90)
-    
-    return {
+    resultado = {
         'N': n,
         'Faltantes': faltantes,
         'Soma': round(soma, 2),
@@ -324,13 +322,32 @@ def calcular_estatisticas_completas(df, coluna):
         'P90': round(p90, 4),
         'Assimetria': round(assimetria, 4),
         'Curtose': round(curtose, 4),
-        'Shapiro-Wilk W': round(stat_sw, 4) if not pd.isna(stat_sw) else 'N/A',
-        'Shapiro-Wilk p': p_sw_val if not pd.isna(p_sw_val) else 'N/A',
-        'Dist. Normal?': normal
     }
+    
+    # Teste de normalidade (apenas se SciPy disponível)
+    if SCIPY_DISPONIVEL and 3 <= n <= 5000:
+        try:
+            stat_sw, p_sw = scipy_stats.shapiro(dados)
+            resultado['Shapiro-Wilk W'] = round(stat_sw, 4)
+            resultado['Shapiro-Wilk p'] = round(p_sw, 4)
+            resultado['Dist. Normal?'] = "Sim ✅" if p_sw > 0.05 else "Não ❌"
+        except:
+            resultado['Shapiro-Wilk W'] = 'Erro'
+            resultado['Shapiro-Wilk p'] = 'Erro'
+            resultado['Dist. Normal?'] = 'N/A'
+    elif SCIPY_DISPONIVEL:
+        resultado['Shapiro-Wilk W'] = 'N/A (n>5000)'
+        resultado['Shapiro-Wilk p'] = 'N/A (n>5000)'
+        resultado['Dist. Normal?'] = 'N/A (n>5000)'
+    else:
+        resultado['Shapiro-Wilk W'] = 'SciPy não instalado'
+        resultado['Shapiro-Wilk p'] = 'SciPy não instalado'
+        resultado['Dist. Normal?'] = 'Indisponível'
+    
+    return resultado
 
 # ============================================================
-# FUNÇÕES DE GRÁFICOS (APRIMORADAS)
+# FUNÇÕES DE GRÁFICOS
 # ============================================================
 def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
     try:
@@ -365,18 +382,15 @@ def criar_histograma_aprimorado(df, coluna, bins=30):
         media_val = df_clean[coluna].mean()
         mediana_val = df_clean[coluna].median()
         
-        # Histograma
         bars = alt.Chart(df_clean).mark_bar(opacity=0.7, color='#2d8a4e').encode(
             alt.X(f'{coluna}:Q', bin=alt.Bin(maxbins=bins), title=coluna),
             alt.Y('count()', title='Frequência')
         )
         
-        # Linha da média
         rule_media = alt.Chart(pd.DataFrame({'x': [media_val]})).mark_rule(
             color='red', strokeWidth=2, strokeDash=[5,5]
         ).encode(x='x:Q')
         
-        # Linha da mediana
         rule_mediana = alt.Chart(pd.DataFrame({'x': [mediana_val]})).mark_rule(
             color='blue', strokeWidth=2, strokeDash=[3,3]
         ).encode(x='x:Q')
@@ -388,7 +402,7 @@ def criar_histograma_aprimorado(df, coluna, bins=30):
         
         return chart
     except Exception as e:
-        st.error(f"Erro no histograma: {str(e)}")
+        st.error(f"Erro: {str(e)}")
         return None
 
 def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
@@ -402,15 +416,12 @@ def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
         if len(df_clean) < 1:
             return None
         
-        # Se x_col for data, converter para string
         if pd.api.types.is_datetime64_any_dtype(df_clean[x_col]):
             df_clean[x_col] = df_clean[x_col].dt.strftime('%b/%Y')
         
         chart = alt.Chart(df_clean).mark_bar(
-            opacity=0.85,
-            color='#2d8a4e',
-            cornerRadiusTopLeft=4,
-            cornerRadiusTopRight=4
+            opacity=0.85, color='#2d8a4e',
+            cornerRadiusTopLeft=4, cornerRadiusTopRight=4
         ).encode(
             x=alt.X(f'{x_col}:O', title=x_col, axis=alt.Axis(labelAngle=-45)),
             y=alt.Y(f'{y_col}:Q', title=y_col),
@@ -419,7 +430,7 @@ def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
         
         return chart
     except Exception as e:
-        st.error(f"Erro no gráfico de barras: {str(e)}")
+        st.error(f"Erro: {str(e)}")
         return None
 
 def criar_boxplot(df, coluna):
@@ -454,7 +465,7 @@ st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
     <p>Sistema Inteligente de Análise Meteorológica e Agronômica</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v9.0 - Análise Climática Avançada</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v9.1 - Estatísticas Avançadas</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -463,6 +474,13 @@ st.markdown("""
 # ============================================================
 with st.sidebar:
     st.markdown("### 📊 Status")
+    
+    # Status SciPy
+    if SCIPY_DISPONIVEL:
+        st.success("✅ SciPy disponível")
+    else:
+        st.warning("⚠️ SciPy não instalado (testes de normalidade indisponíveis)")
+    
     df_status = obter_df_limpo()
     if df_status is not None:
         st.success(f"✅ {len(df_status):,} registros")
@@ -474,7 +492,7 @@ with st.sidebar:
     else:
         st.info("📤 Sem dados")
     st.markdown("---")
-    st.caption("AgroDataLab v9.0 | MIT License")
+    st.caption("AgroDataLab v9.1 | MIT License")
 
 # ============================================================
 # ABAS
@@ -523,7 +541,7 @@ with aba1:
                 st.dataframe(df.head(15), use_container_width=True)
 
 # ============================================================
-# ABA 2: TRATAMENTO (COM AGREGAÇÃO TEMPORAL)
+# ABA 2: TRATAMENTO
 # ============================================================
 with aba2:
     st.header("🔧 Tratamento de Dados")
@@ -532,7 +550,7 @@ with aba2:
     if df is None:
         st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
     else:
-        # --- SEÇÃO 1: VALORES AUSENTES ---
+        # Valores ausentes
         missing_total = df.isnull().sum().sum()
         if missing_total > 0:
             st.markdown(f'<div class="warning-box"><h3>⚠️ {missing_total:,} valores ausentes</h3></div>', unsafe_allow_html=True)
@@ -576,15 +594,15 @@ with aba2:
         else:
             st.markdown('<div class="success-box"><h3>✅ Nenhum valor ausente!</h3></div>', unsafe_allow_html=True)
         
-        # --- SEÇÃO 2: AGREGAÇÃO TEMPORAL (NOVO!) ---
+        # Agregação temporal
         st.markdown("---")
-        st.subheader("📆 Agregação Temporal (NOVO!)")
+        st.subheader("📆 Agregação Temporal")
         
         date_cols = st.session_state.get('date_columns', [])
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
         
         if date_cols and colunas_num:
-            col_data_agg = st.selectbox("Coluna de data para agregação:", date_cols, key="agg_date")
+            col_data_agg = st.selectbox("Coluna de data:", date_cols, key="agg_date")
             freq_agg = st.radio("Período:", ['Mensal', 'Anual'], horizontal=True, key="agg_freq")
             
             if st.button("📊 Gerar Média " + freq_agg, key="btn_agg"):
@@ -594,14 +612,13 @@ with aba2:
                 st.success(f"✅ Média {freq_agg.lower()} gerada! ({len(df_agg)} registros)")
                 st.rerun()
             
-            # Mostrar tabela agregada se existir
             if st.session_state.get('df_mensal') is not None:
                 st.markdown(f"#### 📋 Média {freq_agg}")
                 st.dataframe(st.session_state['df_mensal'], use_container_width=True)
         else:
-            st.info("📅 Necessário coluna de data e variáveis numéricas para agregação.")
+            st.info("📅 Necessário coluna de data e variáveis numéricas.")
         
-        # --- SEÇÃO 3: OUTLIERS ---
+        # Outliers
         st.markdown("---")
         st.subheader("🔍 Outliers (IQR)")
         
@@ -624,13 +641,16 @@ with aba2:
                     st.success(f"✅ Nenhum outlier em {col_out}")
 
 # ============================================================
-# ABA 3: ESTATÍSTICAS (EXPANDIDA)
+# ABA 3: ESTATÍSTICAS
 # ============================================================
 with aba3:
     st.header("📊 Análise Estatística Completa")
     st.markdown("---")
     
-    # Escolher fonte de dados
+    # Aviso SciPy
+    if not SCIPY_DISPONIVEL:
+        st.warning("⚠️ SciPy não instalado. Teste de normalidade Shapiro-Wilk indisponível. As demais estatísticas funcionam normalmente.")
+    
     fonte_dados = st.radio(
         "Fonte de dados:",
         ['Dados Originais', 'Média Mensal/Anual (se disponível)'],
@@ -654,25 +674,21 @@ with aba3:
         else:
             col_analise = st.selectbox("Variável para análise:", colunas_num, key="stat_col")
             
-            # ESTATÍSTICAS COMPLETAS (NOVA FUNÇÃO)
             stats = calcular_estatisticas_completas(df, col_analise)
             
             if stats:
                 st.subheader(f"📈 Estatísticas Completas: **{col_analise}**")
                 
-                # Cards principais
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Média", f"{stats['Média']:.3f}")
                 c2.metric("Desvio Padrão", f"{stats['Desvio Padrão']:.3f}")
                 c3.metric("CV (%)", f"{stats['CV (%)']:.1f}%", stats['Classificação CV'])
-                c4.metric("Normalidade", stats['Dist. Normal?'])
+                c4.metric("Normalidade", stats.get('Dist. Normal?', 'N/A'))
                 
-                # Tabela completa
-                with st.expander("📋 Ver Todas as Estatísticas (24 métricas)"):
+                with st.expander("📋 Ver Todas as Estatísticas (22 métricas)"):
                     stats_df = pd.DataFrame(list(stats.items()), columns=['Estatística', 'Valor'])
                     st.dataframe(stats_df, use_container_width=True, hide_index=True)
                 
-                # Histograma aprimorado
                 st.markdown("---")
                 st.subheader("📊 Distribuição com Média e Mediana")
                 bins = st.slider("Bins:", 5, 100, 30, key="bins_stats")
@@ -681,14 +697,12 @@ with aba3:
                 if chart_h:
                     st.altair_chart(chart_h, use_container_width=True)
                 
-                # Boxplot
                 st.markdown("---")
                 st.subheader("📉 Boxplot")
                 chart_box = criar_boxplot(df_plot, col_analise)
                 if chart_box:
                     st.altair_chart(chart_box, use_container_width=True)
                 
-                # Correlação
                 if len(colunas_num) >= 2:
                     st.markdown("---")
                     st.subheader("🔗 Matriz de Correlação de Pearson")
@@ -696,7 +710,6 @@ with aba3:
                     if not corr.empty:
                         st.dataframe(corr.round(3), use_container_width=True)
                 
-                # Série temporal
                 date_cols = st.session_state.get('date_columns', [])
                 if date_cols and fonte_dados == 'Dados Originais':
                     st.markdown("---")
@@ -712,13 +725,12 @@ with aba3:
                             st.altair_chart(chart_t, use_container_width=True)
 
 # ============================================================
-# ABA 4: GRÁFICOS (COM BARRAS)
+# ABA 4: GRÁFICOS
 # ============================================================
 with aba4:
     st.header("📈 Visualização Gráfica")
     st.markdown("---")
     
-    # Escolher fonte
     fonte_graf = st.radio(
         "Fonte:",
         ['Dados Originais', 'Média Mensal/Anual'],
@@ -778,18 +790,17 @@ with aba4:
                     st.altair_chart(chart, use_container_width=True)
             
             elif tipo == '📋 Barras':
-                st.info("💡 Ideal para dados categóricos ou agregados (médias mensais)")
+                st.info("💡 Ideal para dados categóricos ou agregados")
                 
-                # Para dados agregados, a primeira coluna geralmente é o período
                 if st.session_state.get('df_mensal') is not None and fonte_graf == 'Média Mensal/Anual':
-                    x_default = df.columns[0]  # Primeira coluna (período)
+                    x_default = df.columns[0]
                 else:
                     x_default = todas_cols[0]
                 
-                col_x_bar = st.selectbox("Eixo X (Categorias):", todas_cols, 
+                col_x_bar = st.selectbox("Eixo X:", todas_cols, 
                                         index=todas_cols.index(x_default) if x_default in todas_cols else 0,
                                         key="bx")
-                col_y_bar = st.selectbox("Eixo Y (Valores):", colunas_num, key="by")
+                col_y_bar = st.selectbox("Eixo Y:", colunas_num, key="by")
                 
                 df_plot = df[[col_x_bar, col_y_bar]].dropna()
                 if len(df_plot) > 0:
@@ -811,13 +822,11 @@ with aba5:
     if df is not None:
         st.markdown('<div class="success-box"><h3>✅ Dados disponíveis</h3></div>', unsafe_allow_html=True)
         
-        # Download dados originais
         st.subheader("📥 Dados Processados")
         csv_data = df.to_csv(index=False, encoding='utf-8')
         st.download_button("📥 Baixar CSV (Original)", csv_data,
                           f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
         
-        # Download agregação (se existir)
         if df_agg is not None:
             st.markdown("---")
             st.subheader("📥 Média Mensal/Anual")
@@ -837,8 +846,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v9.0</h4>
-    <p>Análise Climática Avançada | Shapiro-Wilk | Agregação Temporal</p>
+    <h4>🌱 AgroDataLab v9.1</h4>
+    <p>Análise Climática Avançada | Estatísticas Robustas</p>
     <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

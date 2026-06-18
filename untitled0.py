@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 8.0 - Correção Definitiva de Tipos de Dados
+# Versão 9.0 - Aprimoramento Analítico
 # ============================================================
 
 import streamlit as st
@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import altair as alt
 from datetime import datetime
+from scipy import stats as scipy_stats
 import io
 import csv
 import traceback
@@ -88,11 +89,13 @@ if 'df_original' not in st.session_state:
     st.session_state['df_original'] = None
 if 'df_processed' not in st.session_state:
     st.session_state['df_processed'] = None
+if 'df_mensal' not in st.session_state:
+    st.session_state['df_mensal'] = None
 if 'date_columns' not in st.session_state:
     st.session_state['date_columns'] = []
 
 # ============================================================
-# FUNÇÃO: CORRIGIR NOMES DUPLICADOS
+# FUNÇÕES BÁSICAS
 # ============================================================
 def corrigir_nomes_duplicados(df):
     """Renomeia colunas duplicadas"""
@@ -105,104 +108,71 @@ def corrigir_nomes_duplicados(df):
     df.columns = cols
     return df
 
-# ============================================================
-# FUNÇÃO: DETECTAR DELIMITADOR
-# ============================================================
 def detectar_delimitador(arquivo):
-    """Detecta automaticamente o delimitador do CSV"""
+    """Detecta delimitador do CSV"""
     try:
         arquivo.seek(0)
         amostra_bytes = arquivo.read(8192)
         arquivo.seek(0)
-        
-        for encoding in ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']:
+        for enc in ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']:
             try:
-                amostra = amostra_bytes.decode(encoding)
+                amostra = amostra_bytes.decode(enc)
                 break
             except:
                 continue
         else:
             amostra = amostra_bytes.decode('utf-8', errors='ignore')
-        
         try:
             sniffer = csv.Sniffer()
             dialecto = sniffer.sniff(amostra)
-            delimitador = dialecto.delimiter
+            delim = dialecto.delimiter
             linhas = amostra.strip().split('\n')
             if len(linhas) >= 2:
-                c1 = linhas[0].count(delimitador)
-                c2 = linhas[1].count(delimitador)
-                if c1 == c2 and c1 > 0:
-                    return delimitador
+                if linhas[0].count(delim) == linhas[1].count(delim) > 0:
+                    return delim
         except:
             pass
-        
-        delimitadores = [';', ',', '\t', '|']
-        linhas = amostra.strip().split('\n')
-        if len(linhas) >= 2:
-            for sep in delimitadores:
-                c1 = linhas[0].count(sep)
-                c2 = linhas[1].count(sep)
-                if c1 == c2 and c1 > 0:
+        for sep in [';', ',', '\t', '|']:
+            linhas = amostra.strip().split('\n')
+            if len(linhas) >= 2:
+                if linhas[0].count(sep) == linhas[1].count(sep) > 0:
                     return sep
-        
-        melhor_sep = ','
-        max_count = 0
-        for sep in delimitadores:
-            count = amostra.count(sep)
-            if count > max_count:
-                max_count = count
-                melhor_sep = sep
-        return melhor_sep if max_count > 0 else ','
+        return ';' if amostra.count(';') > amostra.count(',') else ','
     except:
         return ','
 
-# ============================================================
-# FUNÇÃO: CARREGAR DADOS
-# ============================================================
 def carregar_dados(arquivo):
     """Carrega CSV ou Excel"""
     try:
         if arquivo.name.endswith('.csv'):
-            separador = detectar_delimitador(arquivo)
-            configuracoes = [
-                ('utf-8', ','), ('utf-8', '.'),
-                ('latin1', ','), ('latin1', '.'),
-                ('iso-8859-1', ','), ('iso-8859-1', '.'),
-                ('cp1252', ','), ('cp1252', '.'),
-            ]
-            for encoding, decimal in configuracoes:
+            sep = detectar_delimitador(arquivo)
+            for enc, dec in [('utf-8',','),('utf-8','.'),('latin1',','),('latin1','.'),
+                            ('iso-8859-1',','),('iso-8859-1','.'),('cp1252',','),('cp1252','.')]:
                 try:
                     arquivo.seek(0)
-                    df = pd.read_csv(arquivo, sep=separador, encoding=encoding,
-                                   decimal=decimal, thousands='.', on_bad_lines='skip', engine='python')
+                    df = pd.read_csv(arquivo, sep=sep, encoding=enc, decimal=dec,
+                                   thousands='.', on_bad_lines='skip', engine='python')
                     if df.shape[1] > 1:
                         return corrigir_nomes_duplicados(df)
                 except:
                     continue
             arquivo.seek(0)
-            df = pd.read_csv(arquivo, sep=separador, encoding='utf-8', on_bad_lines='skip', engine='python')
+            df = pd.read_csv(arquivo, sep=sep, encoding='utf-8', on_bad_lines='skip', engine='python')
             return corrigir_nomes_duplicados(df)
         else:
-            df = pd.read_excel(arquivo)
-            return corrigir_nomes_duplicados(df)
+            return corrigir_nomes_duplicados(pd.read_excel(arquivo))
     except Exception as e:
-        st.error(f"Erro ao carregar: {str(e)}")
+        st.error(f"Erro: {str(e)}")
         return None
 
-# ============================================================
-# FUNÇÃO: PROCESSAR DADOS
-# ============================================================
 def processar_dados(df):
-    """Processa dados - apenas colunas com nome de data são convertidas"""
+    """Processa dados - apenas colunas com nome de data"""
     df = df.copy()
     date_cols = []
-    
-    palavras_data = ['data', 'hora', 'date', 'time', 'timestamp', 'datetime', 'datahora', 'data_coleta']
+    palavras_data = ['data', 'hora', 'date', 'time', 'timestamp', 'datetime', 'datahora']
     
     for col in df.columns:
-        col_lower = str(col).lower().replace(" ", "_")
-        if any(p in col_lower for p in palavras_data):
+        if any(p in str(col).lower().replace(" ","_") for p in palavras_data):
             try:
                 df[col] = pd.to_datetime(df[col], format='mixed', dayfirst=True, errors='coerce')
                 if df[col].notna().sum() > 0:
@@ -219,16 +189,13 @@ def processar_dados(df):
                 pd.to_numeric(amostra)
                 df[col] = df[col].astype(str).str.replace(",", ".")
                 df[col] = pd.to_numeric(df[col], errors="coerce")
-            except (ValueError, TypeError):
+            except:
                 pass
         elif df[col].dtype in ['int64', 'float64']:
             df[col] = pd.to_numeric(df[col], errors='coerce')
     
     return df, date_cols
 
-# ============================================================
-# FUNÇÕES AUXILIARES
-# ============================================================
 def preencher_ausentes(df, metodo='media'):
     df = df.copy()
     cols_num = df.select_dtypes(include=[np.number]).columns
@@ -240,47 +207,6 @@ def preencher_ausentes(df, metodo='media'):
         df[cols_num] = df[cols_num].interpolate(method='linear', limit_direction='both')
     return df
 
-def calcular_estatisticas(df, coluna):
-    dados = df[coluna].dropna()
-    if len(dados) < 2:
-        st.warning(f"A variável **{coluna}** possui apenas {len(dados)} valor(es) válido(s).")
-        return None
-    n = len(dados)
-    media = np.mean(dados)
-    mediana = np.median(dados)
-    desvio = np.std(dados, ddof=1)
-    variancia = np.var(dados, ddof=1)
-    minimo = np.min(dados)
-    maximo = np.max(dados)
-    q1 = np.percentile(dados, 25)
-    q3 = np.percentile(dados, 75)
-    iqr = q3 - q1
-    cv = (desvio / media * 100) if media != 0 else 0
-    assimetria = np.sum((dados - media) ** 3) / (n * desvio ** 3) if desvio > 0 else 0
-    curtose = np.sum((dados - media) ** 4) / (n * desvio ** 4) - 3 if desvio > 0 else 0
-    return {
-        'Amostras': n, 'Média': round(media, 3), 'Mediana': round(mediana, 3),
-        'Desvio Padrão': round(desvio, 3), 'Variância': round(variancia, 3),
-        'Mínimo': round(minimo, 3), 'Máximo': round(maximo, 3),
-        'Q1': round(q1, 3), 'Q3': round(q3, 3), 'IQR': round(iqr, 3),
-        'CV (%)': round(cv, 2), 'Assimetria': round(assimetria, 3), 'Curtose': round(curtose, 3)
-    }
-
-def classificar_cv(cv):
-    if cv <= 10: return "Baixo 🟢"
-    elif cv <= 20: return "Médio 🟡"
-    elif cv <= 30: return "Alto 🟠"
-    else: return "Muito Alto 🔴"
-
-def detectar_outliers(dados):
-    q1 = np.percentile(dados, 25)
-    q3 = np.percentile(dados, 75)
-    iqr = q3 - q1
-    lim_inf = q1 - 1.5 * iqr
-    lim_sup = q3 + 1.5 * iqr
-    outliers = (dados < lim_inf) | (dados > lim_sup)
-    return outliers, lim_inf, lim_sup
-
 def obter_df_limpo():
     if st.session_state['df_processed'] is None:
         return None
@@ -290,7 +216,121 @@ def obter_df_limpo():
     return df
 
 # ============================================================
-# FUNÇÕES DE GRÁFICOS
+# NOVA FUNÇÃO: AGREGAÇÃO TEMPORAL (MENSAL/ANUAL)
+# ============================================================
+def criar_agregacao_temporal(df, date_col, freq='M'):
+    """
+    Cria agregação temporal (média mensal ou anual)
+    freq: 'M' para mensal, 'Y' para anual
+    """
+    df_temp = df.copy()
+    df_temp[date_col] = pd.to_datetime(df_temp[date_col], errors='coerce')
+    df_temp = df_temp.dropna(subset=[date_col])
+    df_temp = df_temp.set_index(date_col)
+    
+    colunas_num = df_temp.select_dtypes(include=[np.number]).columns
+    
+    if freq == 'M':
+        df_agg = df_temp[colunas_num].resample('M').mean().round(2)
+        df_agg.index = df_agg.index.strftime('%b/%Y')
+    elif freq == 'Y':
+        df_agg = df_temp[colunas_num].resample('Y').mean().round(2)
+        df_agg.index = df_agg.index.strftime('%Y')
+    
+    return df_agg.reset_index()
+
+# ============================================================
+# NOVA FUNÇÃO: ESTATÍSTICAS COMPLETAS (EXPANDIDA)
+# ============================================================
+def calcular_estatisticas_completas(df, coluna):
+    """Calcula estatísticas descritivas completas + teste de normalidade"""
+    dados = df[coluna].dropna()
+    
+    if len(dados) < 3:
+        st.warning(f"**{coluna}**: poucos dados ({len(dados)} valores)")
+        return None
+    
+    n = len(dados)
+    faltantes = df[coluna].isnull().sum()
+    soma = np.sum(dados)
+    media = np.mean(dados)
+    mediana = np.median(dados)
+    
+    # Moda (pode ter múltiplas)
+    moda_vals = dados.mode()
+    moda = moda_vals.iloc[0] if len(moda_vals) > 0 else np.nan
+    
+    minimo = np.min(dados)
+    maximo = np.max(dados)
+    amplitude = maximo - minimo
+    variancia = np.var(dados, ddof=1)
+    desvio = np.std(dados, ddof=1)
+    erro_padrao = desvio / np.sqrt(n)
+    cv = (desvio / media * 100) if media != 0 else 0
+    
+    q1 = np.percentile(dados, 25)
+    q2 = np.percentile(dados, 50)
+    q3 = np.percentile(dados, 75)
+    iqr = q3 - q1
+    
+    assimetria = scipy_stats.skew(dados)
+    curtose = scipy_stats.kurtosis(dados)
+    
+    # Teste de normalidade Shapiro-Wilk
+    if 3 <= n <= 5000:
+        try:
+            stat_sw, p_sw = scipy_stats.shapiro(dados)
+            normal = "Sim ✅" if p_sw > 0.05 else "Não ❌"
+            p_sw_val = round(p_sw, 4)
+        except:
+            stat_sw, p_sw_val, normal = np.nan, np.nan, "N/A"
+    else:
+        stat_sw, p_sw_val, normal = np.nan, np.nan, "N/A (n>5000)"
+    
+    # Classificação CV
+    if cv <= 10:
+        cv_class = "Baixo 🟢"
+    elif cv <= 20:
+        cv_class = "Médio 🟡"
+    elif cv <= 30:
+        cv_class = "Alto 🟠"
+    else:
+        cv_class = "Muito Alto 🔴"
+    
+    # Percentis adicionais
+    p10 = np.percentile(dados, 10)
+    p90 = np.percentile(dados, 90)
+    
+    return {
+        'N': n,
+        'Faltantes': faltantes,
+        'Soma': round(soma, 2),
+        'Média': round(media, 4),
+        'Mediana': round(mediana, 4),
+        'Moda': round(moda, 4) if not pd.isna(moda) else 'N/A',
+        'Mínimo': round(minimo, 4),
+        'Máximo': round(maximo, 4),
+        'Amplitude': round(amplitude, 4),
+        'Variância': round(variancia, 4),
+        'Desvio Padrão': round(desvio, 4),
+        'Erro Padrão': round(erro_padrao, 4),
+        'CV (%)': round(cv, 2),
+        'Classificação CV': cv_class,
+        'Q1 (25%)': round(q1, 4),
+        'Q2 (50%)': round(q2, 4),
+        'Q3 (75%)': round(q3, 4),
+        'IQR': round(iqr, 4),
+        'P10': round(p10, 4),
+        'P90': round(p90, 4),
+        'Assimetria': round(assimetria, 4),
+        'Curtose': round(curtose, 4),
+        'Shapiro-Wilk W': round(stat_sw, 4) if not pd.isna(stat_sw) else 'N/A',
+        'Shapiro-Wilk p': p_sw_val if not pd.isna(p_sw_val) else 'N/A',
+        'Dist. Normal?': normal
+    }
+
+# ============================================================
+# FUNÇÕES DE GRÁFICOS (APRIMORADAS)
 # ============================================================
 def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
     try:
@@ -299,43 +339,92 @@ def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
         y_cols_validas = [c for c in y_cols if c in df.columns]
         if not y_cols_validas:
             return None
-        df_melted = pd.melt(df, id_vars=[x_col], value_vars=y_cols_validas, var_name='Variavel', value_name='Valor')
-        df_melted = corrigir_nomes_duplicados(df_melted)
-        df_melted = df_melted.loc[:, ~df_melted.columns.duplicated()]
+        df_melted = pd.melt(df, id_vars=[x_col], value_vars=y_cols_validas,
+                           var_name='Variável', value_name='Valor')
         chart = alt.Chart(df_melted).mark_line(strokeWidth=2).encode(
             x=alt.X(f'{x_col}:T', title='Data'),
             y=alt.Y('Valor:Q', title='Valor'),
-            color=alt.Color('Variavel:N', legend=alt.Legend(orient='bottom')),
-            tooltip=[f'{x_col}:T', 'Variavel:N', alt.Tooltip('Valor:Q', format='.2f')]
+            color=alt.Color('Variável:N', legend=alt.Legend(orient='bottom')),
+            tooltip=[f'{x_col}:T', 'Variável:N', alt.Tooltip('Valor:Q', format='.2f')]
         ).properties(title=titulo, height=400).interactive()
-        return chart
-    except Exception as e:
-        st.error(f"Erro no gráfico: {str(e)}")
-        return None
-
-def criar_histograma(df, coluna, bins=30):
-    try:
-        df = corrigir_nomes_duplicados(df)
-        df = df.loc[:, ~df.columns.duplicated()]
-        if coluna not in df.columns:
-            return None
-        df_clean = df[[coluna]].dropna()
-        if len(df_clean) < 2:
-            return None
-        chart = alt.Chart(df_clean).mark_bar(opacity=0.7, color='#2d8a4e').encode(
-            alt.X(f'{coluna}:Q', bin=alt.Bin(maxbins=bins), title=coluna),
-            alt.Y('count()', title='Frequência'),
-            tooltip=['count()']
-        ).properties(title=f'Distribuição de {coluna}', height=400)
         return chart
     except Exception as e:
         st.error(f"Erro: {str(e)}")
         return None
 
+def criar_histograma_aprimorado(df, coluna, bins=30):
+    """Histograma com média e mediana"""
+    try:
+        df = corrigir_nomes_duplicados(df)
+        if coluna not in df.columns:
+            return None
+        df_clean = df[[coluna]].dropna()
+        if len(df_clean) < 2:
+            return None
+        
+        media_val = df_clean[coluna].mean()
+        mediana_val = df_clean[coluna].median()
+        
+        # Histograma
+        bars = alt.Chart(df_clean).mark_bar(opacity=0.7, color='#2d8a4e').encode(
+            alt.X(f'{coluna}:Q', bin=alt.Bin(maxbins=bins), title=coluna),
+            alt.Y('count()', title='Frequência')
+        )
+        
+        # Linha da média
+        rule_media = alt.Chart(pd.DataFrame({'x': [media_val]})).mark_rule(
+            color='red', strokeWidth=2, strokeDash=[5,5]
+        ).encode(x='x:Q')
+        
+        # Linha da mediana
+        rule_mediana = alt.Chart(pd.DataFrame({'x': [mediana_val]})).mark_rule(
+            color='blue', strokeWidth=2, strokeDash=[3,3]
+        ).encode(x='x:Q')
+        
+        chart = (bars + rule_media + rule_mediana).properties(
+            title=f'Distribuição de {coluna} (Média: {media_val:.2f} | Mediana: {mediana_val:.2f})',
+            height=400
+        )
+        
+        return chart
+    except Exception as e:
+        st.error(f"Erro no histograma: {str(e)}")
+        return None
+
+def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
+    """Gráfico de barras para dados categóricos ou agregados"""
+    try:
+        df = corrigir_nomes_duplicados(df)
+        if x_col not in df.columns or y_col not in df.columns:
+            return None
+        
+        df_clean = df[[x_col, y_col]].dropna()
+        if len(df_clean) < 1:
+            return None
+        
+        # Se x_col for data, converter para string
+        if pd.api.types.is_datetime64_any_dtype(df_clean[x_col]):
+            df_clean[x_col] = df_clean[x_col].dt.strftime('%b/%Y')
+        
+        chart = alt.Chart(df_clean).mark_bar(
+            opacity=0.85,
+            color='#2d8a4e',
+            cornerRadiusTopLeft=4,
+            cornerRadiusTopRight=4
+        ).encode(
+            x=alt.X(f'{x_col}:O', title=x_col, axis=alt.Axis(labelAngle=-45)),
+            y=alt.Y(f'{y_col}:Q', title=y_col),
+            tooltip=[x_col, alt.Tooltip(y_col, format='.2f')]
+        ).properties(title=titulo, height=400)
+        
+        return chart
+    except Exception as e:
+        st.error(f"Erro no gráfico de barras: {str(e)}")
+        return None
+
 def criar_boxplot(df, coluna):
     try:
         df = corrigir_nomes_duplicados(df)
-        df = df.loc[:, ~df.columns.duplicated()]
         if coluna not in df.columns:
             return None
         df_clean = df[[coluna]].dropna()
@@ -349,14 +438,23 @@ def criar_boxplot(df, coluna):
         st.error(f"Erro: {str(e)}")
         return None
 
+def detectar_outliers(dados):
+    q1 = np.percentile(dados, 25)
+    q3 = np.percentile(dados, 75)
+    iqr = q3 - q1
+    lim_inf = q1 - 1.5 * iqr
+    lim_sup = q3 + 1.5 * iqr
+    outliers = (dados < lim_inf) | (dados > lim_sup)
+    return outliers, lim_inf, lim_sup
+
 # ============================================================
 # HEADER
 # ============================================================
 st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
-    <p>Sistema Inteligente de Análise de Dados Meteorológicos</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v8.0 - Versão Estável</p>
+    <p>Sistema Inteligente de Análise Meteorológica e Agronômica</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v9.0 - Análise Climática Avançada</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -368,24 +466,15 @@ with st.sidebar:
     df_status = obter_df_limpo()
     if df_status is not None:
         st.success(f"✅ {len(df_status):,} registros")
-        st.caption(f"{len(df_status.columns)} colunas")
-        aus = df_status.isnull().sum().sum()
-        if aus > 0:
-            st.warning(f"⚠️ {aus} ausentes")
-        else:
-            st.success("✅ Dados completos")
         num_cols = len(df_status.select_dtypes(include=[np.number]).columns)
-        cat_cols = len(df_status.select_dtypes(include=['object']).columns)
         date_cols = len(st.session_state.get('date_columns', []))
-        st.caption(f"📊 {num_cols} numéricas | 📝 {cat_cols} categóricas | 📅 {date_cols} datas")
-        if date_cols > 0:
-            with st.expander("📅 Datas detectadas"):
-                for dc in st.session_state['date_columns']:
-                    st.caption(f"• {dc}")
+        st.caption(f"📊 {num_cols} numéricas | 📅 {date_cols} datas")
+        if st.session_state.get('df_mensal') is not None:
+            st.info("📆 Agregação temporal disponível")
     else:
         st.info("📤 Sem dados")
     st.markdown("---")
-    st.caption("AgroDataLab v8.0 | MIT License")
+    st.caption("AgroDataLab v9.0 | MIT License")
 
 # ============================================================
 # ABAS
@@ -411,7 +500,7 @@ with aba1:
             df = carregar_dados(arquivo)
             if df is not None and len(df) > 0:
                 if df.shape[1] == 1:
-                    st.error("⚠️ Arquivo lido como UMA ÚNICA coluna! O delimitador não foi identificado.")
+                    st.error("⚠️ Arquivo lido como UMA ÚNICA coluna!")
                     st.stop()
                 df, date_cols = processar_dados(df)
                 df = corrigir_nomes_duplicados(df)
@@ -419,16 +508,9 @@ with aba1:
                 st.session_state['df_original'] = df.copy()
                 st.session_state['df_processed'] = df.copy()
                 st.session_state['date_columns'] = date_cols
-                st.markdown(f'<div class="success-box"><h3>✅ {df.shape[0]:,} linhas × {df.shape[1]} colunas</h3></div>', unsafe_allow_html=True)
+                st.session_state['df_mensal'] = None
                 
-                with st.expander("🔍 Diagnóstico de Tipos"):
-                    tipos_df = pd.DataFrame({'Coluna': df.columns, 'Tipo': df.dtypes.values.astype(str)})
-                    st.dataframe(tipos_df, use_container_width=True)
-                    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-                    if num_cols:
-                        st.success(f"✅ {len(num_cols)} colunas numéricas")
-                    else:
-                        st.error("❌ NENHUMA coluna numérica!")
+                st.markdown(f'<div class="success-box"><h3>✅ {df.shape[0]:,} linhas × {df.shape[1]} colunas</h3></div>', unsafe_allow_html=True)
                 
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Registros", f"{len(df):,}")
@@ -441,7 +523,7 @@ with aba1:
                 st.dataframe(df.head(15), use_container_width=True)
 
 # ============================================================
-# ABA 2: TRATAMENTO
+# ABA 2: TRATAMENTO (COM AGREGAÇÃO TEMPORAL)
 # ============================================================
 with aba2:
     st.header("🔧 Tratamento de Dados")
@@ -450,6 +532,7 @@ with aba2:
     if df is None:
         st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
     else:
+        # --- SEÇÃO 1: VALORES AUSENTES ---
         missing_total = df.isnull().sum().sum()
         if missing_total > 0:
             st.markdown(f'<div class="warning-box"><h3>⚠️ {missing_total:,} valores ausentes</h3></div>', unsafe_allow_html=True)
@@ -460,8 +543,7 @@ with aba2:
             })
             missing_df = missing_df[missing_df['Ausentes'] > 0].sort_values('Ausentes', ascending=False)
             st.dataframe(missing_df, use_container_width=True)
-            st.markdown("---")
-            st.subheader("Preencher Ausentes")
+            
             c1, c2, c3 = st.columns(3)
             with c1:
                 if st.button("📊 Média", key="m1"):
@@ -482,9 +564,8 @@ with aba2:
             with c4:
                 if st.button("🗑️ Remover Linhas", key="m4"):
                     antes = len(df)
-                    df_limpo = df.dropna()
-                    st.session_state['df_processed'] = df_limpo
-                    st.success(f"✅ {antes - len(df_limpo)} removidas!")
+                    st.session_state['df_processed'] = df.dropna()
+                    st.success(f"✅ {antes - len(st.session_state['df_processed'])} removidas!")
                     st.rerun()
             with c5:
                 if st.button("🔙 Restaurar", key="m5"):
@@ -495,9 +576,35 @@ with aba2:
         else:
             st.markdown('<div class="success-box"><h3>✅ Nenhum valor ausente!</h3></div>', unsafe_allow_html=True)
         
+        # --- SEÇÃO 2: AGREGAÇÃO TEMPORAL (NOVO!) ---
+        st.markdown("---")
+        st.subheader("📆 Agregação Temporal (NOVO!)")
+        
+        date_cols = st.session_state.get('date_columns', [])
+        colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
+        
+        if date_cols and colunas_num:
+            col_data_agg = st.selectbox("Coluna de data para agregação:", date_cols, key="agg_date")
+            freq_agg = st.radio("Período:", ['Mensal', 'Anual'], horizontal=True, key="agg_freq")
+            
+            if st.button("📊 Gerar Média " + freq_agg, key="btn_agg"):
+                freq_code = 'M' if freq_agg == 'Mensal' else 'Y'
+                df_agg = criar_agregacao_temporal(df, col_data_agg, freq_code)
+                st.session_state['df_mensal'] = df_agg
+                st.success(f"✅ Média {freq_agg.lower()} gerada! ({len(df_agg)} registros)")
+                st.rerun()
+            
+            # Mostrar tabela agregada se existir
+            if st.session_state.get('df_mensal') is not None:
+                st.markdown(f"#### 📋 Média {freq_agg}")
+                st.dataframe(st.session_state['df_mensal'], use_container_width=True)
+        else:
+            st.info("📅 Necessário coluna de data e variáveis numéricas para agregação.")
+        
+        # --- SEÇÃO 3: OUTLIERS ---
         st.markdown("---")
         st.subheader("🔍 Outliers (IQR)")
-        colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
+        
         if colunas_num:
             col_out = st.selectbox("Variável:", colunas_num, key="out_col")
             dados = df[col_out].dropna()
@@ -515,51 +622,83 @@ with aba2:
                     col_b.metric("Lim. Sup.", f"{ls:.3f}")
                 else:
                     st.success(f"✅ Nenhum outlier em {col_out}")
-        else:
-            st.warning("⚠️ Nenhuma coluna numérica para análise de outliers.")
 
 # ============================================================
-# ABA 3: ESTATÍSTICAS
+# ABA 3: ESTATÍSTICAS (EXPANDIDA)
 # ============================================================
 with aba3:
-    st.header("📊 Análise Estatística")
+    st.header("📊 Análise Estatística Completa")
     st.markdown("---")
-    df = obter_df_limpo()
+    
+    # Escolher fonte de dados
+    fonte_dados = st.radio(
+        "Fonte de dados:",
+        ['Dados Originais', 'Média Mensal/Anual (se disponível)'],
+        horizontal=True,
+        key="fonte_stats"
+    )
+    
+    if fonte_dados == 'Média Mensal/Anual (se disponível)' and st.session_state.get('df_mensal') is not None:
+        df = st.session_state['df_mensal'].copy()
+        st.info("📆 Usando dados agregados temporalmente")
+    else:
+        df = obter_df_limpo()
+    
     if df is None:
         st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
     else:
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
+        
         if not colunas_num:
-            st.warning("⚠️ Nenhuma variável numérica encontrada.")
+            st.warning("⚠️ Nenhuma variável numérica.")
         else:
-            col_analise = st.selectbox("Variável:", colunas_num, key="stat_col")
-            stats = calcular_estatisticas(df, col_analise)
+            col_analise = st.selectbox("Variável para análise:", colunas_num, key="stat_col")
+            
+            # ESTATÍSTICAS COMPLETAS (NOVA FUNÇÃO)
+            stats = calcular_estatisticas_completas(df, col_analise)
+            
             if stats:
-                st.subheader(f"📈 {col_analise}")
+                st.subheader(f"📈 Estatísticas Completas: **{col_analise}**")
+                
+                # Cards principais
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Média", f"{stats['Média']:.3f}")
-                c2.metric("Desvio", f"{stats['Desvio Padrão']:.3f}")
-                cv_v = stats['CV (%)']
-                c3.metric("CV (%)", f"{cv_v:.1f}%", classificar_cv(cv_v))
-                c4.metric("N", f"{stats['Amostras']:,}")
+                c2.metric("Desvio Padrão", f"{stats['Desvio Padrão']:.3f}")
+                c3.metric("CV (%)", f"{stats['CV (%)']:.1f}%", stats['Classificação CV'])
+                c4.metric("Normalidade", stats['Dist. Normal?'])
                 
+                # Tabela completa
+                with st.expander("📋 Ver Todas as Estatísticas (24 métricas)"):
+                    stats_df = pd.DataFrame(list(stats.items()), columns=['Estatística', 'Valor'])
+                    st.dataframe(stats_df, use_container_width=True, hide_index=True)
+                
+                # Histograma aprimorado
                 st.markdown("---")
-                st.subheader("📊 Distribuição")
-                bins = st.slider("Bins:", 10, 100, 30, key="bins_s")
+                st.subheader("📊 Distribuição com Média e Mediana")
+                bins = st.slider("Bins:", 5, 100, 30, key="bins_stats")
                 df_plot = pd.DataFrame({col_analise: df[col_analise].dropna().values})
-                chart_h = criar_histograma(df_plot, col_analise, bins)
+                chart_h = criar_histograma_aprimorado(df_plot, col_analise, bins)
                 if chart_h:
                     st.altair_chart(chart_h, use_container_width=True)
                 
+                # Boxplot
+                st.markdown("---")
+                st.subheader("📉 Boxplot")
+                chart_box = criar_boxplot(df_plot, col_analise)
+                if chart_box:
+                    st.altair_chart(chart_box, use_container_width=True)
+                
+                # Correlação
                 if len(colunas_num) >= 2:
                     st.markdown("---")
-                    st.subheader("🔗 Correlação de Pearson")
+                    st.subheader("🔗 Matriz de Correlação de Pearson")
                     corr = df[colunas_num].dropna(axis=1, how="all").corr()
                     if not corr.empty:
                         st.dataframe(corr.round(3), use_container_width=True)
                 
+                # Série temporal
                 date_cols = st.session_state.get('date_columns', [])
-                if date_cols:
+                if date_cols and fonte_dados == 'Dados Originais':
                     st.markdown("---")
                     st.subheader("📅 Série Temporal")
                     col_data = st.selectbox("Data:", date_cols, key="dt_s")
@@ -571,54 +710,93 @@ with aba3:
                         chart_t = criar_grafico_linhas(df_plot, col_data, [col_analise])
                         if chart_t:
                             st.altair_chart(chart_t, use_container_width=True)
-                else:
-                    st.info("📅 Nenhuma coluna de data disponível.")
 
 # ============================================================
-# ABA 4: GRÁFICOS
+# ABA 4: GRÁFICOS (COM BARRAS)
 # ============================================================
 with aba4:
     st.header("📈 Visualização Gráfica")
     st.markdown("---")
-    df = obter_df_limpo()
+    
+    # Escolher fonte
+    fonte_graf = st.radio(
+        "Fonte:",
+        ['Dados Originais', 'Média Mensal/Anual'],
+        horizontal=True,
+        key="fonte_graf"
+    )
+    
+    if fonte_graf == 'Média Mensal/Anual' and st.session_state.get('df_mensal') is not None:
+        df = st.session_state['df_mensal'].copy()
+        st.info("📆 Usando dados agregados")
+    else:
+        df = obter_df_limpo()
+    
     if df is None:
-        st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
+        st.warning("⚠️ Carregue os dados primeiro!")
     else:
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
+        todas_cols = df.columns.tolist()
+        
         if not colunas_num:
             st.warning("⚠️ Sem variáveis numéricas")
         else:
-            tipo = st.radio("Tipo:", ['📈 Linhas', '📊 Histograma', '📉 Boxplot'], horizontal=True, key="tipo_g")
+            tipo = st.radio("Tipo:", ['📈 Linhas', '📊 Histograma', '📉 Boxplot', '📋 Barras'], horizontal=True, key="tipo_g")
             st.markdown("---")
+            
             if tipo == '📈 Linhas':
                 date_cols = st.session_state.get('date_columns', [])
-                if date_cols:
-                    col_x = st.selectbox("Eixo X:", date_cols, key="gx")
-                    col_y = st.multiselect("Eixo Y:", colunas_num, default=colunas_num[:min(3, len(colunas_num))], key="gy")
-                    if col_y:
-                        df_plot = df[[col_x] + col_y].dropna().copy()
-                        if df_plot[col_x].dtype != 'datetime64[ns]':
+                x_cols = date_cols if date_cols else todas_cols
+                col_x = st.selectbox("Eixo X:", x_cols, key="gx")
+                col_y = st.multiselect("Eixo Y:", colunas_num, default=colunas_num[:min(3, len(colunas_num))], key="gy")
+                if col_y:
+                    df_plot = df[[col_x] + col_y].dropna().copy()
+                    if df_plot[col_x].dtype != 'datetime64[ns]':
+                        try:
                             df_plot[col_x] = pd.to_datetime(df_plot[col_x], errors='coerce')
-                        df_plot = df_plot.dropna()
-                        if len(df_plot) > 0:
-                            chart = criar_grafico_linhas(df_plot, col_x, col_y)
-                            if chart:
-                                st.altair_chart(chart, use_container_width=True)
-                else:
-                    st.info("📅 Nenhuma coluna de data. Use Histograma ou Boxplot.")
+                        except:
+                            pass
+                    df_plot = df_plot.dropna()
+                    if len(df_plot) > 0:
+                        chart = criar_grafico_linhas(df_plot, col_x, col_y)
+                        if chart:
+                            st.altair_chart(chart, use_container_width=True)
+            
             elif tipo == '📊 Histograma':
                 col_h = st.selectbox("Variável:", colunas_num, key="gh")
                 bins_h = st.slider("Bins:", 5, 100, 30, key="gb")
                 df_plot = pd.DataFrame({col_h: df[col_h].dropna().values})
-                chart = criar_histograma(df_plot, col_h, bins_h)
+                chart = criar_histograma_aprimorado(df_plot, col_h, bins_h)
                 if chart:
                     st.altair_chart(chart, use_container_width=True)
+            
             elif tipo == '📉 Boxplot':
                 col_b = st.selectbox("Variável:", colunas_num, key="gbox")
                 df_plot = pd.DataFrame({col_b: df[col_b].dropna().values})
                 chart = criar_boxplot(df_plot, col_b)
                 if chart:
                     st.altair_chart(chart, use_container_width=True)
+            
+            elif tipo == '📋 Barras':
+                st.info("💡 Ideal para dados categóricos ou agregados (médias mensais)")
+                
+                # Para dados agregados, a primeira coluna geralmente é o período
+                if st.session_state.get('df_mensal') is not None and fonte_graf == 'Média Mensal/Anual':
+                    x_default = df.columns[0]  # Primeira coluna (período)
+                else:
+                    x_default = todas_cols[0]
+                
+                col_x_bar = st.selectbox("Eixo X (Categorias):", todas_cols, 
+                                        index=todas_cols.index(x_default) if x_default in todas_cols else 0,
+                                        key="bx")
+                col_y_bar = st.selectbox("Eixo Y (Valores):", colunas_num, key="by")
+                
+                df_plot = df[[col_x_bar, col_y_bar]].dropna()
+                if len(df_plot) > 0:
+                    chart = criar_grafico_barras(df_plot, col_x_bar, col_y_bar,
+                                                f'{col_y_bar} por {col_x_bar}')
+                    if chart:
+                        st.altair_chart(chart, use_container_width=True)
 
 # ============================================================
 # ABA 5: DOWNLOAD
@@ -626,22 +804,32 @@ with aba4:
 with aba5:
     st.header("💾 Download")
     st.markdown("---")
+    
     df = obter_df_limpo()
-    if df is None:
-        st.warning("⚠️ Carregue os dados primeiro!")
-    else:
-        st.markdown('<div class="success-box"><h3>✅ Pronto!</h3></div>', unsafe_allow_html=True)
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Registros", f"{len(df):,}")
-        c2.metric("Colunas", len(df.columns))
-        c3.metric("Ausentes", df.isnull().sum().sum())
-        c4.metric("Tamanho", f"{df.memory_usage(deep=True).sum() / 1024**2:.1f} MB")
-        st.markdown("---")
+    df_agg = st.session_state.get('df_mensal')
+    
+    if df is not None:
+        st.markdown('<div class="success-box"><h3>✅ Dados disponíveis</h3></div>', unsafe_allow_html=True)
+        
+        # Download dados originais
+        st.subheader("📥 Dados Processados")
         csv_data = df.to_csv(index=False, encoding='utf-8')
-        st.download_button("📥 Baixar CSV", csv_data, f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
+        st.download_button("📥 Baixar CSV (Original)", csv_data,
+                          f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
+        
+        # Download agregação (se existir)
+        if df_agg is not None:
+            st.markdown("---")
+            st.subheader("📥 Média Mensal/Anual")
+            csv_agg = df_agg.to_csv(index=False, encoding='utf-8')
+            st.download_button("📥 Baixar CSV (Agregado)", csv_agg,
+                              f"media_agregada_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", "text/csv")
+        
         st.markdown("---")
         st.subheader("Preview")
         st.dataframe(df.head(20), use_container_width=True)
+    else:
+        st.warning("⚠️ Carregue os dados primeiro!")
 
 # ============================================================
 # FOOTER
@@ -649,7 +837,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v8.0</h4>
-    <p>Análise Meteorológica Completa | Licença MIT © 2024</p>
+    <h4>🌱 AgroDataLab v9.0</h4>
+    <p>Análise Climática Avançada | Shapiro-Wilk | Agregação Temporal</p>
+    <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

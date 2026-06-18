@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 10.0 - Estrutura Profissional com 3 Agregações
+# Versão 11.0 - Arquitetura Corrigida (Dicionário Único)
 # ============================================================
 
 import streamlit as st
@@ -74,28 +74,26 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================================
-# SESSION STATE - 3 AGREGAÇÕES SEPARADAS
+# SESSION STATE - ARQUITETURA CORRIGIDA
 # ============================================================
 if 'df_original' not in st.session_state:
     st.session_state['df_original'] = None
 if 'df_processed' not in st.session_state:
     st.session_state['df_processed'] = None
-if 'df_semanal' not in st.session_state:
-    st.session_state['df_semanal'] = None
-if 'df_mensal' not in st.session_state:
-    st.session_state['df_mensal'] = None
-if 'df_anual' not in st.session_state:
-    st.session_state['df_anual'] = None
+if 'upload_feito' not in st.session_state:
+    st.session_state['upload_feito'] = False
+if 'agregacoes' not in st.session_state:
+    st.session_state['agregacoes'] = {}  # Dicionário único: {'Semanal': df, 'Mensal': df, 'Anual': df}
 if 'date_columns' not in st.session_state:
     st.session_state['date_columns'] = []
 
 # ============================================================
-# FREQUÊNCIAS
+# FREQUÊNCIAS (COMPATÍVEIS)
 # ============================================================
 FREQ_MAP = {
     "Semanal": "W",
-    "Mensal": "ME",
-    "Anual": "YE"
+    "Mensal": "M",
+    "Anual": "Y"
 }
 
 # ============================================================
@@ -204,7 +202,8 @@ def preencher_ausentes(df, metodo='media'):
         df[cols_num] = df[cols_num].interpolate(method='linear', limit_direction='both')
     return df
 
-def obter_df_limpo():
+def obter_df_processado():
+    """Retorna o DataFrame processado atual"""
     if st.session_state['df_processed'] is None:
         return None
     df = st.session_state['df_processed'].copy()
@@ -212,10 +211,8 @@ def obter_df_limpo():
     df = df.loc[:, ~df.columns.duplicated()]
     return df
 
-# ============================================================
-# AGREGAÇÃO TEMPORAL
-# ============================================================
 def criar_agregacao_temporal(df, coluna_data, freq):
+    """Cria agregação temporal"""
     try:
         df_temp = df.copy()
         df_temp[coluna_data] = pd.to_datetime(df_temp[coluna_data], errors='coerce', dayfirst=True)
@@ -238,9 +235,6 @@ def criar_agregacao_temporal(df, coluna_data, freq):
         st.error(f"❌ Erro na agregação: {e}")
         return None
 
-# ============================================================
-# ESTATÍSTICAS COMPLETAS
-# ============================================================
 def calcular_estatisticas_completas(df, coluna):
     dados = df[coluna].dropna()
     if len(dados) < 3:
@@ -251,19 +245,14 @@ def calcular_estatisticas_completas(df, coluna):
     mediana = np.median(dados)
     moda = dados.mode().iloc[0] if len(dados.mode()) > 0 else np.nan
     desvio = np.std(dados, ddof=1)
-    variancia = np.var(dados, ddof=1)
     erro_padrao = desvio / np.sqrt(n)
     cv = (desvio / media * 100) if media != 0 else 0
-    minimo = np.min(dados)
-    maximo = np.max(dados)
-    amplitude = maximo - minimo
     
     q1 = np.percentile(dados, 25)
     q3 = np.percentile(dados, 75)
     iqr = q3 - q1
     p5 = np.percentile(dados, 5)
     p95 = np.percentile(dados, 95)
-    
     assimetria = dados.skew()
     curtose = dados.kurtosis()
     
@@ -275,10 +264,8 @@ def calcular_estatisticas_completas(df, coluna):
     resultado = {
         'N': n, 'Média': round(media, 4), 'Mediana': round(mediana, 4),
         'Moda': round(moda, 4) if not pd.isna(moda) else 'N/A',
-        'Desvio Padrão': round(desvio, 4), 'Variância': round(variancia, 4),
-        'Erro Padrão': round(erro_padrao, 4), 'CV (%)': round(cv, 2),
-        'Classificação CV': cv_class, 'Mínimo': round(minimo, 4),
-        'Máximo': round(maximo, 4), 'Amplitude': round(amplitude, 4),
+        'Desvio Padrão': round(desvio, 4), 'Erro Padrão': round(erro_padrao, 4),
+        'CV (%)': round(cv, 2), 'Classificação CV': cv_class,
         'Q1': round(q1, 4), 'Q3': round(q3, 4), 'IQR': round(iqr, 4),
         'P5': round(p5, 4), 'P95': round(p95, 4),
         'Assimetria': round(assimetria, 4), 'Curtose': round(curtose, 4),
@@ -296,10 +283,13 @@ def calcular_estatisticas_completas(df, coluna):
     
     return resultado
 
-# ============================================================
-# GRÁFICO DE SÉRIE TEMPORAL (COM dayfirst)
-# ============================================================
-def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
+def detectar_dataframe_colunas_data(df):
+    """Detecta colunas de data em qualquer DataFrame"""
+    if df is None:
+        return []
+    return [c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])]
+
+def criar_grafico_series_temporal(df, x_col, y_cols, titulo="Série Temporal"):
     try:
         df = df.loc[:, ~df.columns.duplicated()]
         y_cols_validas = [c for c in y_cols if c in df.columns]
@@ -318,7 +308,7 @@ def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
         ).properties(title=titulo, height=400).interactive()
         return chart
     except Exception as e:
-        st.error(f"Erro: {str(e)}")
+        st.error(f"Erro no gráfico: {str(e)}")
         return None
 
 def detectar_outliers(dados):
@@ -330,28 +320,13 @@ def detectar_outliers(dados):
     return (dados < lim_inf) | (dados > lim_sup), lim_inf, lim_sup
 
 # ============================================================
-# FUNÇÃO AUXILIAR: OBTER DATAFRAME POR FONTE
-# ============================================================
-def obter_df_por_fonte(fonte):
-    """Retorna o DataFrame correspondente à fonte selecionada"""
-    if fonte == "Dados Originais":
-        return obter_df_limpo()
-    elif fonte == "Dados Semanais":
-        return st.session_state.get('df_semanal')
-    elif fonte == "Dados Mensais":
-        return st.session_state.get('df_mensal')
-    elif fonte == "Dados Anuais":
-        return st.session_state.get('df_anual')
-    return None
-
-# ============================================================
 # HEADER
 # ============================================================
 st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
     <p>Sistema Inteligente de Análise Meteorológica e Agronômica</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v10.0 - Estrutura Profissional</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v11.0 - Arquitetura Corrigida</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -364,22 +339,23 @@ with st.sidebar:
     if SCIPY_DISPONIVEL:
         st.success("✅ SciPy disponível")
     
-    df_status = obter_df_limpo()
-    if df_status is not None:
-        st.success(f"✅ {len(df_status):,} registros originais")
+    if st.session_state['upload_feito']:
+        st.success(f"✅ Dados carregados")
         
-        # Mostrar status das 3 agregações
-        if st.session_state.get('df_semanal') is not None:
-            st.info(f"📆 Semanal: {len(st.session_state['df_semanal'])} registros")
-        if st.session_state.get('df_mensal') is not None:
-            st.info(f"📆 Mensal: {len(st.session_state['df_mensal'])} registros")
-        if st.session_state.get('df_anual') is not None:
-            st.info(f"📆 Anual: {len(st.session_state['df_anual'])} registros")
+        # Mostrar agregações disponíveis
+        agregacoes = st.session_state['agregacoes']
+        if agregacoes:
+            st.markdown("**📆 Agregações:**")
+            for nome, df_agg in agregacoes.items():
+                if df_agg is not None:
+                    st.caption(f"• {nome}: {len(df_agg)} registros")
+        else:
+            st.caption("Nenhuma agregação gerada")
     else:
-        st.info("📤 Sem dados")
+        st.info("📤 Aguardando upload")
     
     st.markdown("---")
-    st.caption("AgroDataLab v10.0 | MIT License")
+    st.caption("AgroDataLab v11.0 | MIT License")
 
 # ============================================================
 # ABAS
@@ -393,270 +369,285 @@ aba1, aba2, aba3, aba4, aba5 = st.tabs([
 ])
 
 # ============================================================
-# ABA 1: UPLOAD
+# ABA 1: UPLOAD (EXECUTA APENAS UMA VEZ)
 # ============================================================
 with aba1:
     st.header("📤 Upload de Arquivo")
     st.markdown("---")
-    arquivo = st.file_uploader("Selecione CSV ou Excel", type=['csv', 'xlsx', 'xls'])
     
-    if arquivo is not None:
-        with st.spinner('Carregando...'):
-            df = carregar_dados(arquivo)
-            if df is not None and len(df) > 0:
-                if df.shape[1] == 1:
-                    st.error("⚠️ Arquivo lido como UMA ÚNICA coluna!")
-                    st.stop()
-                df, date_cols = processar_dados(df)
-                df = corrigir_nomes_duplicados(df)
-                df = df.loc[:, ~df.columns.duplicated()]
-                st.session_state['df_original'] = df.copy()
-                st.session_state['df_processed'] = df.copy()
-                st.session_state['date_columns'] = date_cols
-                # Limpar todas as agregações
-                st.session_state['df_semanal'] = None
-                st.session_state['df_mensal'] = None
-                st.session_state['df_anual'] = None
+    if st.session_state['upload_feito']:
+        st.success("✅ Arquivo já carregado! Vá para a Aba 2 (Tratamento).")
+        st.dataframe(st.session_state['df_original'].head(10), use_container_width=True)
+    else:
+        arquivo = st.file_uploader("Selecione CSV ou Excel", type=['csv', 'xlsx', 'xls'])
+        
+        if arquivo is not None:
+            with st.spinner('Carregando...'):
+                df = carregar_dados(arquivo)
                 
-                st.markdown(f'<div class="success-box"><h3>✅ {df.shape[0]:,} linhas × {df.shape[1]} colunas</h3></div>', unsafe_allow_html=True)
-                
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Registros", f"{len(df):,}")
-                col2.metric("Colunas", len(df.columns))
-                col3.metric("Numéricas", len(df.select_dtypes(include=[np.number]).columns))
-                col4.metric("Datas", len(date_cols))
-                
-                st.markdown("---")
-                st.subheader("Preview")
-                st.dataframe(df.head(15), use_container_width=True)
+                if df is not None and len(df) > 0:
+                    if df.shape[1] == 1:
+                        st.error("⚠️ Arquivo lido como UMA ÚNICA coluna!")
+                        st.stop()
+                    
+                    df, date_cols = processar_dados(df)
+                    df = corrigir_nomes_duplicados(df)
+                    df = df.loc[:, ~df.columns.duplicated()]
+                    
+                    st.session_state['df_original'] = df.copy()
+                    st.session_state['df_processed'] = df.copy()
+                    st.session_state['date_columns'] = date_cols
+                    st.session_state['upload_feito'] = True
+                    st.session_state['agregacoes'] = {}
+                    
+                    st.markdown(f'<div class="success-box"><h3>✅ {df.shape[0]:,} linhas × {df.shape[1]} colunas</h3></div>', unsafe_allow_html=True)
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    col1.metric("Registros", f"{len(df):,}")
+                    col2.metric("Colunas", len(df.columns))
+                    col3.metric("Numéricas", len(df.select_dtypes(include=[np.number]).columns))
+                    col4.metric("Datas", len(date_cols))
+                    
+                    st.rerun()
 
 # ============================================================
-# ABA 2: TRATAMENTO (SALVA NAS 3 VARIÁVEIS SEPARADAS)
+# ABA 2: TRATAMENTO (USA DICIONÁRIO ÚNICO)
 # ============================================================
 with aba2:
     st.header("🔧 Tratamento de Dados")
     st.markdown("---")
-    df = obter_df_limpo()
-    if df is None:
-        st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
+    
+    if not st.session_state['upload_feito']:
+        st.warning("⚠️ Faça o upload na Aba 1 primeiro!")
     else:
-        # Valores ausentes
-        missing_total = df.isnull().sum().sum()
-        if missing_total > 0:
-            st.markdown(f'<div class="warning-box"><h3>⚠️ {missing_total:,} valores ausentes</h3></div>', unsafe_allow_html=True)
-            missing_df = pd.DataFrame({
-                'Coluna': df.columns, 'Ausentes': df.isnull().sum().values,
-                '%': (df.isnull().sum() / len(df) * 100).round(2).values
-            })
-            missing_df = missing_df[missing_df['Ausentes'] > 0].sort_values('Ausentes', ascending=False)
-            st.dataframe(missing_df, use_container_width=True)
-            
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                if st.button("📊 Média", key="m1"):
-                    st.session_state['df_processed'] = preencher_ausentes(df, 'media')
-                    st.success("✅ Preenchido!")
-                    st.rerun()
-            with c2:
-                if st.button("📈 Mediana", key="m2"):
-                    st.session_state['df_processed'] = preencher_ausentes(df, 'mediana')
-                    st.success("✅ Preenchido!")
-                    st.rerun()
-            with c3:
-                if st.button("🔄 Interpolar", key="m3"):
-                    st.session_state['df_processed'] = preencher_ausentes(df, 'interpolar')
-                    st.success("✅ Preenchido!")
-                    st.rerun()
-            c4, c5 = st.columns(2)
-            with c4:
-                if st.button("🗑️ Remover Linhas", key="m4"):
-                    antes = len(df)
-                    st.session_state['df_processed'] = df.dropna()
-                    st.success(f"✅ {antes - len(st.session_state['df_processed'])} removidas!")
-                    st.rerun()
-            with c5:
-                if st.button("🔙 Restaurar", key="m5"):
-                    if st.session_state['df_original'] is not None:
+        df = obter_df_processado()
+        if df is None:
+            st.warning("⚠️ Erro ao carregar dados processados.")
+        else:
+            # Valores ausentes
+            missing_total = df.isnull().sum().sum()
+            if missing_total > 0:
+                st.markdown(f'<div class="warning-box"><h3>⚠️ {missing_total:,} valores ausentes</h3></div>', unsafe_allow_html=True)
+                
+                missing_df = pd.DataFrame({
+                    'Coluna': df.columns, 'Ausentes': df.isnull().sum().values,
+                    '%': (df.isnull().sum() / len(df) * 100).round(2).values
+                })
+                missing_df = missing_df[missing_df['Ausentes'] > 0].sort_values('Ausentes', ascending=False)
+                st.dataframe(missing_df, use_container_width=True)
+                
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    if st.button("📊 Média", key="m1"):
+                        st.session_state['df_processed'] = preencher_ausentes(df, 'media')
+                        st.success("✅ Preenchido!")
+                        st.rerun()
+                with c2:
+                    if st.button("📈 Mediana", key="m2"):
+                        st.session_state['df_processed'] = preencher_ausentes(df, 'mediana')
+                        st.success("✅ Preenchido!")
+                        st.rerun()
+                with c3:
+                    if st.button("🔄 Interpolar", key="m3"):
+                        st.session_state['df_processed'] = preencher_ausentes(df, 'interpolar')
+                        st.success("✅ Preenchido!")
+                        st.rerun()
+                
+                c4, c5 = st.columns(2)
+                with c4:
+                    if st.button("🗑️ Remover Linhas", key="m4"):
+                        antes = len(df)
+                        st.session_state['df_processed'] = df.dropna()
+                        st.success(f"✅ {antes - len(st.session_state['df_processed'])} removidas!")
+                        st.rerun()
+                with c5:
+                    if st.button("🔙 Restaurar Original", key="m5"):
                         st.session_state['df_processed'] = st.session_state['df_original'].copy()
                         st.success("✅ Restaurado!")
                         st.rerun()
-        else:
-            st.markdown('<div class="success-box"><h3>✅ Nenhum valor ausente!</h3></div>', unsafe_allow_html=True)
-        
-        # AGREGAÇÃO TEMPORAL (SALVA SEPARADAMENTE)
-        st.markdown("---")
-        st.subheader("📆 Agregação Temporal")
-        
-        date_cols = st.session_state.get('date_columns', [])
-        colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
-        
-        if date_cols and colunas_num:
-            col_data_agg = st.selectbox("Coluna de data:", date_cols, key="agg_date")
-            periodo_nome = st.radio("Período:", list(FREQ_MAP.keys()), horizontal=True, key="agg_freq")
+            else:
+                st.markdown('<div class="success-box"><h3>✅ Nenhum valor ausente!</h3></div>', unsafe_allow_html=True)
             
-            if st.button("📊 Gerar Média " + periodo_nome, key="btn_agg"):
-                freq_code = FREQ_MAP[periodo_nome]
-                with st.spinner("Calculando..."):
-                    df_agg = criar_agregacao_temporal(df, col_data_agg, freq_code)
-                    if df_agg is not None:
-                        # SALVAR NA VARIÁVEL CORRETA
-                        if periodo_nome == "Semanal":
-                            st.session_state['df_semanal'] = df_agg
-                        elif periodo_nome == "Mensal":
-                            st.session_state['df_mensal'] = df_agg
-                        elif periodo_nome == "Anual":
-                            st.session_state['df_anual'] = df_agg
-                        
-                        st.success(f"""
-                        ✅ Média {periodo_nome.lower()} gerada com sucesso!
-                        - Registros originais: {len(df):,}
-                        - Registros agregados: {len(df_agg):,}
-                        """)
-                        st.rerun()
-            
-            # Mostrar todas as agregações disponíveis
+            # AGREGAÇÃO TEMPORAL
             st.markdown("---")
-            st.markdown("### 📋 Agregações Disponíveis")
+            st.subheader("📆 Agregação Temporal")
             
-            if st.session_state.get('df_semanal') is not None:
-                with st.expander("📆 Dados Semanais", expanded=True):
-                    st.dataframe(st.session_state['df_semanal'], use_container_width=True)
-                    csv_s = st.session_state['df_semanal'].to_csv(index=False, encoding='utf-8')
-                    st.download_button("📥 Baixar Semanal", csv_s,
-                                     f"semanal_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", key="dw_s")
+            date_cols = st.session_state.get('date_columns', [])
+            colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
             
-            if st.session_state.get('df_mensal') is not None:
-                with st.expander("📆 Dados Mensais", expanded=True):
-                    st.dataframe(st.session_state['df_mensal'], use_container_width=True)
-                    csv_m = st.session_state['df_mensal'].to_csv(index=False, encoding='utf-8')
-                    st.download_button("📥 Baixar Mensal", csv_m,
-                                     f"mensal_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", key="dw_m")
+            if date_cols and colunas_num:
+                col_data_agg = st.selectbox("Coluna de data:", date_cols, key="agg_date")
+                periodo_nome = st.radio("Período:", list(FREQ_MAP.keys()), horizontal=True, key="agg_freq")
+                
+                if st.button("📊 Gerar Média " + periodo_nome, key="btn_agg"):
+                    # USAR O DATAFRAME ATUAL (não o df da construção inicial)
+                    df_atual = obter_df_processado()
+                    freq_code = FREQ_MAP[periodo_nome]
+                    
+                    with st.spinner("Calculando..."):
+                        df_agg = criar_agregacao_temporal(df_atual, col_data_agg, freq_code)
+                        
+                        if df_agg is not None:
+                            # SALVAR NO DICIONÁRIO
+                            st.session_state['agregacoes'][periodo_nome] = df_agg
+                            st.success(f"✅ Média {periodo_nome.lower()} gerada! ({len(df_agg)} registros)")
+                            st.rerun()
+                
+                # Mostrar todas as agregações geradas
+                agregacoes = st.session_state['agregacoes']
+                if agregacoes:
+                    st.markdown("---")
+                    st.markdown("### 📋 Agregações Geradas")
+                    
+                    for nome, df_agg in agregacoes.items():
+                        if df_agg is not None:
+                            with st.expander(f"📆 {nome} ({len(df_agg)} registros)", expanded=False):
+                                st.dataframe(df_agg, use_container_width=True)
+                                csv_agg = df_agg.to_csv(index=False, encoding='utf-8')
+                                st.download_button(
+                                    label=f"📥 Baixar {nome}",
+                                    data=csv_agg,
+                                    file_name=f"dados_{nome.lower()}_{datetime.now().strftime('%Y%m%d')}.csv",
+                                    mime="text/csv",
+                                    key=f"dw_{nome}"
+                                )
+            else:
+                if not date_cols:
+                    st.info("📅 Nenhuma coluna de data identificada.")
+                if not colunas_num:
+                    st.info("📊 Nenhuma variável numérica disponível.")
             
-            if st.session_state.get('df_anual') is not None:
-                with st.expander("📆 Dados Anuais", expanded=True):
-                    st.dataframe(st.session_state['df_anual'], use_container_width=True)
-                    csv_a = st.session_state['df_anual'].to_csv(index=False, encoding='utf-8')
-                    st.download_button("📥 Baixar Anual", csv_a,
-                                     f"anual_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", key="dw_a")
-        else:
-            if not date_cols:
-                st.info("📅 Nenhuma coluna de data identificada.")
-            if not colunas_num:
-                st.info("📊 Nenhuma variável numérica disponível.")
-        
-        # Outliers
-        st.markdown("---")
-        st.subheader("🔍 Outliers (IQR)")
-        if colunas_num:
-            col_out = st.selectbox("Variável:", colunas_num, key="out_col")
-            dados = df[col_out].dropna()
-            if len(dados) >= 2:
-                outliers, li, ls = detectar_outliers(dados)
-                n_out = outliers.sum()
-                if n_out > 0:
-                    st.warning(f"🔴 {n_out} outliers ({n_out/len(dados)*100:.1f}%)")
-                    st.write(f"Lim. Inf.: **{li:.3f}** | Lim. Sup.: **{ls:.3f}**")
-                else:
-                    st.success(f"✅ Nenhum outlier em {col_out}")
+            # Outliers
+            st.markdown("---")
+            st.subheader("🔍 Outliers (IQR)")
+            if colunas_num:
+                col_out = st.selectbox("Variável:", colunas_num, key="out_col")
+                dados = df[col_out].dropna()
+                if len(dados) >= 2:
+                    outliers, li, ls = detectar_outliers(dados)
+                    n_out = outliers.sum()
+                    if n_out > 0:
+                        st.warning(f"🔴 {n_out} outliers ({n_out/len(dados)*100:.1f}%)")
+                        st.write(f"Limites: [{li:.3f}, {ls:.3f}]")
+                    else:
+                        st.success(f"✅ Nenhum outlier em {col_out}")
 
 # ============================================================
-# ABA 3: ESTATÍSTICAS (4 FONTES)
+# ABA 3: ESTATÍSTICAS (USA DICIONÁRIO)
 # ============================================================
 with aba3:
     st.header("📊 Análise Estatística Completa")
     st.markdown("---")
     
-    if not SCIPY_DISPONIVEL:
-        st.warning("⚠️ SciPy não instalado.")
-    
-    # 4 opções de fonte
-    opcoes_fonte = ["Dados Originais"]
-    if st.session_state.get('df_semanal') is not None:
-        opcoes_fonte.append("Dados Semanais")
-    if st.session_state.get('df_mensal') is not None:
-        opcoes_fonte.append("Dados Mensais")
-    if st.session_state.get('df_anual') is not None:
-        opcoes_fonte.append("Dados Anuais")
-    
-    fonte_dados = st.radio("Fonte:", opcoes_fonte, horizontal=True, key="fonte_stats")
-    df = obter_df_por_fonte(fonte_dados)
-    
-    if df is None:
-        st.warning("⚠️ Dados não disponíveis para esta fonte.")
+    if not st.session_state['upload_feito']:
+        st.warning("⚠️ Faça o upload na Aba 1 primeiro!")
     else:
-        colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
-        if not colunas_num:
-            st.warning("⚠️ Nenhuma variável numérica.")
+        # Construir opções de fonte
+        opcoes = ["Dados Originais"]
+        for nome in ["Semanal", "Mensal", "Anual"]:
+            if nome in st.session_state['agregacoes'] and st.session_state['agregacoes'][nome] is not None:
+                opcoes.append(f"Dados {nome}")
+        
+        fonte = st.radio("Fonte:", opcoes, horizontal=True, key="fonte_stats")
+        
+        # Obter DataFrame correspondente
+        if fonte == "Dados Originais":
+            df = obter_df_processado()
         else:
-            col_analise = st.selectbox("Variável:", colunas_num, key="stat_col")
-            stats = calcular_estatisticas_completas(df, col_analise)
-            
-            if stats:
-                st.subheader(f"📈 **{col_analise}** ({fonte_dados})")
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Média", f"{stats['Média']:.3f}")
-                c2.metric("Desvio", f"{stats['Desvio Padrão']:.3f}")
-                c3.metric("CV (%)", f"{stats['CV (%)']:.1f}%", stats['Classificação CV'])
-                c4.metric("Normalidade", stats.get('Dist. Normal?', 'N/A'))
+            nome_agg = fonte.replace("Dados ", "")
+            df = st.session_state['agregacoes'].get(nome_agg)
+        
+        if df is None:
+            st.warning("⚠️ Dados não disponíveis.")
+        else:
+            colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
+            if not colunas_num:
+                st.warning("⚠️ Nenhuma variável numérica.")
+            else:
+                col_analise = st.selectbox("Variável:", colunas_num, key="stat_col")
+                stats = calcular_estatisticas_completas(df, col_analise)
                 
-                with st.expander("📋 Todas as Estatísticas"):
-                    stats_df = pd.DataFrame(list(stats.items()), columns=['Estatística', 'Valor'])
-                    st.dataframe(stats_df, use_container_width=True, hide_index=True)
-                
-                if len(colunas_num) >= 2:
-                    st.markdown("---")
-                    st.subheader("🔗 Correlação de Pearson")
-                    corr = df[colunas_num].dropna(axis=1, how="all").corr()
-                    if not corr.empty:
-                        st.dataframe(corr.round(3), use_container_width=True)
+                if stats:
+                    st.subheader(f"📈 {col_analise} ({fonte})")
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Média", f"{stats['Média']:.3f}")
+                    c2.metric("Desvio", f"{stats['Desvio Padrão']:.3f}")
+                    c3.metric("CV (%)", f"{stats['CV (%)']:.1f}%", stats['Classificação CV'])
+                    c4.metric("Normalidade", stats.get('Dist. Normal?', 'N/A'))
+                    
+                    with st.expander("📋 Todas as Estatísticas"):
+                        stats_df = pd.DataFrame(list(stats.items()), columns=['Estatística', 'Valor'])
+                        st.dataframe(stats_df, use_container_width=True, hide_index=True)
+                    
+                    if len(colunas_num) >= 2:
+                        st.markdown("---")
+                        st.subheader("🔗 Correlação de Pearson")
+                        corr = df[colunas_num].dropna(axis=1, how="all").corr()
+                        if not corr.empty:
+                            st.dataframe(corr.round(3), use_container_width=True)
 
 # ============================================================
-# ABA 4: SÉRIE TEMPORAL (4 FONTES)
+# ABA 4: SÉRIE TEMPORAL (USA DICIONÁRIO + DETECTA DATAS)
 # ============================================================
 with aba4:
     st.header("📈 Série Temporal")
     st.markdown("---")
     
-    opcoes_graf = ["Dados Originais"]
-    if st.session_state.get('df_semanal') is not None:
-        opcoes_graf.append("Dados Semanais")
-    if st.session_state.get('df_mensal') is not None:
-        opcoes_graf.append("Dados Mensais")
-    if st.session_state.get('df_anual') is not None:
-        opcoes_graf.append("Dados Anuais")
-    
-    fonte_graf = st.radio("Fonte:", opcoes_graf, horizontal=True, key="fonte_graf")
-    df = obter_df_por_fonte(fonte_graf)
-    
-    if df is None:
-        st.warning("⚠️ Dados não disponíveis para esta fonte.")
+    if not st.session_state['upload_feito']:
+        st.warning("⚠️ Faça o upload na Aba 1 primeiro!")
     else:
-        colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
-        todas_cols = df.columns.tolist()
+        # Construir opções
+        opcoes = ["Dados Originais"]
+        for nome in ["Semanal", "Mensal", "Anual"]:
+            if nome in st.session_state['agregacoes'] and st.session_state['agregacoes'][nome] is not None:
+                opcoes.append(f"Dados {nome}")
         
-        if not colunas_num:
-            st.warning("⚠️ Sem variáveis numéricas")
+        fonte = st.radio("Fonte:", opcoes, horizontal=True, key="fonte_graf")
+        
+        if fonte == "Dados Originais":
+            df = obter_df_processado()
         else:
-            date_cols = st.session_state.get('date_columns', [])
-            x_cols = date_cols if date_cols else todas_cols
+            nome_agg = fonte.replace("Dados ", "")
+            df = st.session_state['agregacoes'].get(nome_agg)
+        
+        if df is None:
+            st.warning("⚠️ Dados não disponíveis.")
+        else:
+            colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
             
-            col_x = st.selectbox("Eixo X (Data):", x_cols, key="gx")
-            col_y = st.multiselect("Variáveis Y:", colunas_num, default=colunas_num[:min(3, len(colunas_num))], key="gy")
-            
-            if col_y:
-                df_plot = df[[col_x] + col_y].dropna().copy()
-                # CORRIGIDO: dayfirst=True
-                if df_plot[col_x].dtype != 'datetime64[ns]':
-                    try:
-                        df_plot[col_x] = pd.to_datetime(df_plot[col_x], dayfirst=True, errors='coerce')
-                    except:
-                        pass
-                df_plot = df_plot.dropna()
+            if not colunas_num:
+                st.warning("⚠️ Sem variáveis numéricas")
+            else:
+                # DETECTAR COLUNAS DE DATA NO PRÓPRIO DATAFRAME
+                date_cols = detectar_dataframe_colunas_data(df)
                 
-                if len(df_plot) > 0:
-                    chart = criar_grafico_linhas(df_plot, col_x, col_y)
-                    if chart:
-                        st.altair_chart(chart, use_container_width=True)
+                if not date_cols:
+                    # Fallback: usar session_state
+                    date_cols = st.session_state.get('date_columns', [])
+                
+                if not date_cols:
+                    # Último fallback: primeira coluna
+                    date_cols = [df.columns[0]]
+                
+                col_x = st.selectbox("Eixo X (Data):", date_cols, key="gx")
+                col_y = st.multiselect("Variáveis Y:", colunas_num, 
+                                      default=colunas_num[:min(3, len(colunas_num))], key="gy")
+                
+                if col_y:
+                    df_plot = df[[col_x] + col_y].dropna().copy()
+                    
+                    # Garantir datetime com dayfirst=True
+                    if df_plot[col_x].dtype != 'datetime64[ns]':
+                        df_plot[col_x] = pd.to_datetime(df_plot[col_x], dayfirst=True, errors='coerce')
+                    df_plot = df_plot.dropna()
+                    
+                    if len(df_plot) > 0:
+                        # Mostrar período
+                        st.caption(f"📅 Período: {df_plot[col_x].min().strftime('%d/%m/%Y')} → {df_plot[col_x].max().strftime('%d/%m/%Y')}")
+                        
+                        chart = criar_grafico_series_temporal(df_plot, col_x, col_y)
+                        if chart:
+                            st.altair_chart(chart, use_container_width=True)
 
 # ============================================================
 # ABA 5: DOWNLOAD (MOSTRA TODAS AS AGREGAÇÕES)
@@ -665,54 +656,44 @@ with aba5:
     st.header("💾 Download dos Resultados")
     st.markdown("---")
     
-    tem_resultados = False
-    
-    # Semanal
-    if st.session_state.get('df_semanal') is not None:
-        tem_resultados = True
-        st.subheader("📆 Resultados Semanais")
-        st.dataframe(st.session_state['df_semanal'].head(10), use_container_width=True)
-        csv_s = st.session_state['df_semanal'].to_csv(index=False, encoding='utf-8')
-        st.download_button("📥 Baixar CSV (Semanal)", csv_s,
-                         f"resultados_semanais_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                         "text/csv", key="res_s")
-        st.markdown("---")
-    
-    # Mensal
-    if st.session_state.get('df_mensal') is not None:
-        tem_resultados = True
-        st.subheader("📆 Resultados Mensais")
-        st.dataframe(st.session_state['df_mensal'].head(10), use_container_width=True)
-        csv_m = st.session_state['df_mensal'].to_csv(index=False, encoding='utf-8')
-        st.download_button("📥 Baixar CSV (Mensal)", csv_m,
-                         f"resultados_mensais_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                         "text/csv", key="res_m")
-        st.markdown("---")
-    
-    # Anual
-    if st.session_state.get('df_anual') is not None:
-        tem_resultados = True
-        st.subheader("📆 Resultados Anuais")
-        st.dataframe(st.session_state['df_anual'].head(10), use_container_width=True)
-        csv_a = st.session_state['df_anual'].to_csv(index=False, encoding='utf-8')
-        st.download_button("📥 Baixar CSV (Anual)", csv_a,
-                         f"resultados_anuais_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                         "text/csv", key="res_a")
-        st.markdown("---")
-    
-    if not tem_resultados:
-        st.warning("⚠️ Nenhum resultado disponível.")
-        st.info("💡 Vá para a Aba **Tratamento** → gere as agregações (Semanal/Mensal/Anual)")
-    
-    # Dados processados (opcional)
-    with st.expander("📥 Dados Processados (Original)", expanded=False):
-        df = obter_df_limpo()
-        if df is not None:
-            st.dataframe(df.head(5), use_container_width=True)
-            csv_data = df.to_csv(index=False, encoding='utf-8')
-            st.download_button("📥 Baixar Dados Processados", csv_data,
-                             f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                             "text/csv", key="proc")
+    if not st.session_state['upload_feito']:
+        st.warning("⚠️ Faça o upload na Aba 1 primeiro!")
+    else:
+        agregacoes = st.session_state['agregacoes']
+        
+        if not agregacoes:
+            st.warning("⚠️ Nenhum resultado disponível.")
+            st.info("💡 Vá para Aba 2 → gere as agregações (Semanal/Mensal/Anual)")
+        else:
+            for nome in ["Semanal", "Mensal", "Anual"]:
+                df_agg = agregacoes.get(nome)
+                if df_agg is not None:
+                    st.subheader(f"📆 Resultados {nome} ({len(df_agg)} registros)")
+                    st.dataframe(df_agg.head(10), use_container_width=True)
+                    
+                    csv_agg = df_agg.to_csv(index=False, encoding='utf-8')
+                    st.download_button(
+                        label=f"📥 Baixar CSV ({nome})",
+                        data=csv_agg,
+                        file_name=f"resultados_{nome.lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                        mime="text/csv",
+                        key=f"res_{nome}"
+                    )
+                    st.markdown("---")
+        
+        # Dados processados (opcional)
+        with st.expander("📥 Dados Processados (Original)", expanded=False):
+            df = obter_df_processado()
+            if df is not None:
+                st.dataframe(df.head(5), use_container_width=True)
+                csv_data = df.to_csv(index=False, encoding='utf-8')
+                st.download_button(
+                    label="📥 Baixar Dados Processados",
+                    data=csv_data,
+                    file_name=f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    key="proc"
+                )
 
 # ============================================================
 # FOOTER
@@ -720,8 +701,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v10.0</h4>
-    <p>Estrutura Profissional | 3 Agregações Independentes</p>
+    <h4>🌱 AgroDataLab v11.0</h4>
+    <p>Arquitetura Corrigida | Dicionário Único de Agregações</p>
     <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

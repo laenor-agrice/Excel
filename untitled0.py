@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 6.0 - Detecção Inteligente de Datas
+# Versão 7.0 - Detecção Robusta de Delimitador e Datas
 # ============================================================
 
 import streamlit as st
@@ -9,6 +9,7 @@ import numpy as np
 import altair as alt
 from datetime import datetime
 import io
+import csv
 import traceback
 import warnings
 warnings.filterwarnings('ignore')
@@ -107,36 +108,168 @@ def corrigir_nomes_duplicados(df):
     return df
 
 # ============================================================
-# FUNÇÃO: CARREGAR DADOS
+# FUNÇÃO: DETECTAR DELIMITADOR (NOVA - ROBUSTA)
+# ============================================================
+def detectar_delimitador(arquivo):
+    """
+    Detecta automaticamente o delimitador do CSV
+    Usa csv.Sniffer + fallback para delimitadores comuns
+    """
+    try:
+        # Ler amostra para análise
+        arquivo.seek(0)
+        amostra_bytes = arquivo.read(8192)
+        arquivo.seek(0)
+        
+        # Tentar decodificar
+        for encoding in ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']:
+            try:
+                amostra = amostra_bytes.decode(encoding)
+                break
+            except:
+                continue
+        else:
+            amostra = amostra_bytes.decode('utf-8', errors='ignore')
+        
+        # Método 1: csv.Sniffer
+        try:
+            sniffer = csv.Sniffer()
+            dialecto = sniffer.sniff(amostra)
+            delimitador = dialecto.delimiter
+            
+            # Validar
+            linhas = amostra.strip().split('\n')
+            if len(linhas) >= 2:
+                c1 = linhas[0].count(delimitador)
+                c2 = linhas[1].count(delimitador)
+                if c1 == c2 and c1 > 0:
+                    return delimitador
+        except:
+            pass
+        
+        # Método 2: Fallback - testar delimitadores comuns
+        delimitadores = [';', ',', '\t', '|']
+        linhas = amostra.strip().split('\n')
+        
+        if len(linhas) >= 2:
+            for sep in delimitadores:
+                c1 = linhas[0].count(sep)
+                c2 = linhas[1].count(sep)
+                if c1 == c2 and c1 > 0:
+                    return sep
+        
+        # Método 3: Qual delimitador aparece mais
+        melhor_sep = ','
+        max_count = 0
+        for sep in delimitadores:
+            count = amostra.count(sep)
+            if count > max_count:
+                max_count = count
+                melhor_sep = sep
+        
+        return melhor_sep if max_count > 0 else ','
+    
+    except:
+        return ','
+
+
+# ============================================================
+# FUNÇÃO: CARREGAR DADOS (CORRIGIDA)
 # ============================================================
 def carregar_dados(arquivo):
-    """Carrega CSV ou Excel com detecção automática"""
+    """
+    Carrega CSV ou Excel com:
+    - Detecção automática de delimitador
+    - Detecção de encoding
+    - Tratamento de decimal (vírgula/ponto)
+    """
     try:
         if arquivo.name.endswith('.csv'):
-            for enc in ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']:
+            
+            # Detectar delimitador
+            separador = detectar_delimitador(arquivo)
+            
+            # Tentar diferentes configurações
+            configuracoes = [
+                # (encoding, decimal)
+                ('utf-8', ','),
+                ('utf-8', '.'),
+                ('latin1', ','),
+                ('latin1', '.'),
+                ('iso-8859-1', ','),
+                ('iso-8859-1', '.'),
+                ('cp1252', ','),
+                ('cp1252', '.'),
+            ]
+            
+            for encoding, decimal in configuracoes:
                 try:
-                    df = pd.read_csv(arquivo, encoding=enc)
-                    if df.shape[1] == 1:
-                        arquivo.seek(0)
-                        for sep in [';', '\t', '|']:
-                            try:
-                                df = pd.read_csv(arquivo, encoding=enc, sep=sep)
-                                if df.shape[1] > 1:
-                                    return corrigir_nomes_duplicados(df)
-                            except:
-                                continue
+                    arquivo.seek(0)
+                    df = pd.read_csv(
+                        arquivo,
+                        sep=separador,
+                        encoding=encoding,
+                        decimal=decimal,
+                        thousands='.',
+                        on_bad_lines='skip',
+                        engine='python'
+                    )
+                    
+                    # Verificar se leu corretamente (mais de 1 coluna)
                     if df.shape[1] > 1:
+                        # Verificar se colunas numéricas foram lidas
+                        num_cols = df.select_dtypes(include=[np.number]).columns
+                        obj_cols = df.select_dtypes(include=['object']).columns
+                        
+                        # Se tem colunas numéricas, ótimo
+                        if len(num_cols) > 0:
+                            return corrigir_nomes_duplicados(df)
+                        
+                        # Se todas são objeto, pode ser que o decimal esteja errado
+                        # Tentar converter vírgula para ponto nas colunas objeto
+                        if len(obj_cols) > 0 and len(num_cols) == 0:
+                            # Verificar se parece número com vírgula
+                            for col in obj_cols[:3]:  # testar primeiras 3 colunas
+                                amostra = df[col].dropna().head(5).astype(str)
+                                if amostra.str.contains(',').any():
+                                    # Provavelmente é número com vírgula decimal
+                                    arquivo.seek(0)
+                                    df = pd.read_csv(
+                                        arquivo,
+                                        sep=separador,
+                                        encoding=encoding,
+                                        decimal=',',
+                                        thousands='.',
+                                        on_bad_lines='skip',
+                                        engine='python'
+                                    )
+                                    return corrigir_nomes_duplicados(df)
+                        
                         return corrigir_nomes_duplicados(df)
-                except:
+                
+                except Exception as e:
                     continue
+            
+            # Última tentativa: deixar pandas decidir tudo
             arquivo.seek(0)
-            df = pd.read_csv(arquivo)
+            df = pd.read_csv(
+                arquivo,
+                sep=separador,
+                encoding='utf-8',
+                on_bad_lines='skip',
+                engine='python'
+            )
             return corrigir_nomes_duplicados(df)
+        
         else:
+            # Excel
             df = pd.read_excel(arquivo)
             return corrigir_nomes_duplicados(df)
+    
     except Exception as e:
-        st.error(f"Erro ao carregar: {str(e)}")
+        st.error(f"❌ Erro ao carregar arquivo:")
+        st.code(f"{type(e).__name__}: {str(e)}")
+        st.code(traceback.format_exc())
         return None
 
 # ============================================================
@@ -150,7 +283,7 @@ def processar_dados(df):
     df = df.copy()
     date_cols = []
 
-    # Padrões de nome de coluna
+    # Padrões de nome de coluna (EXPANDIDO)
     padroes_data = [
         'data', 'hora', 'date', 'time',
         'ano', 'mes', 'mês', 'dia',
@@ -177,9 +310,8 @@ def processar_dados(df):
             amostra = df[col].dropna().head(20)
             
             if len(amostra) > 0:
-                # Tentar converter para datetime
                 try:
-                    # Tentar vários formatos comuns
+                    # Tentar converter para datetime
                     teste = pd.to_datetime(
                         amostra,
                         errors="coerce",
@@ -398,7 +530,7 @@ st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
     <p>Sistema Inteligente de Análise de Dados Meteorológicos</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v6.0 - Detecção Inteligente de Datas</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v7.0 - Detecção Robusta de CSV e Datas</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -426,18 +558,15 @@ with st.sidebar:
         
         st.caption(f"📊 {num_cols} numéricas | 📝 {cat_cols} categóricas | 📅 {date_cols} datas")
         
-        # Mostrar datas detectadas
         if date_cols > 0:
             with st.expander("📅 Datas detectadas"):
                 for dc in st.session_state['date_columns']:
                     st.caption(f"• {dc}")
-        else:
-            st.info("📅 Nenhuma data detectada")
     else:
         st.info("📤 Sem dados")
     
     st.markdown("---")
-    st.caption("AgroDataLab v6.0 | MIT License")
+    st.caption("AgroDataLab v7.0 | MIT License")
 
 # ============================================================
 # ABAS
@@ -464,6 +593,21 @@ with aba1:
             df = carregar_dados(arquivo)
             
             if df is not None and len(df) > 0:
+                
+                # DIAGNÓSTICO DE LEITURA
+                if df.shape[1] == 1:
+                    st.error("""
+                    ⚠️ **Arquivo lido como UMA ÚNICA coluna!**
+                    
+                    O delimitador não foi identificado corretamente.
+                    
+                    **Solução:**
+                    1. Abra o arquivo no Excel
+                    2. Salve como CSV (separado por vírgulas ou ponto-e-vírgula)
+                    3. Faça upload novamente
+                    """)
+                    st.stop()
+                
                 # Processar com detecção inteligente de datas
                 df, date_cols = processar_dados(df)
                 
@@ -475,7 +619,12 @@ with aba1:
                 st.session_state['df_processed'] = df.copy()
                 st.session_state['date_columns'] = date_cols
                 
-                st.markdown('<div class="success-box"><h3>✅ Arquivo carregado!</h3></div>', unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="success-box">
+                    <h3>✅ Arquivo carregado!</h3>
+                    <p><strong>{df.shape[0]:,}</strong> linhas × <strong>{df.shape[1]}</strong> colunas</p>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # DIAGNÓSTICO DE DATAS
                 if date_cols:
@@ -487,22 +636,21 @@ with aba1:
                     ⚠️ **Nenhuma coluna de data foi detectada.**
                     
                     Os gráficos temporais ficarão indisponíveis.
-                    O sistema analisou tanto os nomes das colunas quanto o conteúdo.
                     """)
                 
                 # Métricas
                 col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Registros", f"{len(df):,}")
-                col2.metric("Colunas", len(df.columns))
+                col1.metric("📋 Registros", f"{len(df):,}")
+                col2.metric("📊 Colunas", len(df.columns))
                 
                 num_cols = len(df.select_dtypes(include=[np.number]).columns)
                 cat_cols = len(df.select_dtypes(include=['object']).columns)
-                col3.metric("Numéricas", num_cols)
-                col4.metric("Datas", len(date_cols))
+                col3.metric("🔢 Numéricas", num_cols)
+                col4.metric("📅 Datas", len(date_cols))
                 
                 # Preview
                 st.markdown("---")
-                st.subheader("👀 Preview")
+                st.subheader("👀 Preview dos Dados")
                 st.dataframe(df.head(15), use_container_width=True)
                 
                 # Info das colunas
@@ -515,6 +663,26 @@ with aba1:
                         'Únicos': df.nunique().values
                     })
                     st.dataframe(info, use_container_width=True)
+            else:
+                st.error("❌ Não foi possível carregar o arquivo. Verifique o formato.")
+    else:
+        st.markdown("""
+        <div class="info-box">
+            <h4>📤 Instruções:</h4>
+            <ol>
+                <li>Clique em <strong>"Browse files"</strong></li>
+                <li>Selecione um arquivo <strong>CSV</strong> ou <strong>Excel</strong></li>
+                <li>O sistema detecta automaticamente:
+                    <ul>
+                        <li>Delimitador ( ; , tab | )</li>
+                        <li>Encoding (UTF-8, Latin1, etc.)</li>
+                        <li>Decimal (vírgula ou ponto)</li>
+                        <li>Colunas de data (nome e conteúdo)</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ============================================================
 # ABA 2: TRATAMENTO
@@ -764,10 +932,10 @@ with aba5:
         
         st.markdown("---")
         
-        csv = df.to_csv(index=False, encoding='utf-8')
+        csv_data = df.to_csv(index=False, encoding='utf-8')
         st.download_button(
             "📥 Baixar CSV",
-            csv,
+            csv_data,
             f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             "text/csv"
         )
@@ -782,8 +950,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v6.0</h4>
-    <p>Detecção Inteligente de Datas | Métodos Científicos</p>
+    <h4>🌱 AgroDataLab v7.0</h4>
+    <p>Detecção Robusta de CSV | Análise Inteligente de Datas</p>
     <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

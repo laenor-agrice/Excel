@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 9.4 - Frequências Corrigidas + Download Resultados
+# Versão 10.0 - Estrutura Profissional com 3 Agregações
 # ============================================================
 
 import streamlit as st
@@ -50,14 +50,6 @@ st.markdown("""
     .hero-header h1 { font-size: 2.5rem; font-weight: 800; margin: 0; }
     .hero-header p { font-size: 1.1rem; opacity: 0.95; margin: 0.5rem 0 0 0; }
     
-    .metric-card {
-        background: white; border-radius: 16px; padding: 1.2rem;
-        border-left: 4px solid #2d8a4e; box-shadow: 0 2px 12px rgba(0,0,0,0.04);
-        margin-bottom: 0.5rem;
-    }
-    .metric-value { font-size: 1.8rem; font-weight: 700; color: #1a5632; margin: 0; }
-    .metric-label { font-size: 0.8rem; color: #6c757d; font-weight: 500; text-transform: uppercase; }
-    
     .stButton > button {
         background: linear-gradient(135deg, #1a5632 0%, #2d8a4e 100%);
         color: white; border: none; padding: 0.6rem 1.2rem;
@@ -78,35 +70,27 @@ st.markdown("""
         background: #e3f2fd; border: 1px solid #64b5f6;
         border-radius: 12px; padding: 1.5rem; border-left: 5px solid #1565c0; margin: 1rem 0;
     }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0.5rem; background: #f8f9fa; padding: 0.5rem; border-radius: 12px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        padding: 0.6rem 1.2rem; background: white; border-radius: 8px; font-weight: 500;
-    }
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #1a5632, #2d8a4e); color: white;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================
-# SESSION STATE
+# SESSION STATE - 3 AGREGAÇÕES SEPARADAS
 # ============================================================
 if 'df_original' not in st.session_state:
     st.session_state['df_original'] = None
 if 'df_processed' not in st.session_state:
     st.session_state['df_processed'] = None
-if 'df_agregado' not in st.session_state:
-    st.session_state['df_agregado'] = None
-if 'tipo_agregado' not in st.session_state:
-    st.session_state['tipo_agregado'] = None
+if 'df_semanal' not in st.session_state:
+    st.session_state['df_semanal'] = None
+if 'df_mensal' not in st.session_state:
+    st.session_state['df_mensal'] = None
+if 'df_anual' not in st.session_state:
+    st.session_state['df_anual'] = None
 if 'date_columns' not in st.session_state:
     st.session_state['date_columns'] = []
 
 # ============================================================
-# FREQUÊNCIAS CORRIGIDAS (Pandas 2.x)
+# FREQUÊNCIAS
 # ============================================================
 FREQ_MAP = {
     "Semanal": "W",
@@ -234,7 +218,7 @@ def obter_df_limpo():
 def criar_agregacao_temporal(df, coluna_data, freq):
     try:
         df_temp = df.copy()
-        df_temp[coluna_data] = pd.to_datetime(df_temp[coluna_data], errors='coerce')
+        df_temp[coluna_data] = pd.to_datetime(df_temp[coluna_data], errors='coerce', dayfirst=True)
         df_temp = df_temp.dropna(subset=[coluna_data])
         
         if len(df_temp) == 0:
@@ -313,7 +297,7 @@ def calcular_estatisticas_completas(df, coluna):
     return resultado
 
 # ============================================================
-# GRÁFICO DE SÉRIE TEMPORAL
+# GRÁFICO DE SÉRIE TEMPORAL (COM dayfirst)
 # ============================================================
 def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
     try:
@@ -346,13 +330,28 @@ def detectar_outliers(dados):
     return (dados < lim_inf) | (dados > lim_sup), lim_inf, lim_sup
 
 # ============================================================
+# FUNÇÃO AUXILIAR: OBTER DATAFRAME POR FONTE
+# ============================================================
+def obter_df_por_fonte(fonte):
+    """Retorna o DataFrame correspondente à fonte selecionada"""
+    if fonte == "Dados Originais":
+        return obter_df_limpo()
+    elif fonte == "Dados Semanais":
+        return st.session_state.get('df_semanal')
+    elif fonte == "Dados Mensais":
+        return st.session_state.get('df_mensal')
+    elif fonte == "Dados Anuais":
+        return st.session_state.get('df_anual')
+    return None
+
+# ============================================================
 # HEADER
 # ============================================================
 st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
     <p>Sistema Inteligente de Análise Meteorológica e Agronômica</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v9.4 - Frequências Corrigidas</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v10.0 - Estrutura Profissional</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -367,18 +366,20 @@ with st.sidebar:
     
     df_status = obter_df_limpo()
     if df_status is not None:
-        st.success(f"✅ {len(df_status):,} registros")
-        num_cols = len(df_status.select_dtypes(include=[np.number]).columns)
-        date_cols = len(st.session_state.get('date_columns', []))
-        st.caption(f"📊 {num_cols} numéricas | 📅 {date_cols} datas")
+        st.success(f"✅ {len(df_status):,} registros originais")
         
-        if st.session_state.get('df_agregado') is not None:
-            tipo = st.session_state.get('tipo_agregado', '')
-            st.info(f"📆 Agregação {tipo} disponível")
+        # Mostrar status das 3 agregações
+        if st.session_state.get('df_semanal') is not None:
+            st.info(f"📆 Semanal: {len(st.session_state['df_semanal'])} registros")
+        if st.session_state.get('df_mensal') is not None:
+            st.info(f"📆 Mensal: {len(st.session_state['df_mensal'])} registros")
+        if st.session_state.get('df_anual') is not None:
+            st.info(f"📆 Anual: {len(st.session_state['df_anual'])} registros")
     else:
         st.info("📤 Sem dados")
+    
     st.markdown("---")
-    st.caption("AgroDataLab v9.4 | MIT License")
+    st.caption("AgroDataLab v10.0 | MIT License")
 
 # ============================================================
 # ABAS
@@ -412,8 +413,10 @@ with aba1:
                 st.session_state['df_original'] = df.copy()
                 st.session_state['df_processed'] = df.copy()
                 st.session_state['date_columns'] = date_cols
-                st.session_state['df_agregado'] = None
-                st.session_state['tipo_agregado'] = None
+                # Limpar todas as agregações
+                st.session_state['df_semanal'] = None
+                st.session_state['df_mensal'] = None
+                st.session_state['df_anual'] = None
                 
                 st.markdown(f'<div class="success-box"><h3>✅ {df.shape[0]:,} linhas × {df.shape[1]} colunas</h3></div>', unsafe_allow_html=True)
                 
@@ -428,7 +431,7 @@ with aba1:
                 st.dataframe(df.head(15), use_container_width=True)
 
 # ============================================================
-# ABA 2: TRATAMENTO
+# ABA 2: TRATAMENTO (SALVA NAS 3 VARIÁVEIS SEPARADAS)
 # ============================================================
 with aba2:
     st.header("🔧 Tratamento de Dados")
@@ -437,6 +440,7 @@ with aba2:
     if df is None:
         st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
     else:
+        # Valores ausentes
         missing_total = df.isnull().sum().sum()
         if missing_total > 0:
             st.markdown(f'<div class="warning-box"><h3>⚠️ {missing_total:,} valores ausentes</h3></div>', unsafe_allow_html=True)
@@ -479,9 +483,9 @@ with aba2:
         else:
             st.markdown('<div class="success-box"><h3>✅ Nenhum valor ausente!</h3></div>', unsafe_allow_html=True)
         
-        # AGREGAÇÃO TEMPORAL
+        # AGREGAÇÃO TEMPORAL (SALVA SEPARADAMENTE)
         st.markdown("---")
-        st.subheader("📆 Agregação Temporal (Semanal / Mensal / Anual)")
+        st.subheader("📆 Agregação Temporal")
         
         date_cols = st.session_state.get('date_columns', [])
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -495,24 +499,45 @@ with aba2:
                 with st.spinner("Calculando..."):
                     df_agg = criar_agregacao_temporal(df, col_data_agg, freq_code)
                     if df_agg is not None:
-                        st.session_state['df_agregado'] = df_agg
-                        st.session_state['tipo_agregado'] = periodo_nome
-                        st.success(f"✅ Média {periodo_nome.lower()} gerada! ({len(df_agg)} registros)")
+                        # SALVAR NA VARIÁVEL CORRETA
+                        if periodo_nome == "Semanal":
+                            st.session_state['df_semanal'] = df_agg
+                        elif periodo_nome == "Mensal":
+                            st.session_state['df_mensal'] = df_agg
+                        elif periodo_nome == "Anual":
+                            st.session_state['df_anual'] = df_agg
+                        
+                        st.success(f"""
+                        ✅ Média {periodo_nome.lower()} gerada com sucesso!
+                        - Registros originais: {len(df):,}
+                        - Registros agregados: {len(df_agg):,}
+                        """)
                         st.rerun()
             
-            if st.session_state.get('df_agregado') is not None:
-                tipo = st.session_state.get('tipo_agregado', '')
-                st.markdown(f"### 📋 Dados {tipo}")
-                st.dataframe(st.session_state['df_agregado'], use_container_width=True)
-                
-                csv_agg = st.session_state['df_agregado'].to_csv(index=False, encoding='utf-8')
-                st.download_button(
-                    f"📥 Baixar CSV ({tipo})",
-                    csv_agg,
-                    file_name=f"dados_{tipo.lower()}_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv",
-                    key="download_agg_aba2"
-                )
+            # Mostrar todas as agregações disponíveis
+            st.markdown("---")
+            st.markdown("### 📋 Agregações Disponíveis")
+            
+            if st.session_state.get('df_semanal') is not None:
+                with st.expander("📆 Dados Semanais", expanded=True):
+                    st.dataframe(st.session_state['df_semanal'], use_container_width=True)
+                    csv_s = st.session_state['df_semanal'].to_csv(index=False, encoding='utf-8')
+                    st.download_button("📥 Baixar Semanal", csv_s,
+                                     f"semanal_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", key="dw_s")
+            
+            if st.session_state.get('df_mensal') is not None:
+                with st.expander("📆 Dados Mensais", expanded=True):
+                    st.dataframe(st.session_state['df_mensal'], use_container_width=True)
+                    csv_m = st.session_state['df_mensal'].to_csv(index=False, encoding='utf-8')
+                    st.download_button("📥 Baixar Mensal", csv_m,
+                                     f"mensal_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", key="dw_m")
+            
+            if st.session_state.get('df_anual') is not None:
+                with st.expander("📆 Dados Anuais", expanded=True):
+                    st.dataframe(st.session_state['df_anual'], use_container_width=True)
+                    csv_a = st.session_state['df_anual'].to_csv(index=False, encoding='utf-8')
+                    st.download_button("📥 Baixar Anual", csv_a,
+                                     f"anual_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv", key="dw_a")
         else:
             if not date_cols:
                 st.info("📅 Nenhuma coluna de data identificada.")
@@ -535,7 +560,7 @@ with aba2:
                     st.success(f"✅ Nenhum outlier em {col_out}")
 
 # ============================================================
-# ABA 3: ESTATÍSTICAS
+# ABA 3: ESTATÍSTICAS (4 FONTES)
 # ============================================================
 with aba3:
     st.header("📊 Análise Estatística Completa")
@@ -544,16 +569,20 @@ with aba3:
     if not SCIPY_DISPONIVEL:
         st.warning("⚠️ SciPy não instalado.")
     
-    fonte_dados = st.radio("Fonte:", ['Dados Originais', 'Dados Agregados'], horizontal=True, key="fonte_stats")
+    # 4 opções de fonte
+    opcoes_fonte = ["Dados Originais"]
+    if st.session_state.get('df_semanal') is not None:
+        opcoes_fonte.append("Dados Semanais")
+    if st.session_state.get('df_mensal') is not None:
+        opcoes_fonte.append("Dados Mensais")
+    if st.session_state.get('df_anual') is not None:
+        opcoes_fonte.append("Dados Anuais")
     
-    if fonte_dados == 'Dados Agregados' and st.session_state.get('df_agregado') is not None:
-        df = st.session_state['df_agregado'].copy()
-        st.info(f"📆 Usando dados {st.session_state.get('tipo_agregado', 'agregados')}")
-    else:
-        df = obter_df_limpo()
+    fonte_dados = st.radio("Fonte:", opcoes_fonte, horizontal=True, key="fonte_stats")
+    df = obter_df_por_fonte(fonte_dados)
     
     if df is None:
-        st.warning("⚠️ Carregue os dados primeiro!")
+        st.warning("⚠️ Dados não disponíveis para esta fonte.")
     else:
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
         if not colunas_num:
@@ -563,7 +592,7 @@ with aba3:
             stats = calcular_estatisticas_completas(df, col_analise)
             
             if stats:
-                st.subheader(f"📈 **{col_analise}**")
+                st.subheader(f"📈 **{col_analise}** ({fonte_dados})")
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Média", f"{stats['Média']:.3f}")
                 c2.metric("Desvio", f"{stats['Desvio Padrão']:.3f}")
@@ -582,22 +611,25 @@ with aba3:
                         st.dataframe(corr.round(3), use_container_width=True)
 
 # ============================================================
-# ABA 4: SÉRIE TEMPORAL
+# ABA 4: SÉRIE TEMPORAL (4 FONTES)
 # ============================================================
 with aba4:
     st.header("📈 Série Temporal")
     st.markdown("---")
     
-    fonte_graf = st.radio("Fonte:", ['Dados Originais', 'Dados Semanais', 'Dados Mensais', 'Dados Anuais'], horizontal=True, key="fonte_graf")
+    opcoes_graf = ["Dados Originais"]
+    if st.session_state.get('df_semanal') is not None:
+        opcoes_graf.append("Dados Semanais")
+    if st.session_state.get('df_mensal') is not None:
+        opcoes_graf.append("Dados Mensais")
+    if st.session_state.get('df_anual') is not None:
+        opcoes_graf.append("Dados Anuais")
     
-    if fonte_graf != 'Dados Originais' and st.session_state.get('df_agregado') is not None:
-        df = st.session_state['df_agregado'].copy()
-        st.info(f"📆 Usando dados {st.session_state.get('tipo_agregado', 'agregados')}")
-    else:
-        df = obter_df_limpo()
+    fonte_graf = st.radio("Fonte:", opcoes_graf, horizontal=True, key="fonte_graf")
+    df = obter_df_por_fonte(fonte_graf)
     
     if df is None:
-        st.warning("⚠️ Carregue os dados primeiro!")
+        st.warning("⚠️ Dados não disponíveis para esta fonte.")
     else:
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
         todas_cols = df.columns.tolist()
@@ -613,9 +645,10 @@ with aba4:
             
             if col_y:
                 df_plot = df[[col_x] + col_y].dropna().copy()
+                # CORRIGIDO: dayfirst=True
                 if df_plot[col_x].dtype != 'datetime64[ns]':
                     try:
-                        df_plot[col_x] = pd.to_datetime(df_plot[col_x], errors='coerce')
+                        df_plot[col_x] = pd.to_datetime(df_plot[col_x], dayfirst=True, errors='coerce')
                     except:
                         pass
                 df_plot = df_plot.dropna()
@@ -626,45 +659,60 @@ with aba4:
                         st.altair_chart(chart, use_container_width=True)
 
 # ============================================================
-# ABA 5: DOWNLOAD (RESULTADOS)
+# ABA 5: DOWNLOAD (MOSTRA TODAS AS AGREGAÇÕES)
 # ============================================================
 with aba5:
     st.header("💾 Download dos Resultados")
     st.markdown("---")
     
-    df_agg = st.session_state.get('df_agregado')
-    tipo = st.session_state.get('tipo_agregado', '')
+    tem_resultados = False
     
-    if df_agg is not None:
-        st.markdown(f'<div class="success-box"><h3>✅ Resultados {tipo} disponíveis</h3></div>', unsafe_allow_html=True)
-        
-        st.subheader(f"📥 Download dos Resultados ({tipo})")
-        st.dataframe(df_agg.head(10), use_container_width=True)
-        
-        csv_agg = df_agg.to_csv(index=False, encoding='utf-8')
-        st.download_button(
-    label=f"📥 Baixar Resultados {tipo} (CSV)",
-    data=csv_agg,
-    file_name=f"resultados_{tipo.lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-    mime="text/csv",
-    key="download_resultados"
-)
-        # Também disponibilizar dados processados
+    # Semanal
+    if st.session_state.get('df_semanal') is not None:
+        tem_resultados = True
+        st.subheader("📆 Resultados Semanais")
+        st.dataframe(st.session_state['df_semanal'].head(10), use_container_width=True)
+        csv_s = st.session_state['df_semanal'].to_csv(index=False, encoding='utf-8')
+        st.download_button("📥 Baixar CSV (Semanal)", csv_s,
+                         f"resultados_semanais_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                         "text/csv", key="res_s")
         st.markdown("---")
-        st.subheader("📥 Dados Processados (Opcional)")
+    
+    # Mensal
+    if st.session_state.get('df_mensal') is not None:
+        tem_resultados = True
+        st.subheader("📆 Resultados Mensais")
+        st.dataframe(st.session_state['df_mensal'].head(10), use_container_width=True)
+        csv_m = st.session_state['df_mensal'].to_csv(index=False, encoding='utf-8')
+        st.download_button("📥 Baixar CSV (Mensal)", csv_m,
+                         f"resultados_mensais_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                         "text/csv", key="res_m")
+        st.markdown("---")
+    
+    # Anual
+    if st.session_state.get('df_anual') is not None:
+        tem_resultados = True
+        st.subheader("📆 Resultados Anuais")
+        st.dataframe(st.session_state['df_anual'].head(10), use_container_width=True)
+        csv_a = st.session_state['df_anual'].to_csv(index=False, encoding='utf-8')
+        st.download_button("📥 Baixar CSV (Anual)", csv_a,
+                         f"resultados_anuais_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                         "text/csv", key="res_a")
+        st.markdown("---")
+    
+    if not tem_resultados:
+        st.warning("⚠️ Nenhum resultado disponível.")
+        st.info("💡 Vá para a Aba **Tratamento** → gere as agregações (Semanal/Mensal/Anual)")
+    
+    # Dados processados (opcional)
+    with st.expander("📥 Dados Processados (Original)", expanded=False):
         df = obter_df_limpo()
         if df is not None:
+            st.dataframe(df.head(5), use_container_width=True)
             csv_data = df.to_csv(index=False, encoding='utf-8')
-            st.download_button(
-                "📥 Baixar Dados Processados (CSV)",
-                csv_data,
-                f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                "text/csv",
-                key="download_processados"
-            )
-    else:
-        st.warning("⚠️ Nenhum resultado disponível. Gere a agregação na Aba 2 primeiro!")
-        st.info("💡 Vá para a Aba **Tratamento** → Selecione o período → Clique em **Gerar Média**")
+            st.download_button("📥 Baixar Dados Processados", csv_data,
+                             f"dados_processados_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                             "text/csv", key="proc")
 
 # ============================================================
 # FOOTER
@@ -672,8 +720,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v9.4</h4>
-    <p>Frequências Corrigidas | Download de Resultados</p>
+    <h4>🌱 AgroDataLab v10.0</h4>
+    <p>Estrutura Profissional | 3 Agregações Independentes</p>
     <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

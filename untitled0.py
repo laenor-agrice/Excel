@@ -1,6 +1,6 @@
 # ============================================================
 # AgroDataLab - Sistema Completo de Análise Meteorológica
-# Versão 9.2 - Correção de Agregação Temporal e SciPy
+# Versão 9.3 - Histograma e Boxplot Corrigidos
 # ============================================================
 
 import streamlit as st
@@ -107,7 +107,6 @@ if 'date_columns' not in st.session_state:
 # FUNÇÕES BÁSICAS
 # ============================================================
 def corrigir_nomes_duplicados(df):
-    """Renomeia colunas duplicadas"""
     cols = pd.Series(df.columns)
     for nome in cols[cols.duplicated()].unique():
         idx = cols[cols == nome].index.tolist()
@@ -118,7 +117,6 @@ def corrigir_nomes_duplicados(df):
     return df
 
 def detectar_delimitador(arquivo):
-    """Detecta delimitador do CSV"""
     try:
         arquivo.seek(0)
         amostra_bytes = arquivo.read(8192)
@@ -151,7 +149,6 @@ def detectar_delimitador(arquivo):
         return ','
 
 def carregar_dados(arquivo):
-    """Carrega CSV ou Excel"""
     try:
         if arquivo.name.endswith('.csv'):
             sep = detectar_delimitador(arquivo)
@@ -175,7 +172,6 @@ def carregar_dados(arquivo):
         return None
 
 def processar_dados(df):
-    """Processa dados - apenas colunas com nome de data"""
     df = df.copy()
     date_cols = []
     palavras_data = ['data', 'hora', 'date', 'time', 'timestamp', 'datetime', 'datahora']
@@ -225,59 +221,36 @@ def obter_df_limpo():
     return df
 
 # ============================================================
-# AGREGAÇÃO TEMPORAL (CORRIGIDA)
+# AGREGAÇÃO TEMPORAL
 # ============================================================
 def criar_agregacao_temporal(df, coluna_data, freq):
-    """
-    Cria agregação temporal (média mensal ou anual)
-    CORRIGIDO: Garante que o índice é datetime e usa frequências corretas
-    """
     df_temp = df.copy()
-    
-    # Garantir que a coluna de data é datetime
     df_temp[coluna_data] = pd.to_datetime(df_temp[coluna_data], errors='coerce')
-    
-    # Remover linhas sem data
     df_temp = df_temp.dropna(subset=[coluna_data])
-    
-    # Verificar se há dados suficientes
     if len(df_temp) == 0:
-        st.error("❌ Nenhuma data válida encontrada para agregação.")
+        st.error("❌ Nenhuma data válida.")
         return None
-    
-    # Definir índice como a coluna de data
     df_temp = df_temp.set_index(coluna_data)
-    
-    # Selecionar apenas colunas numéricas
     colunas_num = df_temp.select_dtypes(include=[np.number]).columns
-    
     if len(colunas_num) == 0:
-        st.error("❌ Nenhuma coluna numérica para agregação.")
+        st.error("❌ Nenhuma coluna numérica.")
         return None
-    
-    # Resample com a frequência correta
     try:
         df_agg = df_temp[colunas_num].resample(freq).mean().round(2)
     except Exception as e:
-        st.error(f"❌ Erro no resample: {str(e)}")
-        st.code(f"Frequência usada: {freq}")
+        st.error(f"❌ Erro: {str(e)}")
         return None
-    
-    # Formatar o índice conforme a frequência
     if freq in ['ME', 'M', 'MS']:
         df_agg.index = df_agg.index.strftime('%b/%Y')
     elif freq in ['YE', 'Y', 'YS']:
         df_agg.index = df_agg.index.strftime('%Y')
-    
     return df_agg.reset_index()
 
 # ============================================================
-# ESTATÍSTICAS COMPLETAS (COM FALLBACK SEM SCIPY)
+# ESTATÍSTICAS COMPLETAS
 # ============================================================
 def calcular_estatisticas_completas(df, coluna):
-    """Calcula estatísticas descritivas completas"""
     dados = df[coluna].dropna()
-    
     if len(dados) < 3:
         st.warning(f"**{coluna}**: poucos dados ({len(dados)} valores)")
         return None
@@ -287,11 +260,8 @@ def calcular_estatisticas_completas(df, coluna):
     soma = np.sum(dados)
     media = np.mean(dados)
     mediana = np.median(dados)
-    
-    # Moda
     moda_vals = dados.mode()
     moda = moda_vals.iloc[0] if len(moda_vals) > 0 else np.nan
-    
     minimo = np.min(dados)
     maximo = np.max(dados)
     amplitude = maximo - minimo
@@ -299,19 +269,15 @@ def calcular_estatisticas_completas(df, coluna):
     desvio = np.std(dados, ddof=1)
     erro_padrao = desvio / np.sqrt(n)
     cv = (desvio / media * 100) if media != 0 else 0
-    
     q1 = np.percentile(dados, 25)
     q2 = np.percentile(dados, 50)
     q3 = np.percentile(dados, 75)
     iqr = q3 - q1
     p10 = np.percentile(dados, 10)
     p90 = np.percentile(dados, 90)
-    
-    # Assimetria e Curtose (pandas nativo)
     assimetria = dados.skew()
     curtose = dados.kurtosis()
     
-    # Classificação CV
     if cv <= 10:
         cv_class = "Baixo 🟢"
     elif cv <= 20:
@@ -322,31 +288,19 @@ def calcular_estatisticas_completas(df, coluna):
         cv_class = "Muito Alto 🔴"
     
     resultado = {
-        'N': n,
-        'Faltantes': faltantes,
-        'Soma': round(soma, 2),
-        'Média': round(media, 4),
-        'Mediana': round(mediana, 4),
+        'N': n, 'Faltantes': faltantes, 'Soma': round(soma, 2),
+        'Média': round(media, 4), 'Mediana': round(mediana, 4),
         'Moda': round(moda, 4) if not pd.isna(moda) else 'N/A',
-        'Mínimo': round(minimo, 4),
-        'Máximo': round(maximo, 4),
-        'Amplitude': round(amplitude, 4),
-        'Variância': round(variancia, 4),
-        'Desvio Padrão': round(desvio, 4),
-        'Erro Padrão': round(erro_padrao, 4),
-        'CV (%)': round(cv, 2),
-        'Classificação CV': cv_class,
-        'Q1 (25%)': round(q1, 4),
-        'Q2 (50%)': round(q2, 4),
-        'Q3 (75%)': round(q3, 4),
-        'IQR': round(iqr, 4),
-        'P10': round(p10, 4),
-        'P90': round(p90, 4),
-        'Assimetria': round(assimetria, 4),
-        'Curtose': round(curtose, 4),
+        'Mínimo': round(minimo, 4), 'Máximo': round(maximo, 4),
+        'Amplitude': round(amplitude, 4), 'Variância': round(variancia, 4),
+        'Desvio Padrão': round(desvio, 4), 'Erro Padrão': round(erro_padrao, 4),
+        'CV (%)': round(cv, 2), 'Classificação CV': cv_class,
+        'Q1 (25%)': round(q1, 4), 'Q2 (50%)': round(q2, 4),
+        'Q3 (75%)': round(q3, 4), 'IQR': round(iqr, 4),
+        'P10': round(p10, 4), 'P90': round(p90, 4),
+        'Assimetria': round(assimetria, 4), 'Curtose': round(curtose, 4),
     }
     
-    # Teste de normalidade (apenas se SciPy disponível)
     if SCIPY_DISPONIVEL and 3 <= n <= 5000:
         try:
             stat_sw, p_sw = scipy_stats.shapiro(dados)
@@ -365,8 +319,28 @@ def calcular_estatisticas_completas(df, coluna):
     return resultado
 
 # ============================================================
-# FUNÇÕES DE GRÁFICOS
+# FUNÇÕES DE GRÁFICOS (CORRIGIDAS)
 # ============================================================
+
+def garantir_dados_numericos(df, coluna):
+    """
+    Garante que os dados são numéricos antes de plotar
+    CORRIGIDO: Converte objetos para float64
+    """
+    if coluna not in df.columns:
+        return None
+    
+    # Converter para numérico se necessário
+    if df[coluna].dtype == 'object':
+        dados = pd.to_numeric(df[coluna], errors='coerce').dropna()
+    else:
+        dados = df[coluna].dropna()
+    
+    if len(dados) < 2:
+        return None
+    
+    return dados
+
 def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
     try:
         df = corrigir_nomes_duplicados(df)
@@ -374,8 +348,19 @@ def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
         y_cols_validas = [c for c in y_cols if c in df.columns]
         if not y_cols_validas:
             return None
+        
+        # Garantir que colunas Y são numéricas
+        for col in y_cols_validas:
+            if df[col].dtype == 'object':
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
         df_melted = pd.melt(df, id_vars=[x_col], value_vars=y_cols_validas,
                            var_name='Variável', value_name='Valor')
+        df_melted = df_melted.dropna(subset=['Valor'])
+        
+        if len(df_melted) == 0:
+            return None
+        
         chart = alt.Chart(df_melted).mark_line(strokeWidth=2).encode(
             x=alt.X(f'{x_col}:T', title='Data'),
             y=alt.Y('Valor:Q', title='Valor'),
@@ -384,42 +369,97 @@ def criar_grafico_linhas(df, x_col, y_cols, titulo="Série Temporal"):
         ).properties(title=titulo, height=400).interactive()
         return chart
     except Exception as e:
-        st.error(f"Erro: {str(e)}")
+        st.error(f"Erro no gráfico de linhas: {str(e)}")
         return None
 
-def criar_histograma_aprimorado(df, coluna, bins=30):
+def criar_histograma_aprimorado(df, coluna, bins=20):
+    """
+    Histograma CORRIGIDO:
+    - Garante dados numéricos
+    - Bins padrão reduzido para 20
+    - Usa Altair nativo (sem Plotly)
+    """
     try:
-        df = corrigir_nomes_duplicados(df)
-        if coluna not in df.columns:
-            return None
-        df_clean = df[[coluna]].dropna()
-        if len(df_clean) < 2:
+        # GARANTIR DADOS NUMÉRICOS
+        dados = garantir_dados_numericos(df, coluna)
+        if dados is None or len(dados) < 2:
+            st.warning(f"⚠️ Dados insuficientes para histograma de {coluna}")
             return None
         
-        media_val = df_clean[coluna].mean()
-        mediana_val = df_clean[coluna].median()
+        media_val = dados.mean()
+        mediana_val = dados.median()
         
+        # Criar DataFrame apenas com a coluna numérica
+        df_clean = pd.DataFrame({coluna: dados.values})
+        
+        # Histograma com Altair
         bars = alt.Chart(df_clean).mark_bar(opacity=0.7, color='#2d8a4e').encode(
             alt.X(f'{coluna}:Q', bin=alt.Bin(maxbins=bins), title=coluna),
             alt.Y('count()', title='Frequência')
         )
         
+        # Linha da média (vermelha tracejada)
         rule_media = alt.Chart(pd.DataFrame({'x': [media_val]})).mark_rule(
-            color='red', strokeWidth=2, strokeDash=[5,5]
+            color='red', strokeWidth=2, strokeDash=[5, 5]
         ).encode(x='x:Q')
         
+        # Linha da mediana (azul pontilhada)
         rule_mediana = alt.Chart(pd.DataFrame({'x': [mediana_val]})).mark_rule(
-            color='blue', strokeWidth=2, strokeDash=[3,3]
+            color='blue', strokeWidth=2, strokeDash=[3, 3]
         ).encode(x='x:Q')
         
+        # Combinar camadas
         chart = (bars + rule_media + rule_mediana).properties(
-            title=f'Distribuição de {coluna} (Média: {media_val:.2f} | Mediana: {mediana_val:.2f})',
+            title=f'Distribuição de {coluna} | Média: {media_val:.2f} | Mediana: {mediana_val:.2f} | n: {len(dados)}',
             height=400
+        ).configure_axis(
+            labelFontSize=12,
+            titleFontSize=14
         )
         
         return chart
+    
     except Exception as e:
-        st.error(f"Erro: {str(e)}")
+        st.error(f"❌ Erro no histograma: {str(e)}")
+        st.code(traceback.format_exc())
+        return None
+
+def criar_boxplot(df, coluna):
+    """
+    Boxplot CORRIGIDO:
+    - Garante dados numéricos
+    - Mostra outliers
+    """
+    try:
+        # GARANTIR DADOS NUMÉRICOS
+        dados = garantir_dados_numericos(df, coluna)
+        if dados is None or len(dados) < 5:
+            st.warning(f"⚠️ Dados insuficientes para boxplot de {coluna} (mínimo 5)")
+            return None
+        
+        # Criar DataFrame apenas com a coluna numérica
+        df_clean = pd.DataFrame({coluna: dados.values})
+        
+        # Boxplot com Altair
+        chart = alt.Chart(df_clean).mark_boxplot(
+            extent='min-max',
+            color='#2d8a4e',
+            size=50
+        ).encode(
+            y=alt.Y(f'{coluna}:Q', title=coluna, scale=alt.Scale(zero=False))
+        ).properties(
+            title=f'Boxplot de {coluna} | n: {len(dados)} | Outliers: {(dados < dados.quantile(0.25) - 1.5*(dados.quantile(0.75)-dados.quantile(0.25))) | (dados > dados.quantile(0.75) + 1.5*(dados.quantile(0.75)-dados.quantile(0.25)))).sum()}',
+            height=400
+        ).configure_axis(
+            labelFontSize=12,
+            titleFontSize=14
+        )
+        
+        return chart
+    
+    except Exception as e:
+        st.error(f"❌ Erro no boxplot: {str(e)}")
+        st.code(traceback.format_exc())
         return None
 
 def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
@@ -427,6 +467,10 @@ def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
         df = corrigir_nomes_duplicados(df)
         if x_col not in df.columns or y_col not in df.columns:
             return None
+        
+        # Garantir que Y é numérico
+        if df[y_col].dtype == 'object':
+            df[y_col] = pd.to_numeric(df[y_col], errors='coerce')
         
         df_clean = df[[x_col, y_col]].dropna()
         if len(df_clean) < 1:
@@ -449,22 +493,6 @@ def criar_grafico_barras(df, x_col, y_col, titulo="Gráfico de Barras"):
         st.error(f"Erro: {str(e)}")
         return None
 
-def criar_boxplot(df, coluna):
-    try:
-        df = corrigir_nomes_duplicados(df)
-        if coluna not in df.columns:
-            return None
-        df_clean = df[[coluna]].dropna()
-        if len(df_clean) < 5:
-            return None
-        chart = alt.Chart(df_clean).mark_boxplot(extent='min-max', color='#2d8a4e').encode(
-            y=alt.Y(f'{coluna}:Q', title=coluna)
-        ).properties(title=f'Boxplot de {coluna}', height=400)
-        return chart
-    except Exception as e:
-        st.error(f"Erro: {str(e)}")
-        return None
-
 def detectar_outliers(dados):
     q1 = np.percentile(dados, 25)
     q3 = np.percentile(dados, 75)
@@ -475,11 +503,11 @@ def detectar_outliers(dados):
     return outliers, lim_inf, lim_sup
 
 # ============================================================
-# MAPA DE FREQUÊNCIAS (CORRIGIDO)
+# MAPA DE FREQUÊNCIAS
 # ============================================================
 FREQ_MAP = {
-    "Mensal": "ME",   # Month End (Pandas 2.x)
-    "Anual": "YE",    # Year End (Pandas 2.x)
+    "Mensal": "ME",
+    "Anual": "YE",
 }
 
 # ============================================================
@@ -489,7 +517,7 @@ st.markdown("""
 <div class="hero-header">
     <h1>🌱 AgroDataLab</h1>
     <p>Sistema Inteligente de Análise Meteorológica e Agronômica</p>
-    <p style="font-size:0.9rem; opacity:0.8;">v9.2 - Agregação Temporal Corrigida</p>
+    <p style="font-size:0.9rem; opacity:0.8;">v9.3 - Gráficos Corrigidos</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -515,7 +543,7 @@ with st.sidebar:
     else:
         st.info("📤 Sem dados")
     st.markdown("---")
-    st.caption("AgroDataLab v9.2 | MIT License")
+    st.caption("AgroDataLab v9.3 | MIT License")
 
 # ============================================================
 # ABAS
@@ -564,7 +592,7 @@ with aba1:
                 st.dataframe(df.head(15), use_container_width=True)
 
 # ============================================================
-# ABA 2: TRATAMENTO (COM AGREGAÇÃO CORRIGIDA)
+# ABA 2: TRATAMENTO
 # ============================================================
 with aba2:
     st.header("🔧 Tratamento de Dados")
@@ -573,7 +601,6 @@ with aba2:
     if df is None:
         st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
     else:
-        # Valores ausentes
         missing_total = df.isnull().sum().sum()
         if missing_total > 0:
             st.markdown(f'<div class="warning-box"><h3>⚠️ {missing_total:,} valores ausentes</h3></div>', unsafe_allow_html=True)
@@ -617,7 +644,7 @@ with aba2:
         else:
             st.markdown('<div class="success-box"><h3>✅ Nenhum valor ausente!</h3></div>', unsafe_allow_html=True)
         
-        # AGREGAÇÃO TEMPORAL (CORRIGIDA)
+        # AGREGAÇÃO TEMPORAL
         st.markdown("---")
         st.subheader("📆 Agregação Temporal")
         
@@ -626,27 +653,17 @@ with aba2:
         
         if date_cols and colunas_num:
             col_data_agg = st.selectbox("Coluna de data:", date_cols, key="agg_date")
-            
-            # Seleção do período com mapeamento correto
-            periodo_nome = st.radio(
-                "Período:",
-                list(FREQ_MAP.keys()),
-                horizontal=True,
-                key="agg_freq"
-            )
+            periodo_nome = st.radio("Período:", list(FREQ_MAP.keys()), horizontal=True, key="agg_freq")
             
             if st.button("📊 Gerar Média " + periodo_nome, key="btn_agg"):
                 freq_code = FREQ_MAP[periodo_nome]
-                
                 with st.spinner(f"Calculando média {periodo_nome.lower()}..."):
                     df_agg = criar_agregacao_temporal(df, col_data_agg, freq_code)
-                    
                     if df_agg is not None:
                         st.session_state['df_mensal'] = df_agg
                         st.success(f"✅ Média {periodo_nome.lower()} gerada! ({len(df_agg)} registros)")
                         st.rerun()
             
-            # Mostrar tabela agregada se existir
             if st.session_state.get('df_mensal') is not None:
                 st.markdown(f"#### 📋 Média {periodo_nome}")
                 st.dataframe(st.session_state['df_mensal'], use_container_width=True)
@@ -656,7 +673,7 @@ with aba2:
             if not colunas_num:
                 st.info("📊 Nenhuma variável numérica disponível.")
         
-        # Outliers
+        # OUTLIERS
         st.markdown("---")
         st.subheader("🔍 Outliers (IQR)")
         
@@ -686,63 +703,56 @@ with aba3:
     st.markdown("---")
     
     if not SCIPY_DISPONIVEL:
-        st.warning("⚠️ SciPy não instalado. Teste de normalidade Shapiro-Wilk indisponível.")
+        st.warning("⚠️ SciPy não instalado. Shapiro-Wilk indisponível.")
     
-    fonte_dados = st.radio(
-        "Fonte de dados:",
-        ['Dados Originais', 'Média Mensal/Anual (se disponível)'],
-        horizontal=True,
-        key="fonte_stats"
-    )
+    fonte_dados = st.radio("Fonte:", ['Dados Originais', 'Média Mensal/Anual'], horizontal=True, key="fonte_stats")
     
-    if fonte_dados == 'Média Mensal/Anual (se disponível)' and st.session_state.get('df_mensal') is not None:
+    if fonte_dados == 'Média Mensal/Anual' and st.session_state.get('df_mensal') is not None:
         df = st.session_state['df_mensal'].copy()
-        st.info("📆 Usando dados agregados temporalmente")
+        st.info("📆 Dados agregados")
     else:
         df = obter_df_limpo()
     
     if df is None:
-        st.warning("⚠️ Carregue os dados na Aba 1 primeiro!")
+        st.warning("⚠️ Carregue os dados primeiro!")
     else:
         colunas_num = df.select_dtypes(include=[np.number]).columns.tolist()
-        
         if not colunas_num:
             st.warning("⚠️ Nenhuma variável numérica.")
         else:
-            col_analise = st.selectbox("Variável para análise:", colunas_num, key="stat_col")
-            
+            col_analise = st.selectbox("Variável:", colunas_num, key="stat_col")
             stats = calcular_estatisticas_completas(df, col_analise)
             
             if stats:
-                st.subheader(f"📈 Estatísticas Completas: **{col_analise}**")
-                
+                st.subheader(f"📈 {col_analise}")
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Média", f"{stats['Média']:.3f}")
-                c2.metric("Desvio Padrão", f"{stats['Desvio Padrão']:.3f}")
+                c2.metric("Desvio", f"{stats['Desvio Padrão']:.3f}")
                 c3.metric("CV (%)", f"{stats['CV (%)']:.1f}%", stats['Classificação CV'])
                 c4.metric("Normalidade", stats.get('Dist. Normal?', 'N/A'))
                 
-                with st.expander("📋 Ver Todas as Estatísticas"):
+                with st.expander("📋 Todas as Estatísticas"):
                     stats_df = pd.DataFrame(list(stats.items()), columns=['Estatística', 'Valor'])
                     st.dataframe(stats_df, use_container_width=True, hide_index=True)
                 
+                # HISTOGRAMA CORRIGIDO
                 st.markdown("---")
                 st.subheader("📊 Distribuição")
-                bins = st.slider("Bins:", 5, 100, 30, key="bins_stats")
-                df_plot = pd.DataFrame({col_analise: df[col_analise].dropna().values})
-                chart_h = criar_histograma_aprimorado(df_plot, col_analise, bins)
+                bins = st.slider("Bins:", 5, 50, 20, key="bins_stats")
+                chart_h = criar_histograma_aprimorado(df, col_analise, bins)
                 if chart_h:
                     st.altair_chart(chart_h, use_container_width=True)
                 
+                # BOXPLOT CORRIGIDO
                 st.markdown("---")
                 st.subheader("📉 Boxplot")
-                chart_box = criar_boxplot(df_plot, col_analise)
+                chart_box = criar_boxplot(df, col_analise)
                 if chart_box:
                     st.altair_chart(chart_box, use_container_width=True)
                 
                 if len(colunas_num) >= 2:
                     st.markdown("---")
-                    st.subheader("🔗 Matriz de Correlação")
+                    st.subheader("🔗 Correlação")
                     corr = df[colunas_num].dropna(axis=1, how="all").corr()
                     if not corr.empty:
                         st.dataframe(corr.round(3), use_container_width=True)
@@ -768,16 +778,11 @@ with aba4:
     st.header("📈 Visualização Gráfica")
     st.markdown("---")
     
-    fonte_graf = st.radio(
-        "Fonte:",
-        ['Dados Originais', 'Média Mensal/Anual'],
-        horizontal=True,
-        key="fonte_graf"
-    )
+    fonte_graf = st.radio("Fonte:", ['Dados Originais', 'Média Mensal/Anual'], horizontal=True, key="fonte_graf")
     
     if fonte_graf == 'Média Mensal/Anual' and st.session_state.get('df_mensal') is not None:
         df = st.session_state['df_mensal'].copy()
-        st.info("📆 Usando dados agregados")
+        st.info("📆 Dados agregados")
     else:
         df = obter_df_limpo()
     
@@ -813,28 +818,25 @@ with aba4:
             
             elif tipo == '📊 Histograma':
                 col_h = st.selectbox("Variável:", colunas_num, key="gh")
-                bins_h = st.slider("Bins:", 5, 100, 30, key="gb")
-                df_plot = pd.DataFrame({col_h: df[col_h].dropna().values})
-                chart = criar_histograma_aprimorado(df_plot, col_h, bins_h)
+                bins_h = st.slider("Bins:", 5, 50, 20, key="gb")
+                chart = criar_histograma_aprimorado(df, col_h, bins_h)
                 if chart:
                     st.altair_chart(chart, use_container_width=True)
             
             elif tipo == '📉 Boxplot':
                 col_b = st.selectbox("Variável:", colunas_num, key="gbox")
-                df_plot = pd.DataFrame({col_b: df[col_b].dropna().values})
-                chart = criar_boxplot(df_plot, col_b)
+                chart = criar_boxplot(df, col_b)
                 if chart:
                     st.altair_chart(chart, use_container_width=True)
             
             elif tipo == '📋 Barras':
                 st.info("💡 Ideal para dados categóricos ou agregados")
-                
                 if st.session_state.get('df_mensal') is not None and fonte_graf == 'Média Mensal/Anual':
                     x_default = df.columns[0]
                 else:
                     x_default = todas_cols[0]
                 
-                col_x_bar = st.selectbox("Eixo X:", todas_cols, 
+                col_x_bar = st.selectbox("Eixo X:", todas_cols,
                                         index=todas_cols.index(x_default) if x_default in todas_cols else 0,
                                         key="bx")
                 col_y_bar = st.selectbox("Eixo Y:", colunas_num, key="by")
@@ -883,8 +885,8 @@ with aba5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align:center; padding:1.5rem; color:#6c757d; background:#f8f9fa; border-radius:12px;">
-    <h4>🌱 AgroDataLab v9.2</h4>
-    <p>Análise Climática Avançada | Agregação Temporal Corrigida</p>
+    <h4>🌱 AgroDataLab v9.3</h4>
+    <p>Gráficos Corrigidos | Histograma & Boxplot Funcionais</p>
     <p style="font-size:0.8rem;">Licença MIT © 2024</p>
 </div>
 """, unsafe_allow_html=True)

@@ -17,7 +17,15 @@ import google.generativeai as genai
 from scipy.stats import pearsonr, spearmanr, f_oneway, levene
 import warnings
 warnings.filterwarnings('ignore')
+import subprocess
+import sys
 
+# Instalar scipy se necessário
+try:
+    from scipy import stats
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "scipy"])
+    from scipy import stats
 # ============================================================
 # CONFIGURAÇÃO DA PÁGINA E ESTILO
 # ============================================================
